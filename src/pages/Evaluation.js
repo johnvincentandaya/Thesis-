@@ -84,14 +84,23 @@ const Evaluation = () => {
 
           {/* 🔹 Evaluation Results Table */}
           {results.length > 0 && (
-            <Table
-              dataSource={results}
-              columns={columns}
-              pagination={false}
-              style={{ marginTop: 20 }}
-              bordered
-              rowClassName="evaluation-table-row"
-            />
+            <>
+              <Table
+                dataSource={results}
+                columns={columns}
+                pagination={false}
+                style={{ marginTop: 20 }}
+                bordered
+                rowClassName="evaluation-table-row"
+              />
+              <Button
+                type="primary"
+                style={{ marginTop: 20, width: "100%" }}
+                onClick={() => navigate("/visualization")}
+              >
+                Proceed to Visualization ➡️
+              </Button>
+            </>
           )}
         </Card>
       </Content>

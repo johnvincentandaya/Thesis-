@@ -23,12 +23,17 @@ const Training = () => {
     setProgress(10);
 
     try {
-      const response = await fetch("http://localhost:5000/train", { method: "POST" });
+      const response = await fetch("http://localhost:5000/train", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file_path: uploadedFile }),
+      });
       const data = await response.json();
 
       if (response.ok) {
         message.success("✅ Model training completed successfully!");
         setProgress(100);
+        navigate("/evaluation"); // Navigate to evaluation page
       } else {
         message.error("❌ Training failed. Please try again.");
         setProgress(0);

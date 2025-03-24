@@ -40,28 +40,18 @@ const UploadDataset = () => {
         const formData = new FormData();
         formData.append("file", file);
     
-        // Debugging logs
-        console.log("Uploading file:", file);
-        console.log("FormData contains:", formData.get("file"));
-    
         try {
             const response = await axios.post("http://localhost:5000/upload", formData, {
-                headers: { 
-                    "Content-Type": "multipart/form-data" 
-                },
-                onUploadProgress: (progressEvent) => {
-                    console.log(`Upload Progress: ${Math.round((progressEvent.loaded / progressEvent.total) * 100)}%`);
-                }
+                headers: { "Content-Type": "multipart/form-data" },
             });
     
-            console.log("Server Response:", response.data);
-    
             if (response.data.success) {
-                setUploadedFile(file);
+                setUploadedFile(response.data.file_path); // Save file path
                 setUploadSuccess(true);
                 message.success("✅ File uploaded successfully!");
+                navigate("/training"); // Navigate to training page
             } else {
-                message.error(response.data.message || "❌ Upload failed. Try again.");
+                message.error(response.data.error || "❌ Upload failed. Try again.");
             }
         } catch (error) {
             console.error("Upload Error:", error);

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useContext } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
-import { Button, Layout, Typography, Spin } from "antd";
+import { Button, Layout, Typography, Spin, message } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { UploadContext } from "../context/UploadContext";
@@ -16,7 +16,11 @@ const Visualization = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!uploadedFile) return;
+    if (!uploadedFile) {
+        message.error("🚨 No dataset uploaded. Redirecting to upload page.");
+        navigate("/upload");
+        return;
+    }
 
     if (!mountRef.current) return;
 

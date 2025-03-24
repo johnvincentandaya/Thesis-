@@ -21,25 +21,48 @@ student_model = DistilBertForSequenceClassification.from_pretrained("distilbert-
 @app.route('/upload', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
+        return jsonify({"success": False, "error": "No file uploaded"}), 400
     
     file = request.files['file']
     print(f"Received file: {file.filename}")  # Debugging
 
-
     if file.filename == "":
-        return jsonify({"error": "No selected file"}), 400
+        return jsonify({"success": False, "error": "No selected file"}), 400
 
     # Save file securely
     filename = secure_filename(file.filename)
     file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
     file.save(file_path)
 
-    return jsonify({"message": "File uploaded successfully", "filename": filename, "file_path": file_path})
+    return jsonify({"success": True, "message": "File uploaded successfully", "filename": filename, "file_path": file_path})
 
 @app.route('/train', methods=['POST'])
 def train_model():
-    return jsonify({"message": "Teacher model trained!"})
+    # Simulate training logic
+    uploaded_file = request.json.get("file_path")
+    if not uploaded_file or not os.path.exists(uploaded_file):
+        return jsonify({"error": "Uploaded file not found"}), 400
+
+    # Simulate training process
+    print(f"Training model with file: {uploaded_file}")
+    return jsonify({"message": "Training completed successfully!"})
+
+@app.route('/evaluate', methods=['POST'])
+def evaluate_model():
+    # Simulate evaluation logic
+    return jsonify({
+        "message": "Evaluation completed successfully!",
+        "results": [
+            {"metric": "Accuracy", "value": "92%"},
+            {"metric": "Precision", "value": "90%"},
+            {"metric": "Recall", "value": "88%"}
+        ]
+    })
+
+@app.route('/visualize', methods=['POST'])
+def visualize_model():
+    # Simulate visualization data
+    return jsonify({"message": "Visualization data generated!"})
 
 @app.route('/distill', methods=['POST'])
 def distill_model():
