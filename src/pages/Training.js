@@ -1,17 +1,35 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { Layout, Card, Button, Progress, message, Typography, Tooltip } from "antd";
 import { PlayCircleOutlined, ArrowLeftOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { UploadContext } from "../context/UploadContext";
+import { io } from "socket.io-client"; // ✅ Import Socket.IO client
 
 const { Title, Paragraph } = Typography;
 const { Header, Content, Footer } = Layout;
+
+const socket = io("http://localhost:5000", { transports: ["websocket"] }); // Ensure WebSocket transport is used
 
 const Training = () => {
   const navigate = useNavigate();
   const { uploadedFile } = useContext(UploadContext);
   const [training, setTraining] = useState(false);
   const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    // ✅ Listen for real-time training progress updates
+    socket.on("training_progress", (data) => {
+      setProgress(data.progress);
+      if (data.progress === 100) {
+        message.success("✅ Model training completed successfully!");
+        setTimeout(() => navigate("/evaluation"), 1000); // ✅ Navigate to evaluation after training
+      }
+    });
+
+    return () => {
+      socket.off("training_progress"); // ✅ Cleanup event listener on unmount
+    };
+  }, [navigate]);
 
   const startTraining = async () => {
     if (!uploadedFile) {
@@ -20,7 +38,7 @@ const Training = () => {
     }
 
     setTraining(true);
-    setProgress(10);
+    setProgress(0); // Reset progress before starting
 
     try {
       const response = await fetch("http://localhost:5000/train", {
@@ -28,20 +46,15 @@ const Training = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ file_path: uploadedFile }),
       });
-      const data = await response.json();
 
-      if (response.ok) {
-        message.success("✅ Model training completed successfully!");
-        setProgress(100);
-        navigate("/evaluation"); // Navigate to evaluation page
-      } else {
+      if (!response.ok) {
         message.error("❌ Training failed. Please try again.");
         setProgress(0);
+        setTraining(false);
       }
     } catch (error) {
       message.error("🚨 Error connecting to server. Check your backend.");
       setProgress(0);
-    } finally {
       setTraining(false);
     }
   };

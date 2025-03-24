@@ -21,7 +21,7 @@ const UploadDataset = () => {
         const fileExt = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
     
         if (!allowedFormats.includes(fileExt)) {
-            message.error("🚨 Invalid file type! Allowed formats: CSV, JSON, TXT, XLSX, JPG, PNG, ZIP.");
+            message.error(`🚨 Unsupported file type: ${fileExt}. Allowed formats: ${allowedFormats.join(", ")}`);
             return false;
         }
     
@@ -46,7 +46,7 @@ const UploadDataset = () => {
             });
     
             if (response.data.success) {
-                setUploadedFile(response.data.file_path); // Save file path
+                setUploadedFile(response.data.file_path); // Save file path correctly
                 setUploadSuccess(true);
                 message.success("✅ File uploaded successfully!");
                 navigate("/training"); // Navigate to training page
@@ -104,9 +104,9 @@ const UploadDataset = () => {
                     </Button>
                     <Button
                      type="primary"
-                     onClick={() => navigate("/visualization")}
+                     onClick={() => navigate("/training")}
                      style={{ width: "100%", marginTop: 10 }}
-                     disabled={!uploadSuccess} // ✅ Button is disabled until uploadSuccess is true
+                     disabled={!uploadSuccess} // Ensure upload is successful
                     >
                     Next Step ➡️
                     </Button>
