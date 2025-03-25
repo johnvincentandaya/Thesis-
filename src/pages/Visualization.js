@@ -167,12 +167,15 @@ const renderMetrics = (metrics) => {
             <div style={{ marginTop: "20px", textAlign: "left" }}>
                 <Title level={4}>Legend:</Title>
                 <ul>
-                    <li><b>Green Spheres:</b> Represent nodes in the neural network.</li>
-                    <li><b>Gray Lines:</b> Represent connections (edges) between nodes.</li>
+                    <li><b>Green Spheres:</b> Input layer nodes (where data enters the network)</li>
+                    <li><b>Yellow Spheres:</b> Hidden layer nodes (where intermediate processing occurs)</li>
+                    <li><b>Blue Spheres:</b> Output layer nodes (where final predictions are made)</li>
+                    <li><b>Gray Lines:</b> Connections (weights) between nodes</li>
                 </ul>
                 <Paragraph>
                     This visualization shows the structure of the neural network after applying knowledge distillation and pruning.
-                    The nodes represent neurons, and the connections represent relationships between them.
+                    The yellow nodes in the middle layers represent the hidden neurons where the model performs its intermediate computations,
+                    transforming input features into more complex representations before making final predictions.
                 </Paragraph>
             </div>
             {metrics && renderMetrics(metrics)}
