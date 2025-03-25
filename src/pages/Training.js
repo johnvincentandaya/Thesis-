@@ -15,21 +15,33 @@ const Training = () => {
   const { uploadedFile } = useContext(UploadContext);
   const [training, setTraining] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [trainingComplete, setTrainingComplete] = useState(false);
 
   useEffect(() => {
-    // ✅ Listen for real-time training progress updates
+    socket.on("connect", () => {
+      console.log("Socket connected");
+    });
+
+    socket.on("error", (error) => {
+      console.error("Socket error:", error);
+    });
+
     socket.on("training_progress", (data) => {
+      console.log("Progress received:", data);
       setProgress(data.progress);
       if (data.progress === 100) {
-        message.success("✅ Model training completed successfully!");
-        setTimeout(() => navigate("/evaluation"), 1000); // ✅ Navigate to evaluation after training
+        setTraining(false);
+        setTrainingComplete(true);
+        message.success("✅ Training completed successfully! Click 'Next Step' to proceed.");
       }
     });
 
     return () => {
-      socket.off("training_progress"); // ✅ Cleanup event listener on unmount
+      socket.off("training_progress");
+      socket.off("connect");
+      socket.off("error");
     };
-  }, [navigate]);
+  }, []);
 
   const startTraining = async () => {
     if (!uploadedFile) {
@@ -38,7 +50,8 @@ const Training = () => {
     }
 
     setTraining(true);
-    setProgress(0); // Reset progress before starting
+    setProgress(0);
+    setTrainingComplete(false);
 
     try {
       const response = await fetch("http://localhost:5000/train", {
@@ -47,15 +60,19 @@ const Training = () => {
         body: JSON.stringify({ file_path: uploadedFile }),
       });
 
-      if (!response.ok) {
-        message.error("❌ Training failed. Please try again.");
-        setProgress(0);
+      const data = await response.json();
+      console.log("Training response:", data);
+
+      if (!response.ok || !data.success) {
+        message.error(data.error || "❌ Training failed. Please try again.");
         setTraining(false);
+        setProgress(0);
       }
     } catch (error) {
-      message.error("🚨 Error connecting to server. Check your backend.");
-      setProgress(0);
+      console.error("Training Error:", error);
+      message.error("🚨 Error connecting to server.");
       setTraining(false);
+      setProgress(0);
     }
   };
 
@@ -88,13 +105,23 @@ const Training = () => {
             type="primary"
             icon={<PlayCircleOutlined />}
             onClick={startTraining}
-            disabled={training}
+            disabled={training || trainingComplete}
             style={{ width: "100%", marginTop: 10, transition: "0.3s" }}
           >
-            {training ? "Training in Progress..." : "Start Training"}
+            {training ? "Training in Progress..." : trainingComplete ? "Training Complete" : "Start Training"}
           </Button>
 
           <Progress percent={progress} status={training ? "active" : "normal"} style={{ marginTop: 20 }} />
+
+          {trainingComplete && (
+            <Button
+              type="primary"
+              onClick={() => navigate("/evaluation")}
+              style={{ width: "100%", marginTop: 20 }}
+            >
+              Next Step: Evaluate Model ➡️
+            </Button>
+          )}
         </Card>
       </Content>
 

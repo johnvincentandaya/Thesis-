@@ -18,7 +18,7 @@ const Evaluation = () => {
       message.error("🚨 Please upload a dataset before evaluating.");
       return;
     }
-
+  
     setLoading(true);
     try {
       const response = await fetch("http://localhost:5000/evaluate", {
@@ -27,16 +27,17 @@ const Evaluation = () => {
         body: JSON.stringify({ file_path: uploadedFile }),
       });
       const data = await response.json();
-
+  
       if (response.ok && data.success) {
-        message.success("✅ Evaluation completed successfully!");
         setResults(data.results);
         setEvaluationResults(data.results);
+        message.success("✅ Model evaluation completed!");
       } else {
-        message.error(data.error || "❌ Evaluation failed. Try again.");
+        message.error(data.error || "❌ Evaluation failed.");
       }
     } catch (error) {
-      message.error("🚨 Error connecting to server.");
+      console.error("Evaluation Error:", error);
+      message.error("🚨 Server connection error");
     } finally {
       setLoading(false);
     }
@@ -44,7 +45,7 @@ const Evaluation = () => {
 
   const fetchDistillationMetrics = async () => {
     if (!uploadedFile) {
-      message.error("🚨 Please upload a dataset before fetching metrics.");
+      message.error("🚨 Please upload a dataset first.");
       return;
     }
 
@@ -58,13 +59,14 @@ const Evaluation = () => {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        message.success("✅ Distillation metrics fetched successfully!");
-        setResults(Object.entries(data.metrics).map(([key, value]) => ({ metric: key, value }))); // Map metrics to table format
+        setResults(data.results);
+        message.success("✅ Distillation metrics calculated!");
       } else {
-        message.error(data.error || "❌ Failed to fetch distillation metrics.");
+        message.error(data.error || "❌ Failed to fetch metrics");
       }
     } catch (error) {
-      message.error("🚨 Error connecting to server.");
+      console.error("Distillation Error:", error);
+      message.error("🚨 Server connection error");
     } finally {
       setLoading(false);
     }
@@ -119,12 +121,14 @@ const Evaluation = () => {
           style={{ maxWidth: 600, width: "100%", textAlign: "center", borderRadius: 12, boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)" }}
         >
           <Paragraph>
-            Evaluate the performance of the trained model using key metrics:
+            Evaluate the performance of the trained model using dynamically calculated metrics:
           </Paragraph>
           <ul style={{ textAlign: "left", marginBottom: "20px" }}>
             <li><b>Accuracy:</b> The percentage of correct predictions made by the model.</li>
             <li><b>Precision:</b> The proportion of true positive predictions out of all positive predictions.</li>
             <li><b>Recall:</b> The proportion of true positive predictions out of all actual positives.</li>
+            <li><b>Inference Speed:</b> The speed improvement after applying compression techniques.</li>
+            <li><b>Memory Usage:</b> The reduction in memory usage after pruning.</li>
           </ul>
 
           <Tooltip title="Ensure training is complete before running evaluation.">

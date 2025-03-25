@@ -1,66 +1,73 @@
-import React, { useState, useContext, } from "react";
+import React, { useState, useContext } from "react";
 import { Layout, Button, Card, Upload, Typography, message, Tooltip } from "antd";
 import { UploadOutlined, ArrowLeftOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { UploadContext } from "../context/UploadContext";
 
-const { Title, Paragraph, Text } = Typography;
+const { Title, Paragraph } = Typography;
 const { Header, Content, Footer } = Layout;
 const allowedFormats = [".csv", ".json", ".txt", ".xlsx", ".jpg", ".png", ".zip"];
 
-
 const UploadDataset = () => {
     const navigate = useNavigate();
-    const { setUploadedFile } = useContext(UploadContext);
+    const { setUploadedFile, setIsUploaded } = useContext(UploadContext);
     const [file, setFile] = useState(null);
     const [uploading, setUploading] = useState(false);
     const [uploadSuccess, setUploadSuccess] = useState(false);
 
     const beforeUpload = (file) => {
         const fileExt = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
-    
+
         if (!allowedFormats.includes(fileExt)) {
             message.error(`🚨 Unsupported file type: ${fileExt}. Allowed formats: ${allowedFormats.join(", ")}`);
             return false;
         }
-    
+
         setFile(file);
         return false; // Prevent automatic upload
     };
 
-    
     const handleUpload = async () => {
         if (!file) {
             message.error("⚠️ Please select a file before uploading.");
             return;
         }
-    
+
         setUploading(true);
         const formData = new FormData();
         formData.append("file", file);
-    
+
         try {
             const response = await axios.post("http://localhost:5000/upload", formData, {
                 headers: { "Content-Type": "multipart/form-data" },
             });
-    
+
             if (response.data.success) {
-                setUploadedFile(response.data.file_path); // Save file path correctly
+                const filePath = response.data.file_path;
+                setUploadedFile(filePath);
                 setUploadSuccess(true);
-                message.success("✅ File uploaded successfully!");
-                navigate("/training"); // Navigate to training page
+                message.success("✅ File uploaded successfully! Click 'Next Step' to proceed to training.");
             } else {
+                setUploadSuccess(false);
                 message.error(response.data.error || "❌ Upload failed. Try again.");
             }
         } catch (error) {
             console.error("Upload Error:", error);
+            setUploadSuccess(false);
             message.error("🚨 Failed to upload file. Please check your connection.");
         } finally {
             setUploading(false);
         }
     };
-    
+
+    const goToTraining = () => {
+        if (uploadSuccess && file) {
+            setIsUploaded(true);
+            navigate("/training");
+        }
+    };
+
     return (
         <Layout>
             {/* Navigation Bar */}
@@ -87,30 +94,29 @@ const UploadDataset = () => {
                     </Tooltip>
 
                     <Upload beforeUpload={beforeUpload} showUploadList={false} accept={allowedFormats.join(",")}>
-    <Button type="dashed" icon={<UploadOutlined />} style={{ width: "100%", marginBottom: 10 }}>
-        {file ? `Selected: ${file.name}` : "Choose File"}
-    </Button>
-</Upload>
+                        <Button type="dashed" icon={<UploadOutlined />} style={{ width: "100%", marginBottom: 10 }}>
+                            {file ? `Selected: ${file.name}` : "Choose File"}
+                        </Button>
+                    </Upload>
 
                     <Button
                         type="primary"
-                        icon={<UploadOutlined />}
-                        loading={uploading}
                         onClick={handleUpload}
+                        loading={uploading}
                         disabled={!file}
                         style={{ width: "100%", transition: "0.3s" }}
                     >
                         {uploading ? "Uploading..." : "Upload"}
                     </Button>
+
                     <Button
-                     type="primary"
-                     onClick={() => navigate("/training")}
-                     style={{ width: "100%", marginTop: 10 }}
-                     disabled={!uploadSuccess} // Ensure upload is successful
+                        type="primary"
+                        onClick={goToTraining}
+                        style={{ width: "100%", marginTop: 10 }}
+                        disabled={!uploadSuccess}
                     >
-                    Next Step ➡️
+                        {uploadSuccess ? "Start Training ➡️" : "Upload File First"}
                     </Button>
-                    
                 </Card>
             </Content>
 

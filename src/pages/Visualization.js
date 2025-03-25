@@ -49,57 +49,84 @@ const Visualization = () => {
     const renderVisualization = (visualizationData) => {
         if (!mountRef.current) return;
 
-        // 🔹 THREE.js Scene Setup
+        // Scene setup
         const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf0f0f0);
+        
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 0, 8);
+        camera.position.set(5, 2, 10);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setSize(window.innerWidth * 0.8, window.innerHeight * 0.8);
         mountRef.current.appendChild(renderer.domElement);
 
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.enableRotate = true; // Allow rotation
-        controls.enableZoom = true;  // Allow zoom
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
 
-        // 🔹 Add Nodes
-        const sphereGeometry = new THREE.SphereGeometry(0.2, 32, 32);
-        const sphereMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(10, 10, 10);
+        scene.add(directionalLight);
+
+        // Add nodes
         visualizationData.nodes.forEach((node) => {
-            const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+            const geometry = new THREE.SphereGeometry(node.size, 32, 32);
+            const material = new THREE.MeshPhongMaterial({ 
+                color: node.color,
+                shininess: 100,
+                specular: 0x444444
+            });
+            const sphere = new THREE.Mesh(geometry, material);
             sphere.position.set(node.x, node.y, node.z);
             scene.add(sphere);
         });
 
-        // 🔹 Add Connections
-        const connections = new THREE.Group();
-        visualizationData.connections.forEach((connection) => {
-            const material = new THREE.LineBasicMaterial({ color: 0xaaaaaa });
-            const geometry = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(
-                    visualizationData.nodes[connection.source].x,
-                    visualizationData.nodes[connection.source].y,
-                    visualizationData.nodes[connection.source].z
-                ),
-                new THREE.Vector3(
-                    visualizationData.nodes[connection.target].x,
-                    visualizationData.nodes[connection.target].y,
-                    visualizationData.nodes[connection.target].z
-                ),
-            ]);
+        // Add connections
+        visualizationData.connections.forEach((conn) => {
+            const points = [
+                new THREE.Vector3(conn.source.x, conn.source.y, conn.source.z),
+                new THREE.Vector3(conn.target.x, conn.target.y, conn.target.z)
+            ];
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({ 
+                color: 0x666666,
+                opacity: conn.strength,
+                transparent: true
+            });
             const line = new THREE.Line(geometry, material);
-            connections.add(line);
+            scene.add(line);
         });
-        scene.add(connections);
 
-        // 🔹 Animation Loop
+        // Controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.screenSpacePanning = false;
+        controls.minDistance = 5;
+        controls.maxDistance = 50;
+
+        // Animation
         const animate = () => {
             requestAnimationFrame(animate);
             controls.update();
             renderer.render(scene, camera);
         };
         animate();
+
+        // Handle window resize
+        const handleResize = () => {
+            const width = window.innerWidth * 0.8;
+            const height = window.innerHeight * 0.8;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        };
+        window.addEventListener('resize', handleResize);
+
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            mountRef.current?.removeChild(renderer.domElement);
+        };
     };
 
     fetchVisualizationData();
