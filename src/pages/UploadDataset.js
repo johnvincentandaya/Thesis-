@@ -45,6 +45,7 @@ const UploadDataset = () => {
 
             if (response.data.success) {
                 const filePath = response.data.file_path;
+                console.log("Uploaded file path:", filePath);
                 setUploadedFile(filePath);
                 setUploadSuccess(true);
                 message.success("✅ File uploaded successfully! Click 'Next Step' to proceed to training.");
@@ -86,7 +87,7 @@ const UploadDataset = () => {
                     style={{ maxWidth: 500, width: "100%", textAlign: "center", borderRadius: 12, boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)" }}
                 >
                     <Paragraph>
-                        Select a CSV file to upload and use for training.
+                        Select a CSV, JSON, TXT, Excel, JPG, PNG, or ZIP file to upload and use for training.
                     </Paragraph>
 
                     <Tooltip title="Ensure the file format is .csv before uploading.">

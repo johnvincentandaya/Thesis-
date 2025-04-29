@@ -1,14 +1,14 @@
 import React, { useState, useContext, useEffect } from "react";
-import { Layout, Card, Button, Progress, message, Typography, Tooltip } from "antd";
-import { PlayCircleOutlined, ArrowLeftOutlined, InfoCircleOutlined } from "@ant-design/icons";
+import { Layout, Card, Button, Progress, message, Typography } from "antd";
+import { PlayCircleOutlined, ArrowLeftOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { UploadContext } from "../context/UploadContext";
-import { io } from "socket.io-client"; // ✅ Import Socket.IO client
+import { io } from "socket.io-client";
 
 const { Title, Paragraph } = Typography;
 const { Header, Content, Footer } = Layout;
 
-const socket = io("http://localhost:5000", { transports: ["websocket"] }); // Ensure WebSocket transport is used
+const socket = io("http://localhost:5000", { transports: ["websocket"] });
 
 const Training = () => {
   const navigate = useNavigate();
@@ -22,24 +22,18 @@ const Training = () => {
       console.log("Socket connected");
     });
 
-    socket.on("error", (error) => {
-      console.error("Socket error:", error);
-    });
-
     socket.on("training_progress", (data) => {
-      console.log("Progress received:", data);
+      console.log("Training progress:", data.progress);
       setProgress(data.progress);
       if (data.progress === 100) {
-        setTraining(false);
         setTrainingComplete(true);
-        message.success("✅ Training completed successfully! Click 'Next Step' to proceed.");
+        message.success("✅ Training completed successfully!");
       }
     });
 
     return () => {
       socket.off("training_progress");
       socket.off("connect");
-      socket.off("error");
     };
   }, []);
 
@@ -61,9 +55,9 @@ const Training = () => {
       });
 
       const data = await response.json();
-      console.log("Training response:", data);
-
-      if (!response.ok || !data.success) {
+      if (response.ok && data.success) {
+        message.success("✅ Training started successfully!");
+      } else {
         message.error(data.error || "❌ Training failed. Please try again.");
         setTraining(false);
         setProgress(0);
@@ -78,7 +72,6 @@ const Training = () => {
 
   return (
     <Layout>
-      {/* Navigation Bar */}
       <Header style={{ background: "#001529", display: "flex", alignItems: "center", padding: "0 20px" }}>
         <Title level={3} style={{ color: "white", margin: "0", flex: 1 }}>KD-Pruning Simulator</Title>
         <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)} style={{ color: "white" }}>
@@ -86,7 +79,6 @@ const Training = () => {
         </Button>
       </Header>
 
-      {/* Main Content */}
       <Content style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "80vh", padding: "20px" }}>
         <Card
           title="🚀 Train AI Model"
@@ -97,16 +89,12 @@ const Training = () => {
             Train the AI model using the latest dataset and configurations.
           </Paragraph>
 
-          <Tooltip title="Ensure you've uploaded a dataset before starting training.">
-            <InfoCircleOutlined style={{ fontSize: 18, color: "#1890ff", marginBottom: 10 }} />
-          </Tooltip>
-
           <Button
             type="primary"
             icon={<PlayCircleOutlined />}
             onClick={startTraining}
             disabled={training || trainingComplete}
-            style={{ width: "100%", marginTop: 10, transition: "0.3s" }}
+            style={{ width: "100%", marginTop: 10 }}
           >
             {training ? "Training in Progress..." : trainingComplete ? "Training Complete" : "Start Training"}
           </Button>
@@ -125,7 +113,6 @@ const Training = () => {
         </Card>
       </Content>
 
-      {/* Footer */}
       <Footer style={{ textAlign: "center", background: "#001529", color: "white", padding: "20px" }}>
         © 2025 KD-Pruning Simulator. All rights reserved.
       </Footer>
@@ -134,3 +121,5 @@ const Training = () => {
 };
 
 export default Training;
+
+

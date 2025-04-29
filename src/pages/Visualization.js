@@ -1,233 +1,265 @@
 import React, { useEffect, useRef, useState, useContext } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
-import { Button, Layout, Typography, Spin, message } from "antd";
-import { ArrowLeftOutlined } from "@ant-design/icons";
+import { Button, Layout, Typography, Spin, message, Card } from "antd";
+import { ArrowLeftOutlined, DownloadOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { UploadContext } from "../context/UploadContext";
 
-const { Content } = Layout;
-const { Text, Title, Paragraph } = Typography;
+const { Header, Content, Footer } = Layout;
+const { Title, Paragraph } = Typography;
 
 const Visualization = () => {
   const mountRef = useRef(null);
   const navigate = useNavigate();
   const { uploadedFile } = useContext(UploadContext);
   const [loading, setLoading] = useState(false);
-  const [metrics, setMetrics] = useState(null);
+
+  const defaultVisualizationData = {
+    nodes: [
+      // Input Layer (4 green nodes)
+      { id: "input_1", x: 0, y: 1.5, z: 0, size: 0.5, color: "green" },
+      { id: "input_2", x: 0, y: 0.5, z: 0, size: 0.5, color: "green" },
+      { id: "input_3", x: 0, y: -0.5, z: 0, size: 0.5, color: "green" },
+      { id: "input_4", x: 0, y: -1.5, z: 0, size: 0.5, color: "green" },
+
+      // Hidden Layer 1 (16 yellow nodes)
+      ...Array.from({ length: 16 }, (_, i) => ({
+        id: `hidden1_${i + 1}`,
+        x: 2,
+        y: 7.5 - i,
+        z: 0,
+        size: 0.4,
+        color: "yellow",
+      })),
+
+      // Hidden Layer 2 (12 yellow nodes)
+      ...Array.from({ length: 12 }, (_, i) => ({
+        id: `hidden2_${i + 1}`,
+        x: 4,
+        y: 5.5 - i,
+        z: 0,
+        size: 0.4,
+        color: "yellow",
+      })),
+
+      // Hidden Layer 3 (8 red nodes, pruned)
+      ...Array.from({ length: 8 }, (_, i) => ({
+        id: `hidden3_${i + 1}`,
+        x: 6,
+        y: 3.5 - i,
+        z: 0,
+        size: i % 2 === 0 ? 0.3 : 0.2,
+        color: "red",
+        opacity: i % 2 === 0 ? 1 : 0.5,
+      })),
+
+      // Output Layer (3 blue nodes)
+      { id: "output_1", x: 8, y: 1, z: 0, size: 0.5, color: "blue" },
+      { id: "output_2", x: 8, y: 0, z: 0, size: 0.5, color: "blue" },
+      { id: "output_3", x: 8, y: -1, z: 0, size: 0.5, color: "blue" },
+    ],
+    connections: [
+      // Connections from Input Layer to Hidden Layer 1
+      ...Array.from({ length: 4 }, (_, i) =>
+        Array.from({ length: 16 }, (_, j) => ({
+          source: { x: 0, y: 1.5 - i, z: 0 },
+          target: { x: 2, y: 7.5 - j, z: 0 },
+          color: "gray",
+        }))
+      ).flat(),
+
+      // Connections from Hidden Layer 1 to Hidden Layer 2
+      ...Array.from({ length: 16 }, (_, i) =>
+        Array.from({ length: 12 }, (_, j) => ({
+          source: { x: 2, y: 7.5 - i, z: 0 },
+          target: { x: 4, y: 5.5 - j, z: 0 },
+          color: "gray",
+        }))
+      ).flat(),
+
+      // Connections from Hidden Layer 2 to Hidden Layer 3
+      ...Array.from({ length: 12 }, (_, i) =>
+        Array.from({ length: 8 }, (_, j) => ({
+          source: { x: 4, y: 5.5 - i, z: 0 },
+          target: { x: 6, y: 3.5 - j, z: 0 },
+          color: "gray",
+        }))
+      ).flat(),
+
+      // Connections from Hidden Layer 3 to Output Layer
+      ...Array.from({ length: 8 }, (_, i) =>
+        Array.from({ length: 3 }, (_, j) => ({
+          source: { x: 6, y: 3.5 - i, z: 0 },
+          target: { x: 8, y: 1 - j, z: 0 },
+          color: "gray",
+        }))
+      ).flat(),
+    ],
+  };
 
   useEffect(() => {
-    if (!uploadedFile) {
-        message.error("🚨 No dataset uploaded. Redirecting to upload page.");
-        navigate("/upload");
-        return;
+    renderVisualization(defaultVisualizationData);
+  }, []);
+
+  const renderVisualization = (visualizationData) => {
+    if (!mountRef.current) return;
+
+    // Clean up any existing child nodes in mountRef
+    while (mountRef.current.firstChild) {
+      mountRef.current.removeChild(mountRef.current.firstChild);
     }
 
-    const fetchVisualizationData = async () => {
-        setLoading(true);
-        try {
-            const response = await fetch("http://localhost:5000/visualize", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ file_path: uploadedFile }),
-            });
-            const data = await response.json();
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf0f0f0);
 
-            if (response.ok && data.success) {
-                renderVisualization(data.data); // Render visualization with backend data
-                setMetrics(data.metrics); // Set metrics data
-            } else {
-                message.error(data.error || "❌ Failed to generate visualization.");
-            }
-        } catch (error) {
-            message.error("🚨 Error connecting to server.");
-        } finally {
-            setLoading(false);
-        }
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 0, 10);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth * 0.8, window.innerHeight * 0.8);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    mountRef.current.appendChild(renderer.domElement);
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(10, 10, 10);
+    scene.add(directionalLight);
+
+    // Render nodes
+    visualizationData.nodes.forEach((node) => {
+      const geometry = new THREE.SphereGeometry(node.size, 32, 32);
+      const material = new THREE.MeshPhongMaterial({
+        color: node.color,
+        shininess: 100,
+        specular: 0x444444,
+        transparent: true,
+        opacity: node.opacity || 1,
+      });
+
+      const sphere = new THREE.Mesh(geometry, material);
+      sphere.position.set(node.x, node.y, node.z);
+      scene.add(sphere);
+    });
+
+    // Render connections
+    visualizationData.connections.forEach((connection) => {
+      const material = new THREE.LineBasicMaterial({
+        color: connection.color,
+        linewidth: 1,
+      });
+      const points = [
+        new THREE.Vector3(connection.source.x, connection.source.y, connection.source.z),
+        new THREE.Vector3(connection.target.x, connection.target.y, connection.target.z),
+      ];
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const line = new THREE.Line(geometry, material);
+      scene.add(line);
+    });
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    const animate = () => {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
     };
 
-    const renderVisualization = (visualizationData) => {
-        if (!mountRef.current) return;
+    animate();
+  };
 
-        // Scene setup
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xf0f0f0);
-        
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 0, 15); // Changed initial camera position
+  const handleDownload = async () => {
+    try {
+      const response = await fetch("http://localhost:5000/download", {
+        method: "GET",
+      });
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth * 0.8, window.innerHeight * 0.8);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        mountRef.current.appendChild(renderer.domElement);
+      if (!response.ok) {
+        const errorData = await response.json();
+        message.error(errorData.error || "Failed to download the file.");
+        return;
+      }
 
-        // Enhanced lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-        scene.add(ambientLight);
+      // Create a blob and trigger the download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "compressed_model_and_results.zip";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
 
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(10, 10, 10);
-        scene.add(directionalLight);
-
-        // Add nodes with hover effect for all colors
-        visualizationData.nodes.forEach((node) => {
-            const geometry = new THREE.SphereGeometry(node.size, 32, 32);
-            const material = new THREE.MeshPhongMaterial({ 
-                color: node.color,
-                shininess: 100,
-                specular: 0x444444,
-                transparent: true,
-                opacity: 0.8,
-                emissive: node.color,  // Add emissive for better visibility
-                emissiveIntensity: 0.2
-            });
-            const sphere = new THREE.Mesh(geometry, material);
-            sphere.position.set(node.x, node.y, node.z);
-            sphere.userData = {
-                id: node.id,
-                type: node.color === "#00ff00" ? "input" : 
-                      node.color === "#0000ff" ? "output" : "hidden",
-                originalColor: node.color,
-                originalScale: 1
-            };
-            scene.add(sphere);
-        });
-
-        // Enhanced controls
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.screenSpacePanning = true;
-        controls.minDistance = 2;
-        controls.maxDistance = 50;
-        controls.enableRotate = true;
-        controls.rotateSpeed = 0.5;
-        controls.enableZoom = true;
-        controls.zoomSpeed = 1.0;
-        controls.panSpeed = 0.8;
-
-        // Raycaster for node interaction
-        const raycaster = new THREE.Raycaster();
-        const mouse = new THREE.Vector2();
-        let hoveredNode = null;
-
-        // Mouse move handler
-        const onMouseMove = (event) => {
-            const rect = renderer.domElement.getBoundingClientRect();
-            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-            raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObjects(scene.children);
-
-            // Reset previous hovered node
-            if (hoveredNode) {
-                hoveredNode.material.opacity = 0.8;
-                hoveredNode.material.emissiveIntensity = 0.2;
-                hoveredNode.scale.set(1, 1, 1);
-            }
-
-            // Handle new hover
-            if (intersects.length > 0) {
-                const object = intersects[0].object;
-                if (object.userData.id) {
-                    hoveredNode = object;
-                    object.material.opacity = 1;
-                    object.material.emissiveIntensity = 0.5;
-                    object.scale.set(1.2, 1.2, 1.2);
-
-                    // Optional: Show node info
-                    const nodeType = object.userData.type;
-                    const nodeId = object.userData.id;
-                    console.log(`Hovering over ${nodeType} node: ${nodeId}`);
-                }
-            } else {
-                hoveredNode = null;
-            }
-        };
-
-        renderer.domElement.addEventListener('mousemove', onMouseMove);
-
-        // Animation
-        const animate = () => {
-            requestAnimationFrame(animate);
-            controls.update();
-            renderer.render(scene, camera);
-        };
-        animate();
-
-        // Enhanced resize handler
-        const handleResize = () => {
-            const width = window.innerWidth * 0.8;
-            const height = window.innerHeight * 0.8;
-            camera.aspect = width / height;
-            camera.updateProjectionMatrix();
-            renderer.setSize(width, height);
-        };
-        window.addEventListener('resize', handleResize);
-
-        return () => {
-            window.removeEventListener('resize', handleResize);
-            renderer.domElement.removeEventListener('mousemove', onMouseMove);
-            mountRef.current?.removeChild(renderer.domElement);
-        };
-    };
-
-    fetchVisualizationData();
-}, [uploadedFile]);
-
-const renderMetrics = (metrics) => {
-    if (!metrics) return null; // Ensure metrics exist
-    return (
-        <div style={{ marginTop: "20px", textAlign: "left" }}>
-            <Title level={4}>Performance Metrics:</Title>
-            <ul>
-                {Object.entries(metrics).map(([key, value]) => (
-                    <li key={key}>
-                        <b>{key.replace(/_/g, " ")}:</b> {value}
-                    </li>
-                ))}
-            </ul>
-        </div>
-    );
-};
+      message.success("✅ Download started!");
+    } catch (error) {
+      console.error("Download Error:", error);
+      message.error("🚨 Failed to download the file. Please try again.");
+    }
+  };
 
   return (
-    <Layout style={{ background: "#f0f2f5", minHeight: "100vh", display: "flex" }}>
-      {/* Sidebar with Back Button */}
-      <div style={{ width: "80px", padding: "20px", display: "flex", alignItems: "center" }}>
-        <Button type="default" icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>
+    <Layout>
+      <Header style={{ background: "#001529", display: "flex", alignItems: "center", padding: "0 20px" }}>
+        <Title level={3} style={{ color: "white", margin: "0", flex: 1 }}>KD-Pruning Simulator</Title>
+        <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)} style={{ color: "white" }}>
           Back
         </Button>
-      </div>
+      </Header>
 
-      {/* Main Content */}
-      <Content style={{ flex: 1, textAlign: "center", padding: "20px" }}>
+      <Content style={{ padding: "20px", textAlign: "center", background: "#f0f2f5", minHeight: "calc(100vh - 64px - 70px)" }}>
         <Title level={3}>📊 Knowledge Distillation & Pruning Visualization</Title>
-        {uploadedFile ? (
-          <>
-            {loading && <Spin size="large" style={{ marginBottom: 20 }} />}
-            <div ref={mountRef} style={{ width: "100%", height: "80vh", background: "#fff", borderRadius: 10, overflow: "hidden" }} />
-            <div style={{ marginTop: "20px", textAlign: "left" }}>
-                <Title level={4}>Legend:</Title>
-                <ul>
-                    <li><b>Green Spheres:</b> Input layer nodes (where data enters the network)</li>
-                    <li><b>Yellow Spheres:</b> Hidden layer nodes (where intermediate processing occurs)</li>
-                    <li><b>Blue Spheres:</b> Output layer nodes (where final predictions are made)</li>
-                    <li><b>Gray Lines:</b> Connections (weights) between nodes</li>
-                </ul>
-                <Paragraph>
-                    This visualization shows the structure of the neural network after applying knowledge distillation and pruning.
-                    The yellow nodes in the middle layers represent the hidden neurons where the model performs its intermediate computations,
-                    transforming input features into more complex representations before making final predictions.
-                </Paragraph>
-            </div>
-            {metrics && renderMetrics(metrics)}
-          </>
-        ) : (
-          <Text type="secondary" style={{ fontSize: "16px" }}>🚀 Upload a dataset to generate the simulation.</Text>
-        )}
+        <Paragraph>
+          This 3D visualization shows the <b>compressed student model</b> architecture after applying 
+          <b> knowledge distillation</b> and <b> pruning</b>. Each sphere is a neuron, and lines represent 
+          the connections between layers.
+        </Paragraph>
+
+        {loading && <Spin size="large" style={{ margin: "30px 0" }} />}
+        <div ref={mountRef} style={{ display: "flex", justifyContent: "center", alignItems: "center", width: "100%", height: "80vh", background: "#fff", borderRadius: 10, marginBottom: "40px" }} />
+
+        {/* Legend Section */}
+        <Card
+          title="Legend"
+          bordered={false}
+          style={{ maxWidth: 600, margin: "20px auto", textAlign: "left", borderRadius: 12, boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)" }}
+        >
+          <ul style={{ lineHeight: "1.8" }}>
+    <li>
+      <b>🟢 Green Nodes:</b> Represent the <b>input layer</b>, where the model receives the features from the dataset.
+    </li>
+    <li>
+      <b>🟡 Yellow Nodes:</b> Represent the <b>hidden layers</b>, where the model processes the data and learns patterns. These nodes are fully active.
+    </li>
+    <li>
+      <b>🔴 Red Nodes:</b> Represent the <b>pruned hidden layer</b>, where some connections are removed to make the model smaller and faster. Smaller or transparent nodes indicate pruned neurons.
+    </li>
+    <li>
+      <b>🔵 Blue Nodes:</b> Represent the <b>output layer</b>, where the model predicts the final classes.
+    </li>
+    <li>
+      <b>Gray Lines:</b> Represent the <b>connections</b> (weights) between neurons in different layers.
+    </li>
+          </ul>
+        </Card>
+
+        <Button
+          type="primary"
+          icon={<DownloadOutlined />}
+          style={{ marginTop: 30 }}
+          onClick={handleDownload}
+        >
+          📦 Download Compressed Model & Results
+        </Button>
       </Content>
+
+      <Footer style={{ textAlign: "center", background: "#001529", color: "white", padding: "20px", marginTop: "40px" }}>
+        © 2025 KD-Pruning Simulator. All rights reserved.
+      </Footer>
     </Layout>
   );
 };

@@ -6,6 +6,7 @@ export const UploadProvider = ({ children }) => {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [evaluationResults, setEvaluationResults] = useState(null);
   const [isUploaded, setIsUploaded] = useState(false);
+  const [detailedEvaluationResults, setDetailedEvaluationResults] = useState(null);
 
   return (
     <UploadContext.Provider value={{ 
@@ -14,9 +15,14 @@ export const UploadProvider = ({ children }) => {
       evaluationResults, 
       setEvaluationResults,
       isUploaded,
-      setIsUploaded 
+      setIsUploaded,
+      detailedEvaluationResults,
+      setDetailedEvaluationResults
     }}>
       {children}
     </UploadContext.Provider>
   );
 };
+
+// Define embeddingSize with a default value
+
