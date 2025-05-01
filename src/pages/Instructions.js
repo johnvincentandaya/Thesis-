@@ -1,28 +1,33 @@
-import { Layout, Typography, Menu, Card } from 'antd';
+import { Navbar, Nav, Container } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import { Typography, Card } from 'antd';
+import './Instructions.css'; // Link the new CSS file
 
-const { Header, Content, Footer } = Layout;
 const { Title, Paragraph } = Typography;
 
 function Instructions() {
   return (
-    <Layout>
-      {/* Navigation Bar */}
-      <Header style={{ background: '#001529', display: 'flex', alignItems: 'center', padding: '0 20px' }}>
-        <Title level={3} style={{ color: 'white', margin: '0', flex: 1 }}>KD-Pruning Simulator</Title>
-        <Menu theme="dark" mode="horizontal" style={{ flex: 1, justifyContent: 'flex-end', display: 'flex', gap: '15px' }}>
-          <Menu.Item key="1"><Link to="/">Home</Link></Menu.Item>
-          <Menu.Item key="2"><Link to="/instructions">Instructions</Link></Menu.Item>
-          <Menu.Item key="3"><Link to="/upload">Upload Dataset</Link></Menu.Item>
-          <Menu.Item key="4"><Link to="/training">Training</Link></Menu.Item>
-          <Menu.Item key="5"><Link to="/evaluation">Evaluation</Link></Menu.Item>
-          <Menu.Item key="6"><Link to="/visualization">Visualization</Link></Menu.Item>
-         
-        </Menu>
-      </Header>
+    <>
+      <Navbar bg="black" variant="dark" expand="lg">
+        <Container>
+          <Navbar.Brand as={Link} to="/">KD-Pruning Simulator</Navbar.Brand>
+          <Navbar.Toggle aria-controls="basic-navbar-nav" />
+          <Navbar.Collapse id="basic-navbar-nav">
+            <Nav className="ms-auto">
+              <Nav.Link as={Link} to="/">Home</Nav.Link>
+              <Nav.Link as={Link} to="/instructions">Instructions</Nav.Link>
+              <Nav.Link as={Link} to="/upload">Models</Nav.Link>
+              <Nav.Link as={Link} to="/training">Training</Nav.Link>
+              <Nav.Link as={Link} to="/evaluation">Evaluation</Nav.Link>
+              <Nav.Link as={Link} to="/visualization">Visualization</Nav.Link>
+            </Nav>
+          </Navbar.Collapse>
+        </Container>
+      </Navbar>
 
       {/* Main Content */}
-      <Content style={{ padding: '50px', textAlign: 'center', maxWidth: 900, margin: '0 auto' }}>
+      <div className="instructions-container">
         <Title>How to Use the KD-Pruning Simulator</Title>
         <Paragraph>
           This simulator allows you to explore <b>Knowledge Distillation</b> and <b>Model Pruning</b> techniques interactively.
@@ -30,21 +35,16 @@ function Instructions() {
         </Paragraph>
 
         {/* Instructions Card */}
-        <Card style={{ padding: 30, borderRadius: 12, boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)', textAlign: 'left' }}>
+        <Card className="instructions-card">
           <Paragraph>
-            <b>1️⃣ Upload Your Dataset:</b> Go to the <Link to="/upload">Upload Dataset</Link> page and provide your dataset. <br /><br />
-            <b>2️⃣ Train Your Model:</b> Navigate to the <Link to="/training">Training</Link> page to train a student model using KD. <br /><br />
+            <b>1️⃣ Models:</b> Go to the <Link to="/upload">Models</Link> page and choose your model. <br /><br />
+            <b>2️⃣ Train Your Model:</b> Navigate to the <Link to="/training">Training</Link> page to train a student model using KD and Pruning. <br /><br />
             <b>3️⃣ Evaluate Performance:</b> Check accuracy and efficiency on the <Link to="/evaluation">Evaluation</Link> page. <br /><br />
             <b>4️⃣ Visualize Results:</b> Explore the impact of KD & Pruning on the <Link to="/visualization">Visualization</Link> page.
           </Paragraph>
         </Card>
-      </Content>
-
-      {/* Footer */}
-      <Footer style={{ textAlign: 'center', background: '#001529', color: 'white', padding: '20px' }}>
-        © 2025 KD-Pruning Simulator. All rights reserved.
-      </Footer>
-    </Layout>
+      </div>
+    </>
   );
 }
 
