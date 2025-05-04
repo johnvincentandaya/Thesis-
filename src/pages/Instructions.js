@@ -17,10 +17,10 @@ function Instructions() {
             <Nav className="ms-auto">
               <Nav.Link as={Link} to="/">Home</Nav.Link>
               <Nav.Link as={Link} to="/instructions">Instructions</Nav.Link>
-              <Nav.Link as={Link} to="/upload">Models</Nav.Link>
+              <Nav.Link as={Link} to="/models">Models</Nav.Link>
               <Nav.Link as={Link} to="/training">Training</Nav.Link>
-              <Nav.Link as={Link} to="/evaluation">Evaluation</Nav.Link>
               <Nav.Link as={Link} to="/visualization">Visualization</Nav.Link>
+              <Nav.Link as={Link} to="/assessment">Assessment</Nav.Link>
             </Nav>
           </Navbar.Collapse>
         </Container>
@@ -37,10 +37,10 @@ function Instructions() {
         {/* Instructions Card */}
         <Card className="instructions-card">
           <Paragraph>
-            <b>1️⃣ Models:</b> Go to the <Link to="/upload">Models</Link> page and choose your model. <br /><br />
-            <b>2️⃣ Train Your Model:</b> Navigate to the <Link to="/training">Training</Link> page to train a student model using KD and Pruning. <br /><br />
-            <b>3️⃣ Evaluate Performance:</b> Check accuracy and efficiency on the <Link to="/evaluation">Evaluation</Link> page. <br /><br />
-            <b>4️⃣ Visualize Results:</b> Explore the impact of KD & Pruning on the <Link to="/visualization">Visualization</Link> page.
+            <b>1️. Models:</b> Go to the <Link to="/models">Models</Link> page and see the models descriptions. <br /><br />
+            <b>2️. Train Your Model:</b> Navigate to the <Link to="/training">Training</Link> page to choose and train a student model using KD and Pruning. <br /><br />
+            <b>3. Visualize Results:</b> Explore the impact of KD & Pruning and Check perfomance of the model on the <Link to="/visualization">Visualization</Link> page.<br /><br />
+            <b>4. Assessment:</b> Take the assessment on the <Link to="/assessment">Assessment</Link> page.
           </Paragraph>
         </Card>
       </div>

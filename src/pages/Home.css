@@ -1,0 +1,61 @@
+.home-container {
+  padding: 60px; /* Increased padding */
+  text-align: center;
+}
+
+.home-card-row {
+  max-width: 1400px; /* Further increased max width */
+  margin: 40px auto; /* Increased margin */
+}
+
+.home-card {
+  border-radius: 12px; /* Slightly larger border radius */
+  box-shadow: 0px 6px 15px rgba(0, 0, 0, 0.15); /* Enhanced shadow */
+  padding: 30px; /* Restored padding for the card */
+  height: 300px; /* Set a fixed height for uniform card size */
+}
+
+.home-card-title {
+  font-size: 2rem; /* Increased title font size */
+  font-weight: bold; /* Made title bold */
+  margin-top: -30px; /* Further reduced margin to move title closer to the top */
+  margin-bottom: 30px; /* Added margin below the title for spacing */
+}
+
+.home-card-text {
+  font-size: 1.4rem; /* Larger text font size */
+  text-align: justify; /* Justify paragraph text */
+}
+
+.home-get-started-btn {
+  margin-top: 30px; /* Increased margin */
+}
+
+.home-get-started-link {
+  color: white;
+  text-decoration: none;
+  font-size: 1.2rem; /* Slightly larger link font size */
+}
+
+.navbar {
+  padding-top: 0px !important; /* Completely remove top padding */
+  padding-bottom: 20px !important; /* Completely remove bottom padding */
+  display: flex;
+  justify-content: flex-start; /* Align content to the left */
+  align-items: center; /* Center the content vertically */
+}
+
+.navbar-nav .nav-link {
+  text-decoration: none; /* Remove underline from navbar links */
+}
+
+.navbar-nav .nav-link:hover {
+  text-decoration: none; /* Ensure no underline on hover */
+}
+
+.navbar-brand {
+  font-size: 1.8rem; /* Increase the font size of the navbar title */
+  font-weight: bold; /* Make the title bold */
+  margin: 0 auto; /* Ensure the brand is centered */
+  margin-left: -4rem; /* Add some spacing from the left edge */
+}

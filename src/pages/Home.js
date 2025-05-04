@@ -14,10 +14,10 @@ function Home() {
             <Nav className="ms-auto">
               <Nav.Link as={Link} to="/">Home</Nav.Link>
               <Nav.Link as={Link} to="/instructions">Instructions</Nav.Link>
-              <Nav.Link as={Link} to="/upload">Models</Nav.Link>
+              <Nav.Link as={Link} to="/models">Models</Nav.Link>
               <Nav.Link as={Link} to="/training">Training</Nav.Link>
-              <Nav.Link as={Link} to="/evaluation">Evaluation</Nav.Link>
               <Nav.Link as={Link} to="/visualization">Visualization</Nav.Link>
+              <Nav.Link as={Link} to="/assessment">Assessment</Nav.Link>
             </Nav>
           </Navbar.Collapse>
         </Container>

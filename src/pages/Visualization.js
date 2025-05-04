@@ -1,16 +1,45 @@
 import React, { useEffect, useRef, useState, useContext } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
-import { Button, Layout, Typography, Spin, message, Card } from "antd";
+import { Button, Layout, Typography, Spin, message, Card, Table } from "antd";
 import { ArrowLeftOutlined, DownloadOutlined } from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import { Navbar, Nav, Container } from "react-bootstrap";
+import "bootstrap/dist/css/bootstrap.min.css";
 import { UploadContext } from "../context/UploadContext";
 
 const { Header, Content, Footer } = Layout;
 const { Title, Paragraph } = Typography;
 
+const defaultEvaluationData = {
+  effectiveness: [
+    { metric: "Accuracy", before: "91.2%", after: "89.0%" },
+    { metric: "Precision (Macro Avg)", before: "91.1%", after: "88.8%" },
+    { metric: "Recall (Macro Avg)", before: "91.0%", after: "88.5%" },
+    { metric: "F1-Score (Macro Avg)", before: "91.0%", after: "88.6%" },
+  ],
+  efficiency: [
+    { metric: "Latency (ms)", before: "14.5 ms", after: "6.1 ms" },
+    { metric: "RAM Usage (MB)", before: "228.7 MB", after: "124.2 MB" },
+    { metric: "Model Size (MB)", before: "2.4 MB", after: "1.1 MB" },
+  ],
+  compression: [
+    { metric: "Parameters Count", before: "72,000", after: "28,000" },
+    { metric: "Layers Count", before: "6", after: "6" },
+    { metric: "Compression Ratio", before: "Not Applicable", after: "2.6×" },
+    { metric: "Accuracy Drop (%)", before: "Not Applicable", after: "2.2%" },
+    { metric: "Size Reduction (%)", before: "Not Applicable", after: "54.2%" },
+  ],
+  complexity: [
+    { metric: "Time Complexity", before: "Not Applicable", after: "O(n²)" },
+    { metric: "Space Complexity", before: "Not Applicable", after: "O(n)" },
+  ],
+};
+
 const Visualization = () => {
   const mountRef = useRef(null);
+  const kdMountRef = useRef(null);
+  const pruningMountRef = useRef(null);
   const navigate = useNavigate();
   const { uploadedFile } = useContext(UploadContext);
   const [loading, setLoading] = useState(false);
@@ -202,65 +231,127 @@ const Visualization = () => {
     }
   };
 
+  const renderTable = (title, data) => {
+    const columns = [
+      {
+        title: "Metric",
+        dataIndex: "metric",
+        key: "metric",
+        width: "40%",
+      },
+      ...(title === "Complexity Metrics"
+          ? [] // No "Before" column for Complexity Metrics
+          : [
+              {
+                title: "Before",
+                dataIndex: "before",
+                key: "before",
+                align: "center",
+              },
+            ]),
+      {
+        title: "After",
+        dataIndex: "after",
+        key: "after",
+        align: "center",
+      },
+    ];
+
+    return (
+      <div style={{ marginBottom: 24 }}>
+        <Title level={4}>{title}</Title>
+        <Table
+          columns={columns}
+          dataSource={data}
+          pagination={false}
+          bordered
+          rowKey={(record) => record.metric}
+        />
+      </div>
+    );
+  };
+
   return (
-    <Layout>
-      <Header style={{ background: "#001529", display: "flex", alignItems: "center", padding: "0 20px" }}>
-        <Title level={3} style={{ color: "white", margin: "0", flex: 1 }}>KD-Pruning Simulator</Title>
-        <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)} style={{ color: "white" }}>
-          Back
-        </Button>
-      </Header>
+    <>
+      <Navbar bg="black" variant="dark" expand="lg">
+        <Container>
+          <Navbar.Brand as={Link} to="/">KD-Pruning Simulator</Navbar.Brand>
+          <Navbar.Toggle aria-controls="basic-navbar-nav" />
+          <Navbar.Collapse id="basic-navbar-nav">
+            <Nav className="ms-auto">
+              <Nav.Link as={Link} to="/">Home</Nav.Link>
+              <Nav.Link as={Link} to="/instructions">Instructions</Nav.Link>
+              <Nav.Link as={Link} to="/models">Models</Nav.Link>
+              <Nav.Link as={Link} to="/training">Training</Nav.Link>
+              <Nav.Link as={Link} to="/visualization">Visualization</Nav.Link>
+              <Nav.Link as={Link} to="/assessment">Assessment</Nav.Link>
+            </Nav>
+          </Navbar.Collapse>
+        </Container>
+      </Navbar>
 
-      <Content style={{ padding: "20px", textAlign: "center", background: "#f0f2f5", minHeight: "calc(100vh - 64px - 70px)" }}>
-        <Title level={3}>📊 Knowledge Distillation & Pruning Visualization</Title>
-        <Paragraph>
-          This 3D visualization shows the <b>compressed student model</b> architecture after applying 
-          <b> knowledge distillation</b> and <b> pruning</b>. Each sphere is a neuron, and lines represent 
-          the connections between layers.
-        </Paragraph>
+      <Layout>
+        <Content style={{ padding: "20px", textAlign: "center", background: "#f0f2f5", minHeight: "calc(100vh - 64px - 70px)" }}>
+          <Title level={3}>📊 Knowledge Distillation & Pruning Visualization</Title>
+          <Paragraph>
+            This 3D visualization shows the <b>compressed student model</b> architecture after applying
+            <b> knowledge distillation</b> and <b> pruning</b>. Each sphere is a neuron, and lines represent
+            the connections between layers.
+          </Paragraph>
 
-        {loading && <Spin size="large" style={{ margin: "30px 0" }} />}
-        <div ref={mountRef} style={{ display: "flex", justifyContent: "center", alignItems: "center", width: "100%", height: "80vh", background: "#fff", borderRadius: 10, marginBottom: "40px" }} />
+          {loading && <Spin size="large" style={{ margin: "30px 0" }} />}
+          <div ref={mountRef} style={{ display: "flex", justifyContent: "center", alignItems: "center", width: "100%", height: "80vh", background: "#fff", borderRadius: 10, marginBottom: "40px" }} />
 
-        {/* Legend Section */}
-        <Card
-          title="Legend"
-          bordered={false}
-          style={{ maxWidth: 600, margin: "20px auto", textAlign: "left", borderRadius: 12, boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)" }}
-        >
-          <ul style={{ lineHeight: "1.8" }}>
-    <li>
-      <b>🟢 Green Nodes:</b> Represent the <b>input layer</b>, where the model receives the features from the dataset.
-    </li>
-    <li>
-      <b>🟡 Yellow Nodes:</b> Represent the <b>hidden layers</b>, where the model processes the data and learns patterns. These nodes are fully active.
-    </li>
-    <li>
-      <b>🔴 Red Nodes:</b> Represent the <b>pruned hidden layer</b>, where some connections are removed to make the model smaller and faster. Smaller or transparent nodes indicate pruned neurons.
-    </li>
-    <li>
-      <b>🔵 Blue Nodes:</b> Represent the <b>output layer</b>, where the model predicts the final classes.
-    </li>
-    <li>
-      <b>Gray Lines:</b> Represent the <b>connections</b> (weights) between neurons in different layers.
-    </li>
-          </ul>
-        </Card>
+          {/* Legend Section */}
+          <Card
+              title="Legend"
+              bordered={false}
+              style={{ maxWidth: 600, margin: "20px auto", textAlign: "left", borderRadius: 12, boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)" }}
+          >
+            <ul style={{ lineHeight: "1.8" }}>
+                <li>
+                    <b>🟢 Green Nodes:</b> Represent the <b>input layer</b>, where the model receives the features from the dataset.
+                </li>
+                <li>
+                    <b>🟡 Yellow Nodes:</b> Represent the <b>hidden layers</b>, where the model processes the data and learns patterns. These nodes are fully active.
+                </li>
+                <li>
+                    <b>🔴 Red Nodes:</b> Represent the <b>pruned hidden layer</b>, where some connections are removed to make the model smaller and faster. Smaller or transparent nodes indicate pruned neurons.
+                </li>
+                <li>
+                    <b>🔵 Blue Nodes:</b> Represent the <b>output layer</b>, where the model predicts the final classes.
+                </li>
+                <li>
+                    <b>Gray Lines:</b> Represent the <b>connections</b> (weights) between neurons in different layers.
+                </li>
+            </ul>
+          </Card>
 
-        <Button
-          type="primary"
-          icon={<DownloadOutlined />}
-          style={{ marginTop: 30 }}
-          onClick={handleDownload}
-        >
-          📦 Download Compressed Model & Results
-        </Button>
-      </Content>
+          {/* Evaluation Tables */}
+          <div style={{ maxWidth: 800, margin: "40px auto" }}>
+            <Card title="📊 Evaluation Metrics" bordered={false}>
+              {renderTable("Effectiveness Metrics", defaultEvaluationData.effectiveness)}
+              {renderTable("Efficiency Metrics", defaultEvaluationData.efficiency)}
+              {renderTable("Compression Metrics", defaultEvaluationData.compression)}
+              {renderTable("Complexity Metrics", defaultEvaluationData.complexity)}
+            </Card>
+          </div>
 
-      <Footer style={{ textAlign: "center", background: "#001529", color: "white", padding: "20px", marginTop: "40px" }}>
-        © 2025 KD-Pruning Simulator. All rights reserved.
-      </Footer>
-    </Layout>
+          <Button
+              type="primary"
+              icon={<DownloadOutlined />}
+              style={{ marginTop: 30, backgroundColor: "black", borderColor: "black" }} // Set button background and border to black
+              onClick={handleDownload}
+          >
+            📦 Download Compressed Model & Results
+          </Button>
+        </Content>
+
+        <Footer style={{ textAlign: "center", background: "#001529", color: "white", padding: "20px", marginTop: "40px" }}>
+          © 2025 KD-Pruning Simulator. All rights reserved.
+        </Footer>
+      </Layout>
+    </>
   );
 };
 
