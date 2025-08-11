@@ -1,0 +1,46 @@
+/* Visualization Container Styles */
+.visualization-container {
+  position: relative !important;
+  overflow: hidden !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.visualization-container canvas {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  outline: none !important;
+}
+
+/* Ensure the Card content fills the container */
+.visualization-container .ant-card-body {
+  padding: 0 !important;
+  height: 100% !important;
+  width: 100% !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 991px) {
+  .visualization-container {
+    height: 50vh !important;
+  }
+}
+
+@media (min-width: 992px) {
+  .visualization-container {
+    height: 70vh !important;
+  }
+}
+
+/* Ensure proper aspect ratio */
+.visualization-container > div {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+}
+
+/* Fix for Three.js canvas */
+.visualization-container canvas {
+  touch-action: none !important;
+} 

@@ -5,4 +5,28 @@
   text-align: center;
 }
 
+/* Pulse animation for training status */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
 
+/* Training phase indicators */
+.training-phase {
+  transition: all 0.3s ease;
+}
+
+.training-phase.active {
+  background-color: #f0f8ff;
+  border-color: #1890ff;
+}
