@@ -20,10 +20,36 @@
   width: 100% !important;
 }
 
+/* Enhanced 3D element styling */
+.visualization-container .three-html {
+  pointer-events: none;
+}
+
+.visualization-container .three-html > div {
+  pointer-events: auto;
+  user-select: none;
+}
+
+/* Pruning animation effects */
+@keyframes pruning-pulse {
+  0% { opacity: 0.6; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.1); }
+  100% { opacity: 0.6; transform: scale(0.8); }
+}
+
+.pruning-node {
+  animation: pruning-pulse 1s ease-in-out infinite;
+}
+
 /* Responsive adjustments */
 @media (max-width: 991px) {
   .visualization-container {
     height: 50vh !important;
+  }
+  
+  .visualization-container .three-html > div {
+    font-size: 10px !important;
+    padding: 4px 6px !important;
   }
 }
 
@@ -43,4 +69,43 @@
 /* Fix for Three.js canvas */
 .visualization-container canvas {
   touch-action: none !important;
+}
+
+/* Legend and control panel enhancements */
+.visualization-legend {
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(10px) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Pruning statistics styling */
+.pruning-stats {
+  background: linear-gradient(135deg, #fff2f0 0%, #fff1f0 100%) !important;
+  border: 1px solid #ffccc7 !important;
+}
+
+.pruning-stats .ant-card-head-title {
+  color: #cf1322 !important;
+}
+
+/* Enhanced node labels */
+.node-label {
+  background: rgba(0, 0, 0, 0.8) !important;
+  color: white !important;
+  padding: 4px 8px !important;
+  border-radius: 12px !important;
+  font-size: 10px !important;
+  font-weight: bold !important;
+  white-space: nowrap !important;
+  border: 2px solid transparent !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  transition: all 0.3s ease !important;
+}
+
+.node-label.pruned {
+  background: rgba(255, 68, 68, 0.9) !important;
+  border-color: #ff0000 !important;
+  box-shadow: 0 0 10px #ff0000 !important;
+  animation: pruning-pulse 1s ease-in-out infinite !important;
 } 

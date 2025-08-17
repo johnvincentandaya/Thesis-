@@ -12,36 +12,93 @@ const { Title, Paragraph, Text: AntText } = Typography;
 const { Content } = Layout;
 
 // 3D Neural Network Components
-function NeuralNode({ position, color = "#4fc3f7", size = 0.3, isActive = false, isPruned = false, opacity = 1 }) {
+function NeuralNode({ position, color = "#4fc3f7", size = 0.3, isActive = false, isPruned = false, opacity = 1, label = "", layerIndex = 0, nodeIndex = 0, pruningReason = "", totalLayers = 4 }) {
   const meshRef = useRef();
   
   useFrame((state) => {
-    if (isActive && meshRef.current) {
+    if (isActive && meshRef.current && !isPruned) {
       meshRef.current.scale.x = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.1;
       meshRef.current.scale.y = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.1;
       meshRef.current.scale.z = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.1;
     }
+    
+    // Add pulsing effect for nodes being pruned
+    if (isPruned && meshRef.current) {
+      meshRef.current.scale.x = 0.8 + Math.sin(state.clock.elapsedTime * 5) * 0.2;
+      meshRef.current.scale.y = 0.8 + Math.sin(state.clock.elapsedTime * 5) * 0.2;
+      meshRef.current.scale.z = 0.8 + Math.sin(state.clock.elapsedTime * 5) * 0.2;
+    }
   });
 
   return (
-    <Sphere ref={meshRef} args={[size, 16, 16]} position={position}>
-      <meshStandardMaterial 
-        color={isPruned ? "#666" : color} 
-        opacity={isPruned ? 0.3 : opacity}
-        transparent
-        emissive={isActive ? color : "#000"}
-        emissiveIntensity={isActive ? 0.3 : 0}
-      />
-    </Sphere>
+    <group position={position}>
+      <Sphere ref={meshRef} args={[size, 16, 16]}>
+        <meshStandardMaterial 
+          color={isPruned ? "#ff4444" : color} 
+          opacity={isPruned ? 0.6 : opacity}
+          transparent
+          emissive={isPruned ? "#ff0000" : (isActive ? color : "#000")}
+          emissiveIntensity={isPruned ? 0.5 : (isActive ? 0.3 : 0)}
+        />
+      </Sphere>
+      
+      {/* Node Label - Only show for important nodes to reduce clutter */}
+      {label && (layerIndex === 0 || layerIndex === totalLayers - 1 || isPruned) && (
+        <Html position={[0, size + 0.4, 0]} center>
+          <div style={{
+            background: isPruned ? 'rgba(255, 68, 68, 0.95)' : 'rgba(0,0,0,0.9)',
+            color: 'white',
+            padding: '6px 10px',
+            borderRadius: '15px',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            whiteSpace: 'nowrap',
+            border: isPruned ? '3px solid #ff0000' : '2px solid #fff',
+            boxShadow: isPruned ? '0 0 15px #ff0000' : '0 0 10px rgba(0,0,0,0.5)',
+            minWidth: '60px',
+            textAlign: 'center'
+          }}>
+            {label}
+          </div>
+        </Html>
+      )}
+      
+      {/* Pruning Reason Label - Only show for pruned nodes */}
+      {isPruned && pruningReason && (
+        <Html position={[0, -size - 0.5, 0]} center>
+          <div style={{
+            background: 'rgba(255, 0, 0, 0.95)',
+            color: 'white',
+            padding: '8px 12px',
+            borderRadius: '10px',
+            fontSize: '11px',
+            fontWeight: 'bold',
+            whiteSpace: 'nowrap',
+            maxWidth: '140px',
+            textAlign: 'center',
+            border: '3px solid #ff0000',
+            boxShadow: '0 0 20px #ff0000'
+          }}>
+            {pruningReason}
+          </div>
+        </Html>
+      )}
+    </group>
   );
 }
 
-function Connection({ start, end, isActive = false, isPruned = false, strength = 1 }) {
+function Connection({ start, end, isActive = false, isPruned = false, strength = 1, pruningReason = "" }) {
   const lineRef = useRef();
   
   useFrame((state) => {
-    if (isActive && lineRef.current) {
+    if (isActive && lineRef.current && !isPruned) {
       lineRef.current.material.opacity = 0.5 + Math.sin(state.clock.elapsedTime * 2) * 0.3;
+    }
+    
+    // Add pulsing effect for connections being pruned
+    if (isPruned && lineRef.current) {
+      lineRef.current.material.opacity = 0.1 + Math.sin(state.clock.elapsedTime * 6) * 0.1;
+      lineRef.current.material.color.setHex(0xff0000);
     }
   });
 
@@ -49,16 +106,43 @@ function Connection({ start, end, isActive = false, isPruned = false, strength =
   const geometry = new THREE.BufferGeometry().setFromPoints(points);
 
   return (
-    <line ref={lineRef}>
-      <bufferGeometry attach="geometry" {...geometry} />
-      <lineBasicMaterial 
-        attach="material" 
-        color={isPruned ? "#666" : "#888"} 
-        opacity={isPruned ? 0.2 : strength}
-        transparent
-        linewidth={isPruned ? 1 : 2}
-      />
-    </line>
+    <group>
+      <line ref={lineRef}>
+        <bufferGeometry attach="geometry" {...geometry} />
+        <lineBasicMaterial 
+          attach="material" 
+          color={isPruned ? "#ff0000" : "#888"} 
+          opacity={isPruned ? 0.2 : strength}
+          transparent
+          linewidth={isPruned ? 1 : 2}
+        />
+      </line>
+      
+      {/* Pruning Reason for Connections - Only show for important pruned connections */}
+      {isPruned && pruningReason && (Math.random() < 0.3) && (
+        <Html position={[
+          (start.x + end.x) / 2,
+          (start.y + end.y) / 2 + 0.3,
+          (start.z + end.z) / 2
+        ]} center>
+          <div style={{
+            background: 'rgba(255, 0, 0, 0.95)',
+            color: 'white',
+            padding: '6px 10px',
+            borderRadius: '8px',
+            fontSize: '10px',
+            fontWeight: 'bold',
+            whiteSpace: 'nowrap',
+            maxWidth: '120px',
+            textAlign: 'center',
+            border: '2px solid #ff0000',
+            boxShadow: '0 0 15px #ff0000'
+          }}>
+            {pruningReason}
+          </div>
+        </Html>
+      )}
+    </group>
   );
 }
 
@@ -167,33 +251,38 @@ function NeuralNetwork({ step, selectedModel }) {
     switch(selectedModel) {
       case "distillBert":
         return {
-          layers: [12, 8, 6, 4], // Transformer layers
+          layers: [8, 6, 4, 3], // Reduced from 12,8,6,4 to prevent overlapping
           colors: ["#4fc3f7", "#29b6f6", "#0288d1", "#01579b"],
-          spacing: 2.5
+          spacing: 3.5, // Increased spacing
+          layerNames: ["Input", "Hidden 1", "Hidden 2", "Output"]
         };
       case "T5-small":
         return {
-          layers: [10, 8, 6, 4],
+          layers: [7, 6, 4, 3], // Reduced from 10,8,6,4
           colors: ["#ff7043", "#ff5722", "#e64a19", "#bf360c"],
-          spacing: 2.2
+          spacing: 3.2, // Increased spacing
+          layerNames: ["Encoder", "Decoder", "Attention", "Output"]
         };
       case "MobileNetV2":
         return {
-          layers: [8, 6, 4, 3],
+          layers: [6, 5, 4, 3], // Reduced from 8,6,4,3
           colors: ["#66bb6a", "#4caf50", "#388e3c", "#2e7d32"],
-          spacing: 2.0
+          spacing: 3.0, // Increased spacing
+          layerNames: ["Conv", "Depthwise", "Pointwise", "Output"]
         };
       case "ResNet-18":
         return {
-          layers: [6, 5, 4, 3],
+          layers: [5, 4, 3, 2], // Reduced from 6,5,4,3
           colors: ["#ab47bc", "#8e24aa", "#7b1fa2", "#6a1b9a"],
-          spacing: 2.3
+          spacing: 3.3, // Increased spacing
+          layerNames: ["Conv1", "ResBlock", "ResBlock", "Output"]
         };
       default:
         return {
-          layers: [8, 6, 4, 3],
+          layers: [6, 5, 4, 3], // Reduced from 8,6,4,3
           colors: ["#4fc3f7", "#29b6f6", "#0288d1", "#01579b"],
-          spacing: 2.0
+          spacing: 3.0, // Increased spacing
+          layerNames: ["Input", "Hidden", "Hidden", "Output"]
         };
     }
   };
@@ -202,8 +291,120 @@ function NeuralNetwork({ step, selectedModel }) {
   const nodes = [];
   const connections = [];
   let nodeId = 0;
+  
+  // Dynamic pruning calculation based on computational analysis
+  const calculateNodeImportance = (layerIndex, nodeIndex, layerSize, modelType) => {
+    // Simulate different computational metrics for each model
+    let activationScore = 0;
+    let weightMagnitude = 0;
+    let gradientStrength = 0;
+    let redundancyScore = 0;
+    
+    // Model-specific computational characteristics
+    switch(modelType) {
+      case "distillBert":
+        // BERT-like models: attention heads and feed-forward layers
+        activationScore = Math.random() * 0.8 + 0.2; // 0.2-1.0
+        weightMagnitude = Math.random() * 0.7 + 0.3; // 0.3-1.0
+        gradientStrength = Math.random() * 0.6 + 0.4; // 0.4-1.0
+        redundancyScore = Math.random() * 0.9; // 0.0-0.9
+        break;
+      case "T5-small":
+        // T5: encoder-decoder with attention
+        activationScore = Math.random() * 0.7 + 0.3; // 0.3-1.0
+        weightMagnitude = Math.random() * 0.8 + 0.2; // 0.2-1.0
+        gradientStrength = Math.random() * 0.5 + 0.5; // 0.5-1.0
+        redundancyScore = Math.random() * 0.8; // 0.0-0.8
+        break;
+      case "MobileNetV2":
+        // MobileNet: depthwise separable convolutions
+        activationScore = Math.random() * 0.9 + 0.1; // 0.1-1.0
+        weightMagnitude = Math.random() * 0.6 + 0.4; // 0.4-1.0
+        gradientStrength = Math.random() * 0.7 + 0.3; // 0.3-1.0
+        redundancyScore = Math.random() * 0.7; // 0.0-0.7
+        break;
+      case "ResNet-18":
+        // ResNet: residual connections
+        activationScore = Math.random() * 0.8 + 0.2; // 0.2-1.0
+        weightMagnitude = Math.random() * 0.9 + 0.1; // 0.1-1.0
+        gradientStrength = Math.random() * 0.8 + 0.2; // 0.2-1.0
+        redundancyScore = Math.random() * 0.6; // 0.0-0.6
+        break;
+      default:
+        activationScore = Math.random() * 0.8 + 0.2;
+        weightMagnitude = Math.random() * 0.7 + 0.3;
+        gradientStrength = Math.random() * 0.6 + 0.4;
+        redundancyScore = Math.random() * 0.8;
+    }
+    
+    // Layer-specific adjustments
+    if (layerIndex === 0) {
+      // Input layer: preserve more nodes
+      activationScore *= 1.2;
+      weightMagnitude *= 1.1;
+    } else if (layerIndex === config.layers.length - 1) {
+      // Output layer: preserve more nodes
+      activationScore *= 1.3;
+      weightMagnitude *= 1.2;
+    } else {
+      // Hidden layers: more aggressive pruning
+      activationScore *= 0.9;
+      weightMagnitude *= 0.8;
+    }
+    
+    // Position-based adjustments (nodes in middle of layer are often more important)
+    const positionInLayer = Math.abs(nodeIndex - (layerSize - 1) / 2) / (layerSize / 2);
+    const positionBonus = 1.0 - positionInLayer * 0.3; // 0.7-1.0
+    
+    // Calculate final importance score
+    const importanceScore = (
+      activationScore * 0.3 +
+      weightMagnitude * 0.3 +
+      gradientStrength * 0.2 +
+      (1 - redundancyScore) * 0.1 +
+      positionBonus * 0.1
+    );
+    
+    // Dynamic pruning threshold based on model and layer
+    let pruningThreshold = 0.4; // Base threshold
+    
+    // Adjust threshold based on model type
+    switch(modelType) {
+      case "distillBert":
+        pruningThreshold = 0.35; // More aggressive for BERT
+        break;
+      case "T5-small":
+        pruningThreshold = 0.38; // Moderate for T5
+        break;
+      case "MobileNetV2":
+        pruningThreshold = 0.45; // Less aggressive for MobileNet
+        break;
+      case "ResNet-18":
+        pruningThreshold = 0.42; // Moderate for ResNet
+        break;
+    }
+    
+    // Layer-specific threshold adjustment
+    if (layerIndex === 0) pruningThreshold += 0.1; // Preserve input layer
+    if (layerIndex === config.layers.length - 1) pruningThreshold += 0.15; // Preserve output layer
+    
+    const shouldPrune = importanceScore < pruningThreshold;
+    
+    // Generate meaningful pruning reason
+    let reason = "";
+    if (shouldPrune) {
+      if (activationScore < 0.4) reason = "Low activation";
+      else if (weightMagnitude < 0.4) reason = "Weak weights";
+      else if (gradientStrength < 0.4) reason = "Poor gradients";
+      else if (redundancyScore > 0.7) reason = "Redundant features";
+      else if (positionInLayer > 0.8) reason = "Edge position";
+      else reason = "Low importance";
+    }
+    
+    return { shouldPrune, reason, importanceScore };
+  };
 
-  // Generate nodes for each layer
+  // Generate nodes for each layer with enhanced labeling
   config.layers.forEach((layerSize, layerIndex) => {
     const x = layerIndex * config.spacing;
     const isPruned = step >= 4; // Pruning starts at step 4
@@ -213,18 +414,34 @@ function NeuralNetwork({ step, selectedModel }) {
       const y = (layerSize - 1) / 2 - i;
       const z = Math.sin(i * 0.5) * 0.5;
       
+      // Dynamic pruning based on computational analysis
+      let shouldPrune = false;
+      let pruningReason = "";
+      let nodeLabel = `N${layerIndex+1}-${i+1}`;
+      
+      if (isPruned) {
+        // Simulate computational analysis for each node
+        const nodeImportance = calculateNodeImportance(layerIndex, i, layerSize, selectedModel);
+        shouldPrune = nodeImportance.shouldPrune;
+        pruningReason = nodeImportance.reason;
+      }
+      
       nodes.push({
         id: nodeId++,
         position: [x, y, z],
         color: config.colors[layerIndex],
         isActive,
-        isPruned: isPruned && i >= layerSize * 0.7, // Prune 30% of nodes
-        size: 0.3
+        isPruned: shouldPrune,
+        size: 0.3,
+        label: nodeLabel,
+        layerIndex,
+        nodeIndex: i,
+        pruningReason: shouldPrune ? pruningReason : ""
       });
     }
   });
 
-  // Generate connections
+  // Generate connections with pruning logic
   for (let layerIndex = 0; layerIndex < config.layers.length - 1; layerIndex++) {
     const currentLayerStart = config.layers.slice(0, layerIndex).reduce((sum, size) => sum + size, 0);
     const nextLayerStart = config.layers.slice(0, layerIndex + 1).reduce((sum, size) => sum + size, 0);
@@ -235,12 +452,27 @@ function NeuralNetwork({ step, selectedModel }) {
         const endNode = nodes[nextLayerStart + j];
         
         if (startNode && endNode) {
+          // Determine if connection should be pruned
+          const isConnectionPruned = step >= 4 && (startNode.isPruned || endNode.isPruned);
+          let connectionPruningReason = "";
+          
+          if (isConnectionPruned) {
+            if (startNode.isPruned && endNode.isPruned) {
+              connectionPruningReason = "Both nodes pruned";
+            } else if (startNode.isPruned) {
+              connectionPruningReason = "Source pruned";
+            } else {
+              connectionPruningReason = "Target pruned";
+            }
+          }
+          
           connections.push({
             start: new THREE.Vector3(...startNode.position),
             end: new THREE.Vector3(...endNode.position),
             isActive: step >= layerIndex + 2,
-            isPruned: step >= 4 && (startNode.isPruned || endNode.isPruned),
-            strength: Math.random() * 0.5 + 0.5
+            isPruned: isConnectionPruned,
+            strength: Math.random() * 0.5 + 0.5,
+            pruningReason: connectionPruningReason
           });
         }
       }
@@ -290,18 +522,62 @@ function NeuralNetwork({ step, selectedModel }) {
 
   return (
     <group ref={networkRef}>
+             {/* Layer Labels */}
+       {config.layerNames.map((layerName, index) => (
+         <Html key={`layer-${index}`} position={[index * config.spacing, 5, 0]} center>
+           <div style={{
+             background: 'rgba(0,0,0,0.95)',
+             color: 'white',
+             padding: '12px 20px',
+             borderRadius: '25px',
+             fontSize: '14px',
+             fontWeight: 'bold',
+             whiteSpace: 'nowrap',
+             border: `3px solid ${config.colors[index]}`,
+             boxShadow: `0 0 20px ${config.colors[index]}`,
+             minWidth: '100px',
+             textAlign: 'center'
+           }}>
+             {layerName}
+           </div>
+         </Html>
+       ))}
+      
       {/* Connections */}
       {connections.map((conn, index) => (
         <Connection key={`conn-${index}`} {...conn} />
       ))}
       
-      {/* Nodes */}
-      {nodes.map((node) => (
-        <NeuralNode key={node.id} {...node} />
-      ))}
+             {/* Nodes */}
+       {nodes.map((node) => (
+         <NeuralNode key={node.id} {...node} totalLayers={config.layers.length} />
+       ))}
       
       {/* Data flow particles */}
       <DataFlow step={step} isActive={step >= 1 && step <= 3} />
+      
+             {/* Pruning Statistics */}
+       {step >= 4 && (
+         <Html position={[0, -5, 0]} center>
+           <div style={{
+             background: 'rgba(255, 0, 0, 0.95)',
+             color: 'white',
+             padding: '16px 24px',
+             borderRadius: '20px',
+             fontSize: '16px',
+             fontWeight: 'bold',
+             textAlign: 'center',
+             border: '4px solid #ff0000',
+             boxShadow: '0 0 25px #ff0000',
+             minWidth: '250px'
+           }}>
+             🔴 PRUNING IN PROGRESS
+             <div style={{ fontSize: '14px', marginTop: '10px', opacity: 0.95 }}>
+               Removing redundant nodes and connections...
+             </div>
+           </div>
+         </Html>
+       )}
     </group>
   );
 }
@@ -310,88 +586,81 @@ function NeuralNetwork({ step, selectedModel }) {
 const getStepInfo = (step, selectedModel) => {
   const steps = [
     {
-      title: "Model Architecture Initialization",
-      subtitle: `Loading ${selectedModel} Neural Network`,
-      description: `Initializing the ${selectedModel} architecture with pre-trained weights. The model is structured with multiple layers that process information hierarchically.`,
+      title: "Initialize Model",
+      subtitle: `Loading ${selectedModel}`,
+      description: `Setting up the neural network with pre-trained weights and architecture.`,
       technicalDetails: [
-        "Loading pre-trained weights from HuggingFace",
-        "Initializing transformer/CNN architecture",
-        "Setting up attention mechanisms",
-        "Configuring layer normalization"
+        "Loading pre-trained weights",
+        "Setting up network layers",
+        "Initializing connections"
       ],
-      visualHint: "Watch the network structure materialize layer by layer"
+      visualHint: "Watch the network structure appear layer by layer. Each color represents a different layer type."
     },
     {
-      title: "Input Data Processing",
-      subtitle: "Tokenization & Embedding",
-      description: `Preparing input data for ${selectedModel}. For language models, this involves tokenization and embedding. For vision models, this includes image preprocessing and normalization.`,
+      title: "Process Input",
+      subtitle: "Prepare Data",
+      description: `Converting input data into a format the model can understand and process.`,
       technicalDetails: [
-        "Tokenizing input text into subword units",
-        "Converting tokens to numerical embeddings",
-        "Applying positional encoding",
-        "Normalizing input data"
+        "Tokenizing input text",
+        "Creating embeddings",
+        "Adding position information"
       ],
-      visualHint: "Observe data particles flowing through the network"
+      visualHint: "See data particles flowing through the network. Each represents a piece of information being processed."
     },
     {
-      title: "Forward Propagation",
-      subtitle: "Information Flow Through Layers",
-      description: `Data flows through the ${selectedModel} network. Each layer processes the input and passes it to the next, building increasingly complex representations.`,
+      title: "Forward Pass",
+      subtitle: "Data Flows Through",
+      description: `Information travels through each layer, building understanding step by step.`,
       technicalDetails: [
-        "Computing attention scores between tokens",
-        "Applying multi-head attention mechanisms",
-        "Processing through feed-forward networks",
-        "Updating hidden representations"
+        "Computing attention scores",
+        "Processing through layers",
+        "Building representations"
       ],
-      visualHint: "See how information propagates through each layer"
+      visualHint: "Watch how information moves through each layer. Active connections glow with the layer's color."
     },
     {
-      title: "Knowledge Distillation",
-      subtitle: "Teacher-Student Learning",
-      description: `The student model learns from the teacher's soft predictions. This transfers not just the correct answers, but also the teacher's confidence levels and decision-making patterns.`,
+      title: "Knowledge Transfer",
+      subtitle: "Teacher to Student",
+      description: `The student model learns from the teacher's knowledge and decision patterns.`,
       technicalDetails: [
-        "Computing teacher model predictions",
-        "Applying temperature scaling (T=2.0)",
-        "Calculating distillation loss",
-        "Updating student model weights"
+        "Teacher makes predictions",
+        "Student learns patterns",
+        "Updating model weights"
       ],
-      visualHint: "Notice how the student model adapts to teacher patterns"
+      visualHint: "See the student model adapt to teacher patterns. All connections are now fully active."
     },
     {
-      title: "Model Pruning",
-      subtitle: "Removing Redundant Weights",
-      description: `Removing redundant weights and connections from ${selectedModel}. This reduces model size while preserving the most important learned features.`,
+      title: "Prune Model",
+      subtitle: "Remove Unnecessary Parts",
+      description: `Cutting away redundant connections to make the model smaller and faster.`,
       technicalDetails: [
-        "Identifying low-importance weights",
-        "Applying L1 unstructured pruning",
-        "Removing 30% of connections",
-        "Maintaining model sparsity"
+        "Finding weak connections",
+        "Removing 30% of nodes",
+        "Cleaning up network"
       ],
-      visualHint: "Watch as connections fade and nodes become inactive"
+      visualHint: "🔴 Watch nodes turn red when pruned. Red labels show why each part was removed."
     },
     {
-      title: "Fine-tuning",
-      subtitle: "Recovery & Optimization",
-      description: `Adjusting the pruned ${selectedModel} to recover any lost accuracy. The model adapts to the new, sparser architecture.`,
+      title: "Fine-tune",
+      subtitle: "Recover Performance",
+      description: `Adjusting the pruned model to work well with its new, smaller structure.`,
       technicalDetails: [
-        "Re-training on compressed architecture",
-        "Optimizing remaining connections",
-        "Recovering lost performance",
-        "Finalizing model weights"
+        "Re-training on new structure",
+        "Optimizing connections",
+        "Recovering accuracy"
       ],
-      visualHint: "See the network stabilize with optimized connections"
+      visualHint: "See the network stabilize. Pruned nodes stay red, but the active network adapts and improves."
     },
     {
-      title: "Performance Evaluation",
-      subtitle: "Compression Results Analysis",
-      description: `Comprehensive evaluation of the compressed ${selectedModel}. Comparing accuracy, speed, and size against the original model to measure compression effectiveness.`,
+      title: "Final Results",
+      subtitle: "Compression Complete",
+      description: `See how much smaller and faster your model became while keeping good performance.`,
       technicalDetails: [
-        "Measuring inference latency",
-        "Calculating model size reduction",
-        "Evaluating accuracy preservation",
-        "Computing efficiency metrics"
+        "Measuring speed improvement",
+        "Calculating size reduction",
+        "Checking accuracy"
       ],
-      visualHint: "Review the final compressed network structure"
+      visualHint: "Review the final compressed network. Red shows what was removed, active nodes show what remains."
     }
   ];
   
@@ -433,7 +702,7 @@ const Visualization = () => {
         } else {
           setAutoPlay(false);
         }
-      }, 3000);
+      }, 4000); // Increased from 3s to 4s to give users more time to read
       return () => clearTimeout(timer);
     }
   }, [autoPlay, step, started]);
@@ -494,6 +763,57 @@ const Visualization = () => {
     setStep(0);
     setAutoPlay(false);
   };
+  
+  // Calculate dynamic pruning statistics based on model and current state
+  const calculatePruningStats = () => {
+    if (!started || step < 4) {
+      return { nodePercentage: 0, connectionPercentage: 0, threshold: 0, method: "Not started" };
+    }
+    
+    // Calculate actual pruning percentages based on model characteristics
+    let baseThreshold = 0.4;
+    let method = "Standard pruning";
+    
+    switch(selectedModel) {
+      case "distillBert":
+        baseThreshold = 0.35;
+        method = "Attention-based pruning";
+        break;
+      case "T5-small":
+        baseThreshold = 0.38;
+        method = "Encoder-decoder pruning";
+        break;
+      case "MobileNetV2":
+        baseThreshold = 0.45;
+        method = "Depthwise pruning";
+        break;
+      case "ResNet-18":
+        baseThreshold = 0.42;
+        method = "Residual pruning";
+        break;
+      default:
+        baseThreshold = 0.4;
+        method = "General pruning";
+    }
+    
+    // Simulate dynamic results based on model complexity
+    const modelComplexity = selectedModel === "distillBert" ? 0.8 : 
+                           selectedModel === "T5-small" ? 0.7 :
+                           selectedModel === "MobileNetV2" ? 0.6 : 0.65;
+    
+    // Calculate node pruning percentage (varies by model)
+    const nodePercentage = Math.round((baseThreshold * 100) + (Math.random() * 15 - 7.5));
+    
+    // Calculate connection pruning percentage (depends on node pruning)
+    const connectionPercentage = Math.round(nodePercentage * 1.4 + (Math.random() * 10 - 5));
+    
+    return {
+      nodePercentage: Math.max(15, Math.min(60, nodePercentage)), // Clamp between 15-60%
+      connectionPercentage: Math.max(20, Math.min(70, connectionPercentage)), // Clamp between 20-70%
+      threshold: Math.round(baseThreshold * 100),
+      method: method
+    };
+  };
 
   return (
     <>
@@ -544,10 +864,10 @@ const Visualization = () => {
                     }}>
                       <div style={{ fontSize: '48px', marginBottom: '20px' }}>🧠</div>
                       <Title level={2} style={{ color: 'white', marginBottom: '16px' }}>
-                        3D Neural Network Simulation
+                        3D Neural Network Demo
                       </Title>
                       <Paragraph style={{ color: '#ccc', fontSize: '16px', marginBottom: '32px' }}>
-                        Experience the complete training process of {selectedModel} in an interactive 3D environment
+                        Watch {selectedModel} train and get compressed in 3D
                       </Paragraph>
                       <Button 
                         type="primary" 
@@ -560,7 +880,7 @@ const Visualization = () => {
                           border: 'none'
                         }}
                       >
-                        🚀 Start 3D Simulation
+                        🚀 Start Demo
                       </Button>
                     </div>
                   ) : (
@@ -607,20 +927,41 @@ const Visualization = () => {
                           rotateSpeed={0.8}
                         />
                         
-                        {/* Step indicator */}
-                        <Html position={[0, 5, 0]} center>
-                          <div style={{
-                            background: 'rgba(0,0,0,0.8)',
-                            color: 'white',
-                            padding: '8px 16px',
-                            borderRadius: '20px',
-                            fontSize: '14px',
-                            fontWeight: 'bold',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            Step {step + 1}/7: {stepInfo.title}
-                          </div>
-                        </Html>
+                                                 {/* Model Label */}
+                         <Html position={[-4, 5, 0]} center>
+                           <div style={{
+                             background: 'rgba(0,0,0,0.9)',
+                             color: 'white',
+                             padding: '10px 20px',
+                             borderRadius: '25px',
+                             fontSize: '16px',
+                             fontWeight: 'bold',
+                             whiteSpace: 'nowrap',
+                             border: '2px solid #1890ff',
+                             boxShadow: '0 0 15px #1890ff'
+                           }}>
+                             🧠 {selectedModel}
+                           </div>
+                         </Html>
+                         
+                         {/* Step indicator */}
+                         <Html position={[0, 5, 0]} center>
+                           <div style={{
+                             background: 'rgba(0,0,0,0.9)',
+                             color: 'white',
+                             padding: '10px 20px',
+                             borderRadius: '25px',
+                             fontSize: '15px',
+                             fontWeight: 'bold',
+                             whiteSpace: 'nowrap',
+                             border: '2px solid #fff',
+                             boxShadow: '0 0 15px rgba(0,0,0,0.5)',
+                             minWidth: '200px',
+                             textAlign: 'center'
+                           }}>
+                             Step {step + 1}/7: {stepInfo.title}
+                           </div>
+                         </Html>
                       </Canvas>
                     </div>
                   )}
@@ -630,13 +971,41 @@ const Visualization = () => {
               {/* Control Panel */}
               <Col xs={24} lg={8}>
                 <div style={{ height: windowSize.width < 992 ? '50vh' : '70vh', overflowY: 'auto' }}>
-                  {started ? (
-                    <>
-                      {/* Step Information */}
-                      <Card style={{ marginBottom: 16, borderRadius: '12px' }}>
-                        <Title level={3} style={{ marginBottom: 8, color: '#1890ff' }}>
-                          {stepInfo.title}
-                        </Title>
+                                     {started ? (
+                     <>
+                                               {/* Model Header */}
+                        <Card style={{ marginBottom: 16, borderRadius: '12px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%)' }}>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '24px', marginBottom: '8px' }}>🧠</div>
+                            <Title level={4} style={{ margin: 0, color: '#1890ff' }}>
+                              {selectedModel}
+                            </Title>
+                            <Paragraph style={{ margin: '8px 0 0 0', color: '#666', fontSize: '14px' }}>
+                              Neural Network Simulation
+                            </Paragraph>
+                          </div>
+                        </Card>
+                        
+                        {/* Instructions */}
+                        <Card style={{ marginBottom: 16, borderRadius: '12px', background: 'linear-gradient(135deg, #fff7e6 0%, #fff2d9 100%)' }}>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '20px', marginBottom: '8px' }}>💡</div>
+                            <Title level={5} style={{ margin: '0 0 8px 0', color: '#d46b08' }}>
+                              How to Use
+                            </Title>
+                            <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.4' }}>
+                              <div>• <strong>Mouse:</strong> Drag to rotate, scroll to zoom</div>
+                              <div>• <strong>Auto-play:</strong> Watch automatically</div>
+                              <div>• <strong>Manual:</strong> Step through each phase</div>
+                            </div>
+                          </div>
+                        </Card>
+                       
+                       {/* Step Information */}
+                       <Card style={{ marginBottom: 16, borderRadius: '12px' }}>
+                         <Title level={3} style={{ marginBottom: 8, color: '#1890ff' }}>
+                           {stepInfo.title}
+                         </Title>
                         <Paragraph style={{ color: '#666', marginBottom: 16 }}>
                           {stepInfo.subtitle}
                         </Paragraph>
@@ -686,13 +1055,13 @@ const Visualization = () => {
                             </Button>
                           </div>
                           
-                          <Button 
-                            onClick={() => setAutoPlay(!autoPlay)}
-                            type={autoPlay ? "default" : "primary"}
-                            style={{ width: '100%' }}
-                          >
-                            {autoPlay ? '⏸️ Pause Auto-play' : '▶️ Start Auto-play'}
-                          </Button>
+                                                     <Button 
+                             onClick={() => setAutoPlay(!autoPlay)}
+                             type={autoPlay ? "default" : "primary"}
+                             style={{ width: '100%' }}
+                           >
+                             {autoPlay ? '⏸️ Stop Auto-play' : '▶️ Start Auto-play'}
+                           </Button>
                           
                           <Button 
                             onClick={resetSimulation}
@@ -724,6 +1093,70 @@ const Visualization = () => {
                         />
                         <div style={{ textAlign: 'center', marginTop: 8, fontSize: '12px', color: '#666' }}>
                           Step {step + 1} of 7
+                        </div>
+                      </Card>
+
+                      {/* Visualization Legend */}
+                      <Card style={{ marginBottom: 16, borderRadius: '12px' }}>
+                        <Title level={5} style={{ marginBottom: 12 }}>🔍 What You're Seeing</Title>
+                        <div style={{ fontSize: '12px', color: '#666' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                            <div style={{ 
+                              width: '12px', 
+                              height: '12px', 
+                              borderRadius: '50%', 
+                              backgroundColor: '#4fc3f7', 
+                              marginRight: '8px' 
+                            }}></div>
+                            <span>Working nodes</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                            <div style={{ 
+                              width: '12px', 
+                              height: '12px', 
+                              borderRadius: '50%', 
+                              backgroundColor: '#ff4444', 
+                              marginRight: '8px' 
+                            }}></div>
+                            <span>Removed nodes</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                            <div style={{ 
+                              width: '12px', 
+                              height: '12px', 
+                              borderRadius: '50%', 
+                              backgroundColor: '#888', 
+                              marginRight: '8px' 
+                            }}></div>
+                            <span>Working connections</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                            <div style={{ 
+                              width: '12px', 
+                              height: '12px', 
+                              borderRadius: '50%', 
+                              backgroundColor: '#ff0000', 
+                              marginRight: '8px' 
+                            }}></div>
+                            <span>Removed connections</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                            <div style={{ 
+                              width: '12px', 
+                              height: '12px', 
+                              borderRadius: '50%', 
+                              backgroundColor: '#666', 
+                              marginRight: '8px' 
+                            }}></div>
+                            <span>Inactive nodes</span>
+                          </div>
+                        </div>
+                        <Divider style={{ margin: '12px 0' }} />
+                        <div style={{ fontSize: '11px', color: '#999' }}>
+                          <strong>Labels:</strong><br />
+                          • N1-1, N1-2: First layer<br />
+                          • N2-1, N2-2: Second layer<br />
+                          • Red labels show why parts were removed
                         </div>
                       </Card>
 
@@ -765,26 +1198,72 @@ const Visualization = () => {
                           />
                         </Card>
                       )}
+                                             {/* Pruning Statistics */}
+                       {step >= 4 && (
+                         <Card style={{ marginBottom: 16, borderRadius: '12px', background: 'linear-gradient(135deg, #fff2f0 0%, #fff1f0 100%)' }}>
+                           <Title level={5} style={{ color: '#cf1322', marginBottom: 12 }}>✂️ Dynamic Pruning Results</Title>
+                           <div style={{ fontSize: '12px', color: '#666' }}>
+                             <Row gutter={8} style={{ marginBottom: '8px' }}>
+                               <Col span={12}>
+                                 <div style={{ textAlign: 'center', padding: '8px', background: '#fff2f0', borderRadius: '6px', border: '1px solid #ffccc7' }}>
+                                   <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#cf1322' }}>
+                                     {calculatePruningStats().nodePercentage}%
+                                   </div>
+                                   <div style={{ fontSize: '10px', color: '#666' }}>Nodes Cut</div>
+                                 </div>
+                               </Col>
+                               <Col span={12}>
+                                 <div style={{ textAlign: 'center', padding: '8px', background: '#fff2f0', borderRadius: '6px', border: '1px solid #ffccc7' }}>
+                                   <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#cf1322' }}>
+                                     {calculatePruningStats().connectionPercentage}%
+                                   </div>
+                                   <div style={{ fontSize: '10px', color: '#666' }}>Connections Cut</div>
+                                 </div>
+                               </Col>
+                             </Row>
+                             
+                             <div style={{ marginTop: '12px' }}>
+                               <div style={{ fontSize: '11px', color: '#cf1322', fontWeight: 'bold', marginBottom: '6px' }}>
+                                 Pruning Strategy for {selectedModel}:
+                               </div>
+                               <div style={{ fontSize: '10px', color: '#666', marginBottom: '8px' }}>
+                                 <strong>Threshold:</strong> {calculatePruningStats().threshold}%<br />
+                                 <strong>Method:</strong> {calculatePruningStats().method}
+                               </div>
+                               <div style={{ fontSize: '11px', color: '#cf1322', fontWeight: 'bold', marginBottom: '6px' }}>
+                                 Why These Parts Were Removed:
+                               </div>
+                               <ul style={{ fontSize: '10px', color: '#666', margin: 0, paddingLeft: '16px' }}>
+                                 <li>Low activation scores</li>
+                                 <li>Weak weight magnitudes</li>
+                                 <li>Poor gradient flow</li>
+                                 <li>Redundant features</li>
+                                 <li>Edge position penalties</li>
+                               </ul>
+                             </div>
+                           </div>
+                         </Card>
+                       )}
                     </>
                   ) : (
                     <Card style={{ borderRadius: '12px' }}>
-                      <Title level={4}>Interactive 3D Simulation</Title>
+                      <Title level={4}>3D Neural Network Demo</Title>
                       <Paragraph>
-                        This advanced 3D visualization will show you:
+                        Watch your model in action:
                       </Paragraph>
                       <ul style={{ fontSize: '14px', color: '#666' }}>
-                        <li>🎯 Real-time neural network architecture</li>
-                        <li>⚡ Dynamic data flow visualization</li>
-                        <li>✂️ Interactive pruning process</li>
-                        <li>📊 Performance metrics display</li>
-                        <li>🎓 Educational step-by-step guidance</li>
+                        <li>🎯 See the network structure</li>
+                        <li>⚡ Watch data flow through</li>
+                        <li>✂️ See parts get removed</li>
+                        <li>📊 Check the results</li>
+                        <li>🎓 Learn step by step</li>
                       </ul>
                       <Divider />
                       <Paragraph style={{ fontSize: '12px', color: '#999' }}>
-                        <strong>Controls:</strong><br />
-                        • Mouse: Rotate, zoom, and pan the 3D view<br />
-                        • Auto-play: Watch the complete process automatically<br />
-                        • Manual: Step through each phase manually
+                        <strong>How to use:</strong><br />
+                        • Mouse: Move the 3D view around<br />
+                        • Auto-play: Watch everything automatically<br />
+                        • Manual: Go step by step
                       </Paragraph>
                     </Card>
                   )}

@@ -6,10 +6,9 @@ import {
   XCircleFill,
   Trophy,
   Clock,
-  Brain,
-  Lightbulb,
   Award,
-  BookOpen
+  Lightbulb,
+  Book
 } from "react-bootstrap-icons";
 import { BsCheckLg, BsX } from "react-icons/bs";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -211,7 +210,7 @@ function Assessment() {
     if (percentage >= 90) return { level: "Excellent", color: "success", icon: Trophy };
     if (percentage >= 80) return { level: "Good", color: "info", icon: Award };
     if (percentage >= 70) return { level: "Fair", color: "warning", icon: Lightbulb };
-    return { level: "Needs Improvement", color: "danger", icon: BookOpen };
+    return { level: "Needs Improvement", color: "danger", icon: Book };
   };
 
   // Format time
@@ -225,13 +224,24 @@ function Assessment() {
   const answeredQuestions = Object.keys(answers).length;
   const progressPercentage = (answeredQuestions / totalQuestions) * 100;
 
+  // Returns true if all questions (MCQ and TF) have an answer
+  const allQuestionsAnswered = () => {
+    for (let i = 0; i < questions.length; i++) {
+      if (typeof answers[i] === 'undefined') return false;
+    }
+    for (let i = 0; i < trueFalseQuestions.length; i++) {
+      if (typeof answers[questions.length + i] === 'undefined') return false;
+    }
+    return true;
+  };
+
   return (
     <>
       {/* Navbar */}
       <Navbar bg="black" variant="dark" expand="lg" className="shadow-sm">
         <Container>
           <Navbar.Brand as={Link} to="/" className="fw-bold">
-            <Brain className="me-2" />
+            <Award className="me-2" />
             KD-Pruning Simulator
           </Navbar.Brand>
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
@@ -253,7 +263,7 @@ function Assessment() {
         {/* Header */}
         <div className="text-center mb-5">
           <h1 className="display-4 fw-bold text-primary mb-3">
-            <BookOpen className="me-3" />
+            <Book className="me-3" />
             Knowledge Assessment
           </h1>
           <p className="lead text-muted">
@@ -381,14 +391,14 @@ function Assessment() {
                 variant="primary" 
                 size="lg" 
                 onClick={calculateScore}
-                disabled={answeredQuestions < totalQuestions}
+                disabled={!allQuestionsAnswered()}
                 className="px-5 py-3 fw-bold"
               >
-                <CheckLg className="me-2" />
+                <BsCheckLg className="me-2" />
                 Submit Assessment
               </Button>
-              {answeredQuestions < totalQuestions && (
-                <p className="text-muted mt-2">
+              {!allQuestionsAnswered() && (
+                <p className="text-danger mt-2 fw-semibold">
                   Please answer all {totalQuestions} questions before submitting
                 </p>
               )}
@@ -431,8 +441,8 @@ function Assessment() {
             </Card>
 
             {/* Detailed Results */}
-            <div className="row">
-              <div className="col-lg-8">
+            <div className="row g-4 align-items-start"> {/* Add gap and align-items-start for better spacing */}
+              <div className="col-12 col-lg-8"> {/* Responsive: full width on mobile, 8/12 on large */}
                 <h3 className="mb-4">Detailed Results</h3>
                 
                 {/* Multiple Choice Results */}
@@ -453,7 +463,7 @@ function Assessment() {
                       <div className="mb-3">
                         <strong>Your Answer:</strong> 
                         <span className={`ms-2 ${answers[index] === q.correctAnswer ? 'text-success' : 'text-danger'}`}>
-                          {q.options[answers[index]]}
+                          {typeof answers[index] !== 'undefined' ? q.options[answers[index]] : <span className="text-warning">No answer</span>}
                         </span>
                       </div>
                       
@@ -502,7 +512,7 @@ function Assessment() {
                       <div className="mb-3">
                         <strong>Your Answer:</strong> 
                         <span className={`ms-2 ${answers[questions.length + index] === q.correctAnswer ? 'text-success' : 'text-danger'}`}>
-                          {answers[questions.length + index] ? 'True' : 'False'}
+                          {typeof answers[questions.length + index] !== 'undefined' ? (answers[questions.length + index] ? 'True' : 'False') : <span className="text-warning">No answer</span>}
                         </span>
                       </div>
                       
@@ -533,9 +543,8 @@ function Assessment() {
                   </Card>
                 ))}
               </div>
-              
               {/* Sidebar */}
-              <div className="col-lg-4">
+              <div className="col-12 col-lg-4"> {/* Responsive: full width on mobile, 4/12 on large */}
                 <Card className="shadow-sm sticky-top" style={{ top: '20px' }}>
                   <Card.Body>
                     <h5 className="fw-bold mb-3">Quick Stats</h5>
@@ -573,7 +582,7 @@ function Assessment() {
                       onClick={resetQuiz}
                       className="w-100"
                     >
-                      <BookOpen className="me-2" />
+                      <Book className="me-2" />
                       Retake Assessment
                     </Button>
                   </Card.Body>
