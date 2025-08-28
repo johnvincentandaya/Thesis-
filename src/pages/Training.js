@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Layout, Card, Button, Progress, message, Typography, Row, Col, Alert } from "antd";
 import { PlayCircleOutlined, ArrowRightOutlined, LoadingOutlined } from "@ant-design/icons";
 import { useNavigate, Link, useLocation } from "react-router-dom";
-import { io } from "socket.io-client";
+import { socket, SOCKET_URL } from "../socket";
 import { Navbar, Nav, Container, DropdownButton, Dropdown } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./Training.css";
@@ -10,17 +10,7 @@ import "./Training.css";
 const { Title, Text, Paragraph } = Typography;
 const { Content } = Layout;
 
-const SOCKET_URL = "http://127.0.0.1:5001";
-const socket = io(SOCKET_URL, {
-  transports: ["websocket", "polling"],
-  reconnection: true,
-  reconnectionAttempts: Infinity,
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000,
-  timeout: 20000,
-  forceNew: true,
-  autoConnect: true
-});
+// Use shared singleton socket
 
 const metricExplanations = {
   accuracy: "Accuracy measures the proportion of correct predictions out of all predictions made.",
@@ -113,7 +103,8 @@ const Training = () => {
       setSocketConnected(false);
       setServerStatus("error");
     });
-    socket.on("disconnect", () => {
+    socket.on("disconnect", (reason) => {
+      console.log("Socket disconnected:", reason);
       setSocketConnected(false);
       setServerStatus("error");
     });
@@ -173,6 +164,7 @@ const Training = () => {
       socket.off("training_status");
       socket.off("training_metrics");
       socket.off("training_error");
+      // Do not disconnect the shared socket here
     };
     // eslint-disable-next-line
   }, []);
@@ -195,9 +187,10 @@ const Training = () => {
       message.error("⚠️ Please select a model first.");
       return;
     }
+    // Ensure socket is attempting to connect, but do not block training on WS state
     if (!socketConnected) {
-      message.error("⚠️ Not connected to training server. Please try again.");
-      return;
+      try { socket.connect(); } catch (_) {}
+      message.info("Connecting to server... training will still start.");
     }
     if (training) {
       message.warning("⚠️ Training is already in progress.");
@@ -211,6 +204,8 @@ const Training = () => {
     setTrainingPhase(null);
     setTrainingMessage(null);
     try {
+      // Ensure server is up (idempotent)
+      await testServerConnection();
       // Test model loading
       const testResponse = await fetch(`${SOCKET_URL}/test_model`, {
         method: "POST",
@@ -230,6 +225,7 @@ const Training = () => {
     } catch (error) {
       setTraining(false);
       setProgress(0);
+      // Even if WS is not ready, keep server actions flowing
       message.error({ content: `🚨 Error: ${error.message}`, key: "training", duration: 5 });
     }
   };
@@ -239,7 +235,7 @@ const Training = () => {
       message.error("Training must be completed before proceeding!");
       return;
     }
-    navigate("/visualization", { state: { selectedModel, trainingComplete: true } });
+    navigate("/visualization", { state: { selectedModel, trainingComplete: true, metrics } });
   };
 
   // Server status indicator

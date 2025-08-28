@@ -1,16 +1,22 @@
 import React, { useState, useEffect } from "react";
-import { Navbar, Nav, Container, Button, Form, Alert, ProgressBar, Card, Badge } from "react-bootstrap";
+import {
+  Navbar,
+  Nav,
+  Container,
+  Button,
+  Form,
+  Alert,
+  ProgressBar,
+  Card,
+  Badge
+} from "react-bootstrap";
 import { Link } from "react-router-dom";
 import {
-  CheckCircleFill,
-  XCircleFill,
-  Trophy,
   Clock,
   Award,
-  Lightbulb,
-  Book
+  ArrowRight,
+  ArrowLeft
 } from "react-bootstrap-icons";
-import { BsCheckLg, BsX } from "react-icons/bs";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./Assessment.css";
 
@@ -18,221 +24,268 @@ function Assessment() {
   const [answers, setAnswers] = useState({});
   const [score, setScore] = useState(null);
   const [showResults, setShowResults] = useState(false);
-  const [currentQuestion, setCurrentQuestion] = useState(0);
   const [timeSpent, setTimeSpent] = useState(0);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [showExplanation, setShowExplanation] = useState({});
+  const [quizStarted, setQuizStarted] = useState(false);
+  const [shuffledQuestions, setShuffledQuestions] = useState([]);
+  const [currentReview, setCurrentReview] = useState(0);
+  const [currentQuestion, setCurrentQuestion] = useState(0);
 
-  // Quiz questions and answers with explanations
-  const questions = [
+  // === Question Bank ===
+  const questionBank = [
     {
-      question: "What is the key difference between Knowledge Distillation and Pruning in model compression?",
+      question: "What is the main purpose of Knowledge Distillation?",
       options: [
-        "Knowledge Distillation reduces the model size by removing redundant nodes, while Pruning transfers knowledge from a larger model to a smaller one.",
-        "Knowledge Distillation transfers knowledge from a larger model (teacher) to a smaller model (student), while Pruning removes unnecessary parts of the model.",
-        "Pruning reduces the model size by transferring knowledge, while Knowledge Distillation removes unnecessary layers.",
-        "Pruning transfers knowledge, while Knowledge Distillation compresses the model by decreasing layer size.",
+        "To prune unnecessary weights from the model",
+        "To transfer knowledge from a large teacher model to a smaller student model",
+        "To reduce the number of FLOPs in a model",
+        "To make the model deeper with more layers"
       ],
       correctAnswer: 1,
-      explanation: "Knowledge Distillation focuses on transferring the 'knowledge' (soft predictions, confidence levels) from a larger teacher model to a smaller student model, while Pruning removes unnecessary weights and connections to reduce model size and complexity.",
-      category: "Knowledge Distillation"
+      explanation:
+        "KD transfers the knowledge from a large teacher model into a smaller student model for efficiency."
     },
     {
-      question: "What role do student and teacher models play in Knowledge Distillation?",
+      question: "What does pruning remove from a neural network?",
       options: [
-        "The teacher model is a simpler model that teaches the student.",
-        "The student model learns from the teacher's predictions and mimics its behavior, improving generalization.",
-        "The teacher model is used to prune the student model.",
-        "The teacher model is not used in Knowledge Distillation.",
+        "Important features",
+        "Random data samples",
+        "Redundant or less important weights and nodes",
+        "All hidden layers"
+      ],
+      correctAnswer: 2,
+      explanation:
+        "Pruning removes redundant or unimportant weights/connections to shrink the model."
+    },
+    {
+      question: "In KD, what type of predictions does the teacher provide to the student?",
+      options: [
+        "Hard labels only",
+        "Soft probability distributions",
+        "Pruned outputs",
+        "Random guesses"
       ],
       correctAnswer: 1,
-      explanation: "The teacher model provides 'soft' predictions (probabilities) that contain more information than hard labels, helping the student model learn not just what to predict, but also how confident the teacher is about each prediction.",
-      category: "Knowledge Distillation"
+      explanation:
+        "The teacher provides soft probability distributions that carry richer information than hard labels."
     },
     {
-      question: "How does Pruning affect model structure and performance, and how is this reflected in our visualizations?",
+      question: "Which is more likely to cause a significant accuracy drop if applied too aggressively?",
+      options: ["Pruning", "Knowledge Distillation", "Both equally", "Neither"],
+      correctAnswer: 0,
+      explanation:
+        "Aggressive pruning can severely reduce accuracy if critical weights are removed."
+    },
+    {
+      question: "What does a compression ratio of 4× mean?",
       options: [
-        "Pruning decreases accuracy but reduces model size, with pruned components shown as highlighted nodes in the visualization.",
-        "Pruning improves model performance but increases complexity, with nodes removed in the visualization.",
-        "Pruning removes redundant components, and pruned nodes are displayed as red in the visualization.",
-        "Pruning has no impact on performance or structure.",
+        "The model is four times larger",
+        "The model size is reduced to 1/4th of its original size",
+        "The model runs four times slower",
+        "The accuracy dropped by 4%"
       ],
-      correctAnswer: 2,
-      explanation: "Pruning removes redundant or less important connections and nodes, typically resulting in a small accuracy trade-off for significant size and speed improvements. In visualizations, pruned components are often shown in different colors (like red) to indicate their inactive state.",
-      category: "Pruning"
+      correctAnswer: 1,
+      explanation:
+        "4× compression ratio means the model is four times smaller than the original."
     },
     {
-      question: "If a model shows a 2.5× compression ratio and a 1.8% accuracy drop, would you consider it a successful compression? Why or why not?",
+      question: "Which process typically results in a smaller student model learning generalization patterns?",
+      options: ["Knowledge Distillation", "Pruning", "Dropout", "Batch Normalization"],
+      correctAnswer: 0,
+      explanation:
+        "KD helps the smaller student mimic the teacher's decision-making and generalize better."
+    },
+    {
+      question: "What is a potential drawback of pruning?",
       options: [
-        "Yes, because the compression ratio is high and the accuracy drop is small.",
-        "No, because the accuracy drop is too high relative to the compression ratio.",
-        "Yes, because the compression is more important than accuracy.",
-        "No, because the compression ratio is low.",
+        "It always increases accuracy",
+        "It may remove important parameters and reduce accuracy",
+        "It increases FLOPs",
+        "It doubles the model size"
+      ],
+      correctAnswer: 1,
+      explanation:
+        "If not done carefully, pruning can remove essential parameters and hurt accuracy."
+    },
+    {
+      question: "Which metric best indicates the computational savings after pruning?",
+      options: ["Accuracy", "FLOPs", "Precision", "Recall"],
+      correctAnswer: 1,
+      explanation: "FLOPs (floating point operations) directly show computational efficiency."
+    },
+    {
+      question: "What role does temperature scaling play in KD?",
+      options: [
+        "It controls the hardness/softness of the teacher’s probability outputs",
+        "It adjusts the pruning threshold",
+        "It reduces FLOPs",
+        "It increases dropout"
       ],
       correctAnswer: 0,
-      explanation: "A 2.5× compression ratio (60% size reduction) with only a 1.8% accuracy drop represents an excellent trade-off. The model becomes significantly smaller and faster while maintaining most of its performance, making it suitable for deployment on resource-constrained devices.",
-      category: "Compression Analysis"
+      explanation:
+        "Temperature scaling smooths teacher predictions, making knowledge transfer easier."
     },
     {
-      question: "How would you interpret a scenario where the latency improved, but the F1-score dropped significantly after pruning?",
+      question:
+        "True or False: Pruning always maintains the exact same accuracy as the original model.",
+      correctAnswer: false,
+      explanation:
+        "Pruning usually causes a small accuracy drop, but the goal is to minimize it."
+    },
+    {
+      question:
+        "True or False: KD can be seen as training the student with both hard labels and teacher soft labels.",
+      correctAnswer: true,
+      explanation:
+        "KD uses a combination of true labels and teacher’s soft labels for training."
+    },
+    {
+      question: "True or False: Structured pruning removes entire neurons, filters, or layers.",
+      correctAnswer: true,
+      explanation:
+        "Structured pruning eliminates larger structural components, not just weights."
+    },
+    {
+      question: "True or False: Unstructured pruning removes weights based on their magnitude.",
+      correctAnswer: true,
+      explanation:
+        "Unstructured pruning eliminates small-magnitude weights regardless of their position."
+    },
+    {
+      question: "Which is more suitable for deployment on mobile devices?",
       options: [
-        "The model is performing better because latency is improved, and F1-score doesn't matter.",
-        "The model's efficiency increased, but the drop in F1-score indicates a loss in accuracy.",
-        "The F1-score drop suggests the model is performing worse overall, despite latency improvement.",
-        "This indicates a successful compression process.",
+        "Uncompressed teacher model",
+        "Pruned or distilled student model",
+        "Random baseline model",
+        "Overparameterized model"
       ],
-      correctAnswer: 2,
-      explanation: "While latency improvement is beneficial, a significant F1-score drop indicates that the model's overall performance has degraded. This suggests that too much pruning was applied, removing important connections that were necessary for accurate predictions.",
-      category: "Performance Analysis"
+      correctAnswer: 1,
+      explanation:
+        "Smaller, efficient models (from KD or pruning) are ideal for resource-limited devices."
     },
     {
-      question: "What does the 'Complexity Metrics' section tell you about the model, and why is it important?",
+      question: "What is the main benefit of pruning?",
       options: [
-        "It shows the model's computational load and how hard it is to deploy in real-world environments.",
-        "It indicates the model's size and how many layers are present.",
-        "It measures how fast the model runs on GPUs.",
-        "It only measures the accuracy of the model.",
+        "Increased accuracy",
+        "Reduced model size and faster inference",
+        "More training data",
+        "More complex model"
+      ],
+      correctAnswer: 1,
+      explanation: "Pruning reduces size and improves inference speed."
+    },
+    {
+      question: "What is the main drawback of KD compared to pruning?",
+      options: [
+        "It requires training a student model",
+        "It removes too many weights",
+        "It increases FLOPs",
+        "It always decreases accuracy"
       ],
       correctAnswer: 0,
-      explanation: "Complexity metrics (like FLOPs, memory usage, inference time) help understand the computational requirements and deployment feasibility of the model. This is crucial for real-world applications where resources are limited.",
-      category: "Model Complexity"
+      explanation:
+        "KD requires retraining a smaller model, unlike pruning which modifies an existing one."
     },
-  ];
-
-  const trueFalseQuestions = [
     {
-      question: "Knowledge Distillation is a technique where a smaller model (student) learns from a larger, pre-trained model (teacher).",
+      question: "True or False: In pruning, red nodes in visualization usually indicate pruned components.",
       correctAnswer: true,
-      explanation: "True! Knowledge Distillation involves training a smaller student model to mimic the behavior of a larger, more complex teacher model, transferring not just the predictions but also the confidence levels and decision-making patterns.",
-      category: "Knowledge Distillation"
+      explanation: "Red nodes typically highlight pruned or inactive parts."
     },
     {
-      question: "Pruning removes unnecessary parts of a model to reduce its size and computational complexity.",
+      question: "True or False: KD can improve the student’s generalization even beyond the teacher’s accuracy.",
       correctAnswer: true,
-      explanation: "True! Pruning identifies and removes weights, connections, or entire neurons that contribute little to the model's performance, resulting in a smaller, faster model.",
-      category: "Pruning"
+      explanation:
+        "Sometimes the student surpasses the teacher due to regularization effects of KD."
     },
     {
-      question: "Pruning does not affect the accuracy of the model since it only focuses on reducing latency.",
-      correctAnswer: false,
-      explanation: "False! Pruning typically results in a small accuracy trade-off. While the goal is to minimize this impact, removing connections can affect the model's ability to make accurate predictions.",
-      category: "Pruning"
+      question: "Which technique reduces parameters without retraining a new student model?",
+      options: ["Knowledge Distillation", "Pruning", "Batch Normalization", "Data Augmentation"],
+      correctAnswer: 1,
+      explanation:
+        "Pruning compresses an existing model without requiring a student."
     },
     {
-      question: "The teacher model in Knowledge Distillation is responsible for generating soft predictions that guide the student model's learning process.",
-      correctAnswer: true,
-      explanation: "True! The teacher model provides 'soft' predictions (probability distributions) rather than hard labels, giving the student model richer information about the teacher's confidence and decision-making process.",
-      category: "Knowledge Distillation"
-    },
-    {
-      question: "Pruning improves accuracy by increasing the model's number of parameters.",
-      correctAnswer: false,
-      explanation: "False! Pruning reduces the number of parameters by removing connections. While this can sometimes improve generalization (reducing overfitting), it typically results in a small accuracy decrease.",
-      category: "Pruning"
-    },
-    {
-      question: "A model's complexity metrics give an insight into how computationally expensive and resource-intensive the model is.",
-      correctAnswer: true,
-      explanation: "True! Complexity metrics like FLOPs (floating point operations), memory usage, and inference time help assess the computational requirements and deployment feasibility of the model.",
-      category: "Model Complexity"
-    },
-  ];
-
-  // Timer effect
-  useEffect(() => {
-    if (!isSubmitted) {
-      const timer = setInterval(() => {
-        setTimeSpent(prev => prev + 1);
-      }, 1000);
-      return () => clearInterval(timer);
+      question: "Which technique often requires both teacher and student models during training?",
+      options: ["Pruning", "Knowledge Distillation", "Dropout", "Quantization"],
+      correctAnswer: 1,
+      explanation: "KD involves both teacher and student during training."
     }
-  }, [isSubmitted]);
+  ];
 
-  // Handle answer selection
-  const handleAnswerChange = (questionIndex, selectedOption) => {
-    setAnswers((prev) => ({
-      ...prev,
-      [questionIndex]: selectedOption,
-    }));
+  // Shuffle questions
+  const shuffleArray = (array) => {
+    let shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
   };
 
-  // Toggle explanation visibility
-  const toggleExplanation = (questionIndex) => {
-    setShowExplanation(prev => ({
-      ...prev,
-      [questionIndex]: !prev[questionIndex]
-    }));
-  };
-
-  // Calculate score and show results
-  const calculateScore = () => {
-    let totalScore = 0;
-    let correctAnswers = [];
-
-    // Check multiple-choice questions
-    questions.forEach((q, index) => {
-      if (answers[index] === q.correctAnswer) {
-        totalScore++;
-        correctAnswers.push(index);
-      }
-    });
-
-    // Check true/false questions
-    trueFalseQuestions.forEach((q, index) => {
-      const tfIndex = questions.length + index;
-      if (answers[tfIndex] === q.correctAnswer) {
-        totalScore++;
-        correctAnswers.push(tfIndex);
-      }
-    });
-
-    setScore(totalScore);
-    setShowResults(true);
-    setIsSubmitted(true);
-  };
-
-  // Reset quiz
-  const resetQuiz = () => {
+  const startQuiz = () => {
+    setShuffledQuestions(shuffleArray(questionBank));
     setAnswers({});
     setScore(null);
     setShowResults(false);
-    setCurrentQuestion(0);
     setTimeSpent(0);
     setIsSubmitted(false);
-    setShowExplanation({});
+    setQuizStarted(true);
+    setCurrentQuestion(0);
   };
 
-  // Get performance level
-  const getPerformanceLevel = () => {
-    const totalQuestions = questions.length + trueFalseQuestions.length;
-    const percentage = (score / totalQuestions) * 100;
-    
-    if (percentage >= 90) return { level: "Excellent", color: "success", icon: Trophy };
-    if (percentage >= 80) return { level: "Good", color: "info", icon: Award };
-    if (percentage >= 70) return { level: "Fair", color: "warning", icon: Lightbulb };
-    return { level: "Needs Improvement", color: "danger", icon: Book };
+  // Timer effect
+  useEffect(() => {
+    if (quizStarted && !isSubmitted) {
+      const timer = setInterval(() => {
+        setTimeSpent((prev) => prev + 1);
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [quizStarted, isSubmitted]);
+
+  // Answer change
+  const handleAnswerChange = (questionIndex, selectedOption) => {
+    setAnswers((prev) => ({
+      ...prev,
+      [questionIndex]: selectedOption
+    }));
   };
 
-  // Format time
+  const calculateScore = () => {
+    let totalScore = 0;
+    shuffledQuestions.forEach((q, index) => {
+      if (answers[index] === q.correctAnswer) totalScore++;
+    });
+    setScore(totalScore);
+    setShowResults(true);
+    setIsSubmitted(true);
+    setCurrentReview(0);
+  };
+
+  const resetQuiz = () => {
+    setQuizStarted(false);
+  };
+
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const totalQuestions = questions.length + trueFalseQuestions.length;
+  const totalQuestions = shuffledQuestions.length;
   const answeredQuestions = Object.keys(answers).length;
   const progressPercentage = (answeredQuestions / totalQuestions) * 100;
 
-  // Returns true if all questions (MCQ and TF) have an answer
-  const allQuestionsAnswered = () => {
-    for (let i = 0; i < questions.length; i++) {
-      if (typeof answers[i] === 'undefined') return false;
+  const goNext = () => {
+    if (currentQuestion < totalQuestions - 1) {
+      setCurrentQuestion((prev) => prev + 1);
     }
-    for (let i = 0; i < trueFalseQuestions.length; i++) {
-      if (typeof answers[questions.length + i] === 'undefined') return false;
+  };
+
+  const goPrev = () => {
+    if (currentQuestion > 0) {
+      setCurrentQuestion((prev) => prev - 1);
     }
-    return true;
   };
 
   return (
@@ -258,338 +311,191 @@ function Assessment() {
         </Container>
       </Navbar>
 
-      {/* Main Content */}
       <Container className="mt-4 mb-5">
-        {/* Header */}
-        <div className="text-center mb-5">
-          <h1 className="display-4 fw-bold text-primary mb-3">
-            <Book className="me-3" />
-            Knowledge Assessment
-          </h1>
-          <p className="lead text-muted">
-            Test your understanding of Knowledge Distillation and Model Pruning concepts
-          </p>
-        </div>
-
-        {/* Progress and Timer */}
-        {!isSubmitted && (
-          <Card className="mb-4 shadow-sm">
-            <Card.Body>
-              <div className="row align-items-center">
-                <div className="col-md-6">
-                  <div className="d-flex align-items-center mb-2">
+        {!quizStarted ? (
+          <div className="text-center p-5">
+            <h1 className="fw-bold mb-4">Knowledge Assessment</h1>
+            <p className="lead text-muted mb-4">
+              Test your understanding of Knowledge Distillation and Pruning concepts
+            </p>
+            <Button variant="primary" size="lg" onClick={startQuiz}>
+              Start Quiz
+            </Button>
+          </div>
+        ) : !isSubmitted ? (
+          <>
+            {/* Timer and Progress */}
+            <Card className="mb-4 shadow-sm">
+              <Card.Body>
+                <div className="d-flex justify-content-between align-items-center">
+                  <div>
                     <Clock className="me-2 text-primary" />
-                    <span className="fw-semibold">Time: {formatTime(timeSpent)}</span>
+                    Time: {formatTime(timeSpent)}
                   </div>
-                  <ProgressBar 
-                    now={progressPercentage} 
-                    variant="primary" 
-                    className="mb-2"
-                    style={{ height: '8px' }}
-                  />
-                  <small className="text-muted">
-                    {answeredQuestions} of {totalQuestions} questions answered
-                  </small>
+                  <Badge bg="info">{Math.round(progressPercentage)}% Complete</Badge>
                 </div>
-                <div className="col-md-6 text-md-end">
-                  <Badge bg="info" className="fs-6 px-3 py-2">
-                    {Math.round(progressPercentage)}% Complete
-                  </Badge>
-                </div>
-              </div>
-            </Card.Body>
-          </Card>
-        )}
-
-        {/* Quiz Form */}
-        {!isSubmitted ? (
-          <Form className="quiz-form">
-            {/* Multiple Choice Questions */}
-            {questions.map((q, index) => (
-              <Card key={index} className="mb-4 shadow-sm question-card">
-                <Card.Body>
-                  <div className="d-flex justify-content-between align-items-start mb-3">
-                    <Badge bg="primary" className="mb-2">
-                      Question {index + 1}
-                    </Badge>
-                    <Badge bg="secondary" className="mb-2">
-                      {q.category}
-                    </Badge>
-                  </div>
-                  
-                  <h5 className="fw-bold mb-4">{q.question}</h5>
-                  
-                  <div className="options-container">
-                    {q.options.map((option, optionIndex) => (
-                      <div 
-                        key={optionIndex} 
-                        className={`option-item ${answers[index] === optionIndex ? 'selected' : ''}`}
-                        onClick={() => handleAnswerChange(index, optionIndex)}
-                      >
-                        <Form.Check
-                          type="radio"
-                          checked={answers[index] === optionIndex}
-                          onChange={() => handleAnswerChange(index, optionIndex)}
-                          className="me-3"
-                        />
-                        <span className="option-text">{option}</span>
-                      </div>
-                    ))}
-                  </div>
-                </Card.Body>
-              </Card>
-            ))}
-
-            {/* True/False Questions */}
-            {trueFalseQuestions.map((q, index) => (
-              <Card key={questions.length + index} className="mb-4 shadow-sm question-card">
-                <Card.Body>
-                  <div className="d-flex justify-content-between align-items-start mb-3">
-                    <Badge bg="success" className="mb-2">
-                      Question {questions.length + index + 1}
-                    </Badge>
-                    <Badge bg="secondary" className="mb-2">
-                      {q.category}
-                    </Badge>
-                  </div>
-                  
-                  <h5 className="fw-bold mb-4">{q.question}</h5>
-                  
-                  <div className="options-container">
-                    <div 
-                      className={`option-item ${answers[questions.length + index] === true ? 'selected' : ''}`}
-                      onClick={() => handleAnswerChange(questions.length + index, true)}
-                    >
-                      <Form.Check
-                        type="radio"
-                        checked={answers[questions.length + index] === true}
-                        onChange={() => handleAnswerChange(questions.length + index, true)}
-                        className="me-3"
-                      />
-                      <span className="option-text">True</span>
-                    </div>
-                    <div 
-                      className={`option-item ${answers[questions.length + index] === false ? 'selected' : ''}`}
-                      onClick={() => handleAnswerChange(questions.length + index, false)}
-                    >
-                      <Form.Check
-                        type="radio"
-                        checked={answers[questions.length + index] === false}
-                        onChange={() => handleAnswerChange(questions.length + index, false)}
-                        className="me-3"
-                      />
-                      <span className="option-text">False</span>
-                    </div>
-                  </div>
-                </Card.Body>
-              </Card>
-            ))}
-
-            {/* Submit Button */}
-            <div className="text-center mt-4">
-              <Button 
-                variant="primary" 
-                size="lg" 
-                onClick={calculateScore}
-                disabled={!allQuestionsAnswered()}
-                className="px-5 py-3 fw-bold"
-              >
-                <BsCheckLg className="me-2" />
-                Submit Assessment
-              </Button>
-              {!allQuestionsAnswered() && (
-                <p className="text-danger mt-2 fw-semibold">
-                  Please answer all {totalQuestions} questions before submitting
-                </p>
-              )}
-            </div>
-          </Form>
-        ) : (
-          /* Results Section */
-          <div className="results-section">
-            {/* Score Summary */}
-            <Card className="mb-4 shadow-lg border-0">
-              <Card.Body className="text-center p-5">
-                {(() => {
-                  const performance = getPerformanceLevel();
-                  const IconComponent = performance.icon;
-                  return (
-                    <>
-                      <IconComponent className={`display-1 text-${performance.color} mb-3`} />
-                      <h2 className={`text-${performance.color} fw-bold mb-3`}>
-                        {performance.level} Performance!
-                      </h2>
-                      <h1 className="display-4 fw-bold mb-3">
-                        {score} / {totalQuestions}
-                      </h1>
-                      <p className="lead text-muted mb-4">
-                        You completed the assessment in {formatTime(timeSpent)}
-                      </p>
-                      <ProgressBar 
-                        now={(score / totalQuestions) * 100} 
-                        variant={performance.color}
-                        className="mb-3"
-                        style={{ height: '12px' }}
-                      />
-                      <p className="text-muted">
-                        {Math.round((score / totalQuestions) * 100)}% Accuracy
-                      </p>
-                    </>
-                  );
-                })()}
+                <ProgressBar now={progressPercentage} variant="primary" className="mt-2" />
               </Card.Body>
             </Card>
 
-            {/* Detailed Results */}
-            <div className="row g-4 align-items-start"> {/* Add gap and align-items-start for better spacing */}
-              <div className="col-12 col-lg-8"> {/* Responsive: full width on mobile, 8/12 on large */}
-                <h3 className="mb-4">Detailed Results</h3>
-                
-                {/* Multiple Choice Results */}
-                {questions.map((q, index) => (
-                  <Card key={index} className="mb-3 shadow-sm">
-                    <Card.Body>
-                      <div className="d-flex justify-content-between align-items-start mb-3">
-                        <Badge bg="primary">Question {index + 1}</Badge>
-                        {answers[index] === q.correctAnswer ? (
-                          <CheckCircleFill className="text-success fs-4" />
-                        ) : (
-                          <XCircleFill className="text-danger fs-4" />
-                        )}
-                      </div>
-                      
-                      <h6 className="fw-bold mb-3">{q.question}</h6>
-                      
-                      <div className="mb-3">
-                        <strong>Your Answer:</strong> 
-                        <span className={`ms-2 ${answers[index] === q.correctAnswer ? 'text-success' : 'text-danger'}`}>
-                          {typeof answers[index] !== 'undefined' ? q.options[answers[index]] : <span className="text-warning">No answer</span>}
-                        </span>
-                      </div>
-                      
-                      {answers[index] !== q.correctAnswer && (
-                        <div className="mb-3">
-                          <strong>Correct Answer:</strong> 
-                          <span className="ms-2 text-success">
-                            {q.options[q.correctAnswer]}
-                          </span>
-                        </div>
-                      )}
-                      
-                      <Button
-                        variant="outline-info"
-                        size="sm"
-                        onClick={() => toggleExplanation(index)}
-                        className="mb-2"
-                      >
-                        {showExplanation[index] ? 'Hide' : 'Show'} Explanation
-                      </Button>
-                      
-                      {showExplanation[index] && (
-                        <Alert variant="info" className="mt-2">
-                          <strong>Explanation:</strong> {q.explanation}
-                        </Alert>
-                      )}
-                    </Card.Body>
-                  </Card>
-                ))}
-
-                {/* True/False Results */}
-                {trueFalseQuestions.map((q, index) => (
-                  <Card key={questions.length + index} className="mb-3 shadow-sm">
-                    <Card.Body>
-                      <div className="d-flex justify-content-between align-items-start mb-3">
-                        <Badge bg="success">Question {questions.length + index + 1}</Badge>
-                        {answers[questions.length + index] === q.correctAnswer ? (
-                          <CheckCircleFill className="text-success fs-4" />
-                        ) : (
-                          <XCircleFill className="text-danger fs-4" />
-                        )}
-                      </div>
-                      
-                      <h6 className="fw-bold mb-3">{q.question}</h6>
-                      
-                      <div className="mb-3">
-                        <strong>Your Answer:</strong> 
-                        <span className={`ms-2 ${answers[questions.length + index] === q.correctAnswer ? 'text-success' : 'text-danger'}`}>
-                          {typeof answers[questions.length + index] !== 'undefined' ? (answers[questions.length + index] ? 'True' : 'False') : <span className="text-warning">No answer</span>}
-                        </span>
-                      </div>
-                      
-                      {answers[questions.length + index] !== q.correctAnswer && (
-                        <div className="mb-3">
-                          <strong>Correct Answer:</strong> 
-                          <span className="ms-2 text-success">
-                            {q.correctAnswer ? 'True' : 'False'}
-                          </span>
-                        </div>
-                      )}
-                      
-                      <Button
-                        variant="outline-info"
-                        size="sm"
-                        onClick={() => toggleExplanation(questions.length + index)}
-                        className="mb-2"
-                      >
-                        {showExplanation[questions.length + index] ? 'Hide' : 'Show'} Explanation
-                      </Button>
-                      
-                      {showExplanation[questions.length + index] && (
-                        <Alert variant="info" className="mt-2">
-                          <strong>Explanation:</strong> {q.explanation}
-                        </Alert>
-                      )}
-                    </Card.Body>
-                  </Card>
-                ))}
-              </div>
-              {/* Sidebar */}
-              <div className="col-12 col-lg-4"> {/* Responsive: full width on mobile, 4/12 on large */}
-                <Card className="shadow-sm sticky-top" style={{ top: '20px' }}>
+            {/* One Question at a Time */}
+            <Form>
+              {shuffledQuestions.length > 0 && (
+                <Card className="mb-4 shadow-sm">
                   <Card.Body>
-                    <h5 className="fw-bold mb-3">Quick Stats</h5>
-                    
-                    <div className="mb-3">
-                      <div className="d-flex justify-content-between">
-                        <span>Correct Answers:</span>
-                        <Badge bg="success">{score}</Badge>
-                      </div>
-                    </div>
-                    
-                    <div className="mb-3">
-                      <div className="d-flex justify-content-between">
-                        <span>Incorrect Answers:</span>
-                        <Badge bg="danger">{totalQuestions - score}</Badge>
-                      </div>
-                    </div>
-                    
-                    <div className="mb-3">
-                      <div className="d-flex justify-content-between">
-                        <span>Time Taken:</span>
-                        <Badge bg="info">{formatTime(timeSpent)}</Badge>
-                      </div>
-                    </div>
-                    
-                    <div className="mb-4">
-                      <div className="d-flex justify-content-between">
-                        <span>Accuracy:</span>
-                        <Badge bg="primary">{Math.round((score / totalQuestions) * 100)}%</Badge>
-                      </div>
-                    </div>
-                    
-                    <Button 
-                      variant="outline-primary" 
-                      onClick={resetQuiz}
-                      className="w-100"
-                    >
-                      <Book className="me-2" />
-                      Retake Assessment
-                    </Button>
+                    <Badge bg="primary" className="mb-2">
+                      Question {currentQuestion + 1} of {totalQuestions}
+                    </Badge>
+                    <h5 className="fw-bold mb-3">
+                      {shuffledQuestions[currentQuestion].question}
+                    </h5>
+
+                    {shuffledQuestions[currentQuestion].options ? (
+                      shuffledQuestions[currentQuestion].options.map(
+                        (option, optionIndex) => (
+                          <div
+                            key={optionIndex}
+                            className={`option-item ${
+                              answers[currentQuestion] === optionIndex ? "selected" : ""
+                            }`}
+                            onClick={() => handleAnswerChange(currentQuestion, optionIndex)}
+                          >
+                            <Form.Check
+                              type="radio"
+                              checked={answers[currentQuestion] === optionIndex}
+                              onChange={() =>
+                                handleAnswerChange(currentQuestion, optionIndex)
+                              }
+                              className="me-2"
+                            />
+                            <span>{option}</span>
+                          </div>
+                        )
+                      )
+                    ) : (
+                      <>
+                        <div
+                          className={`option-item ${
+                            answers[currentQuestion] === true ? "selected" : ""
+                          }`}
+                          onClick={() => handleAnswerChange(currentQuestion, true)}
+                        >
+                          <Form.Check
+                            type="radio"
+                            checked={answers[currentQuestion] === true}
+                            onChange={() => handleAnswerChange(currentQuestion, true)}
+                            className="me-2"
+                          />
+                          True
+                        </div>
+                        <div
+                          className={`option-item ${
+                            answers[currentQuestion] === false ? "selected" : ""
+                          }`}
+                          onClick={() => handleAnswerChange(currentQuestion, false)}
+                        >
+                          <Form.Check
+                            type="radio"
+                            checked={answers[currentQuestion] === false}
+                            onChange={() => handleAnswerChange(currentQuestion, false)}
+                            className="me-2"
+                          />
+                          False
+                        </div>
+                      </>
+                    )}
                   </Card.Body>
                 </Card>
+              )}
+
+              {/* Navigation */}
+              <div className="d-flex justify-content-between">
+                <Button
+                  variant="secondary"
+                  disabled={currentQuestion === 0}
+                  onClick={goPrev}
+                >
+                  <ArrowLeft className="me-2" /> Previous
+                </Button>
+
+                {currentQuestion < totalQuestions - 1 ? (
+                  <Button
+                    variant="primary"
+                    onClick={goNext}
+                    disabled={typeof answers[currentQuestion] === "undefined"}
+                  >
+                    Next <ArrowRight className="ms-2" />
+                  </Button>
+                ) : (
+                  <Button
+                    variant="success"
+                    onClick={calculateScore}
+                    disabled={answeredQuestions !== totalQuestions}
+                  >
+                    Submit Assessment
+                  </Button>
+                )}
               </div>
+            </Form>
+          </>
+        ) : (
+          <>
+            {/* Results Summary */}
+            <Card className="mb-4 shadow-sm">
+              <Card.Body className="text-center">
+                <h2 className="fw-bold mb-3">Your Score</h2>
+                <h1>{score} / {totalQuestions}</h1>
+                <p className="text-muted">Time: {formatTime(timeSpent)}</p>
+              </Card.Body>
+            </Card>
+
+            {/* Step-by-step Review */}
+            <Card className="mb-4 shadow-sm">
+              <Card.Body>
+                <h5 className="fw-bold mb-3">Review Question {currentReview + 1} of {totalQuestions}</h5>
+                <p><strong>Question:</strong> {shuffledQuestions[currentReview].question}</p>
+                <p>
+                  <strong>Your Answer:</strong>{" "}
+                  {typeof answers[currentReview] !== "undefined"
+                    ? shuffledQuestions[currentReview].options
+                      ? shuffledQuestions[currentReview].options[answers[currentReview]]
+                      : answers[currentReview] ? "True" : "False"
+                    : "No Answer"}
+                </p>
+                <p>
+                  <strong>Correct Answer:</strong>{" "}
+                  {shuffledQuestions[currentReview].options
+                    ? shuffledQuestions[currentReview].options[shuffledQuestions[currentReview].correctAnswer]
+                    : shuffledQuestions[currentReview].correctAnswer ? "True" : "False"}
+                </p>
+                <Alert variant="info">
+                  <strong>Explanation:</strong> {shuffledQuestions[currentReview].explanation}
+                </Alert>
+                <div className="d-flex justify-content-between">
+                  <Button
+                    variant="secondary"
+                    disabled={currentReview === 0}
+                    onClick={() => setCurrentReview((prev) => prev - 1)}
+                  >
+                    <ArrowLeft className="me-2" /> Previous
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    disabled={currentReview === totalQuestions - 1}
+                    onClick={() => setCurrentReview((prev) => prev + 1)}
+                  >
+                    Next <ArrowRight className="ms-2" />
+                  </Button>
+                </div>
+              </Card.Body>
+            </Card>
+
+            <div className="text-center">
+              <Button variant="outline-primary" onClick={resetQuiz}>
+                Retake Quiz
+              </Button>
             </div>
-          </div>
+          </>
         )}
       </Container>
     </>
