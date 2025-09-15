@@ -64,7 +64,7 @@ function Home() {
                   <strong>Model Pruning</strong> is a technique that removes less important connections (weights) from a neural network, effectively making it sparser while maintaining most of its accuracy.
                 </Card.Text>
                 <Card.Text className="mb-3">
-                  <strong>How it works:</strong> The algorithm identifies and removes weights that contribute little to the model's performance, often setting them to zero or completely removing them.
+                  <strong>How works:</strong> The algorithm identifies and removes weights that contribute little to the model's performance, often setting them to zero or completely removing them.
                 </Card.Text>
                 <Card.Text>
                   <strong>Benefits:</strong> Reduces model size, speeds up inference, and can even improve generalization by reducing overfitting.
