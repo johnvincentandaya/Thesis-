@@ -52,6 +52,7 @@ tokenizer = None
 last_teacher_metrics = None
 last_student_metrics = None
 last_effectiveness_metrics = None
+training_cancelled = False
 
 def calculate_compression_metrics(model_name, teacher_metrics, student_metrics):
     """Calculate realistic compression metrics based on model type and actual measurements."""
@@ -471,10 +472,13 @@ class CustomDataset(Dataset):
 
 def training_task(model_name):
     """The background task for training the model."""
-    global model_trained, teacher_model, student_model, tokenizer, last_teacher_metrics, last_student_metrics, last_effectiveness_metrics
+    global model_trained, teacher_model, student_model, tokenizer, last_teacher_metrics, last_student_metrics, last_effectiveness_metrics, training_cancelled
     
     try:
         print(f"\n=== Starting background training for {model_name} ===")
+        
+        # Reset cancellation flag
+        training_cancelled = False
         
         # Initialize models and capture potential error message
         error = initialize_models(model_name)
@@ -520,6 +524,12 @@ def training_task(model_name):
         scaler = torch.cuda.amp.GradScaler() if torch.cuda.is_available() else None
         
         for step in range(total_steps):
+            # Check for cancellation
+            if training_cancelled:
+                print("[TRAIN] Training cancelled by user")
+                socketio.emit("training_cancelled", {"message": "Training has been cancelled"})
+                return
+            
             # Apply knowledge distillation with optimization
             if scaler:
                 with torch.cuda.amp.autocast():
@@ -530,8 +540,9 @@ def training_task(model_name):
             else:
                 loss = apply_knowledge_distillation(teacher_model, student_model, optimizer, criterion)
             
-            # Calculate progress percentage (first 70% for distillation)
-            distillation_progress = int((step + 1) / total_steps * 70)
+            # Calculate linear progress percentage (1% to 70% for distillation)
+            # Ensure progress starts at 1% and increases linearly
+            distillation_progress = max(1, int(1 + (step + 1) / total_steps * 69))
             
             # Emit detailed progress update
             print(f"[TRAIN] Emitting progress: {distillation_progress}% (Loss: {loss})")
@@ -557,10 +568,17 @@ def training_task(model_name):
         # Apply pruning to the student model
         apply_pruning(student_model, amount=0.3)
         
-        # Simulate pruning progress with optimized timing (70% to 90%)
+        # Simulate pruning progress with optimized timing (71% to 90%)
         pruning_steps = 15  # Reduced for faster processing
         for step in range(pruning_steps):
-            pruning_progress = 70 + int((step + 1) / pruning_steps * 20)
+            # Check for cancellation
+            if training_cancelled:
+                print("[TRAIN] Training cancelled by user during pruning")
+                socketio.emit("training_cancelled", {"message": "Training has been cancelled"})
+                return
+            
+            # Ensure linear progress from 71% to 90%
+            pruning_progress = 71 + int((step + 1) / pruning_steps * 19)
             current_step = step + 1
             
             # Emit detailed pruning progress
@@ -581,10 +599,17 @@ def training_task(model_name):
             "message": "Evaluating compressed student model..."
         })
         
-        # Simulate evaluation progress with optimized timing (90% to 100%)
+        # Simulate evaluation progress with optimized timing (91% to 100%)
         evaluation_steps = 8  # Reduced for faster evaluation
         for step in range(evaluation_steps):
-            evaluation_progress = 90 + int((step + 1) / evaluation_steps * 10)
+            # Check for cancellation
+            if training_cancelled:
+                print("[TRAIN] Training cancelled by user during evaluation")
+                socketio.emit("training_cancelled", {"message": "Training has been cancelled"})
+                return
+            
+            # Ensure linear progress from 91% to 100%
+            evaluation_progress = 91 + int((step + 1) / evaluation_steps * 9)
             socketio.emit("training_progress", {
                 "progress": evaluation_progress,
                 "loss": float(loss),
@@ -892,6 +917,23 @@ def train_model():
             
     except Exception as e:
         print(f"Unexpected error during training: {str(e)}")
+        return jsonify({"success": False, "error": f"Unexpected error: {str(e)}"}), 500
+
+@app.route('/cancel_training', methods=['POST'])
+def cancel_training():
+    global training_cancelled
+    try:
+        print("\n=== Received cancel training request ===")
+        training_cancelled = True
+        print("Training cancellation flag set to True")
+        
+        return jsonify({
+            "success": True, 
+            "message": "Training cancellation requested."
+        })
+            
+    except Exception as e:
+        print(f"Unexpected error during training cancellation: {str(e)}")
         return jsonify({"success": False, "error": f"Unexpected error: {str(e)}"}), 500
 
 @app.route('/upload', methods=['POST'])

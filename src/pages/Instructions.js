@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Typography, Card } from 'antd';
 import './Instructions.css'; // Link the new CSS file
+import Footer from '../components/Footer';
 
 const { Title, Paragraph } = Typography;
 
@@ -44,6 +45,7 @@ function Instructions() {
           </Paragraph>
         </Card>
       </div>
+      <Footer />
     </>
   );
 }

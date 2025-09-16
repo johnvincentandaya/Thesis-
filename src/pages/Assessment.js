@@ -19,6 +19,7 @@ import {
 } from "react-bootstrap-icons";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./Assessment.css";
+import Footer from "../components/Footer";
 
 function Assessment() {
   const [answers, setAnswers] = useState({});
@@ -314,8 +315,10 @@ function Assessment() {
       <Container className="mt-4 mb-5">
         {!quizStarted ? (
           <div className="text-center p-5">
-            <h1 className="fw-bold mb-4">Knowledge Assessment</h1>
-            <p className="lead text-muted mb-4">
+            <h1 className="fw-bold mb-4" style={{ fontSize: '3.5rem', color: '#1890ff' }}>
+              🧠 Knowledge Assessment
+            </h1>
+            <p className="lead text-muted mb-4" style={{ fontSize: '1.3rem', fontWeight: '400' }}>
               Test your understanding of Knowledge Distillation and Pruning concepts
             </p>
             <Button variant="primary" size="lg" onClick={startQuiz}>
@@ -449,46 +452,62 @@ function Assessment() {
               </Card.Body>
             </Card>
 
-            {/* Step-by-step Review */}
-            <Card className="mb-4 shadow-sm">
-              <Card.Body>
-                <h5 className="fw-bold mb-3">Review Question {currentReview + 1} of {totalQuestions}</h5>
-                <p><strong>Question:</strong> {shuffledQuestions[currentReview].question}</p>
-                <p>
-                  <strong>Your Answer:</strong>{" "}
-                  {typeof answers[currentReview] !== "undefined"
-                    ? shuffledQuestions[currentReview].options
-                      ? shuffledQuestions[currentReview].options[answers[currentReview]]
-                      : answers[currentReview] ? "True" : "False"
-                    : "No Answer"}
-                </p>
-                <p>
-                  <strong>Correct Answer:</strong>{" "}
-                  {shuffledQuestions[currentReview].options
-                    ? shuffledQuestions[currentReview].options[shuffledQuestions[currentReview].correctAnswer]
-                    : shuffledQuestions[currentReview].correctAnswer ? "True" : "False"}
-                </p>
-                <Alert variant="info">
-                  <strong>Explanation:</strong> {shuffledQuestions[currentReview].explanation}
-                </Alert>
-                <div className="d-flex justify-content-between">
-                  <Button
-                    variant="secondary"
-                    disabled={currentReview === 0}
-                    onClick={() => setCurrentReview((prev) => prev - 1)}
-                  >
-                    <ArrowLeft className="me-2" /> Previous
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    disabled={currentReview === totalQuestions - 1}
-                    onClick={() => setCurrentReview((prev) => prev + 1)}
-                  >
-                    Next <ArrowRight className="ms-2" />
-                  </Button>
-                </div>
-              </Card.Body>
-            </Card>
+            {/* Review Only Wrong Answers */}
+            {(() => {
+              const wrongAnswers = [];
+              shuffledQuestions.forEach((q, index) => {
+                if (answers[index] !== q.correctAnswer) {
+                  wrongAnswers.push({ question: q, questionIndex: index, userAnswer: answers[index] });
+                }
+              });
+              
+              if (wrongAnswers.length === 0) {
+                return (
+                  <Card className="mb-4 shadow-sm">
+                    <Card.Body className="text-center">
+                      <h5 className="fw-bold mb-3 text-success">🎉 Perfect Score!</h5>
+                      <p className="text-muted">You got all questions correct! Great job!</p>
+                    </Card.Body>
+                  </Card>
+                );
+              }
+              
+              return (
+                <Card className="mb-4 shadow-sm">
+                  <Card.Body>
+                    <h5 className="fw-bold mb-3">Review Incorrect Answers ({currentReview + 1} of {wrongAnswers.length})</h5>
+                    <p><strong>Question:</strong> {wrongAnswers[currentReview].question.question}</p>
+                    <p>
+                      <strong>Your Answer:</strong>{" "}
+                      {typeof wrongAnswers[currentReview].userAnswer !== "undefined"
+                        ? wrongAnswers[currentReview].question.options
+                          ? wrongAnswers[currentReview].question.options[wrongAnswers[currentReview].userAnswer]
+                          : wrongAnswers[currentReview].userAnswer ? "True" : "False"
+                        : "No Answer"}
+                    </p>
+                    <Alert variant="info">
+                      <strong>Explanation:</strong> {wrongAnswers[currentReview].question.explanation}
+                    </Alert>
+                    <div className="d-flex justify-content-between">
+                      <Button
+                        variant="secondary"
+                        disabled={currentReview === 0}
+                        onClick={() => setCurrentReview((prev) => prev - 1)}
+                      >
+                        <ArrowLeft className="me-2" /> Previous
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        disabled={currentReview === wrongAnswers.length - 1}
+                        onClick={() => setCurrentReview((prev) => prev + 1)}
+                      >
+                        Next <ArrowRight className="ms-2" />
+                      </Button>
+                    </div>
+                  </Card.Body>
+                </Card>
+              );
+            })()}
 
             <div className="text-center">
               <Button variant="outline-primary" onClick={resetQuiz}>
@@ -498,6 +517,7 @@ function Assessment() {
           </>
         )}
       </Container>
+      <Footer />
     </>
   );
 }
