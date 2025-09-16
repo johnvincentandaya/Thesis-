@@ -170,15 +170,15 @@ function Home() {
                 <Accordion.Body>
                   <div className="row">
                     <div className="col-md-4">
-                      <h6>🔄 Efficiency</h6>
+                      <h6>Efficiency</h6>
                       <p>Faster inference times enable real-time applications and better user experience.</p>
                     </div>
                     <div className="col-md-4">
-                      <h6>💰 Cost Savings</h6>
+                      <h6>Cost Savings</h6>
                       <p>Reduced computational requirements lead to lower deployment and operational costs.</p>
                     </div>
                     <div className="col-md-4">
-                      <h6>🌱 Sustainability</h6>
+                      <h6>Sustainability</h6>
                       <p>Lower energy consumption contributes to more environmentally friendly AI systems.</p>
                     </div>
                   </div>

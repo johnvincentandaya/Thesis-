@@ -132,7 +132,7 @@ const Models = () => {
         };
         
         const backendModelName = modelNameMapping[modelName] || modelName;
-        // Navigate to training page with selected model
+        // Navigate to training page with selected model using React Router
         window.location.href = `/training?model=${backendModelName}`;
     };
 

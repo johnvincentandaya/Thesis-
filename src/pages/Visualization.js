@@ -29,7 +29,7 @@ function seededFloat(baseSeed, ...parts) {
 }
 
 // 3D Neural Network Components
-function NeuralNode({ position, color = "#4fc3f7", size = 0.3, isActive = false, isPruned = false, opacity = 1, label = "", layerIndex = 0, nodeIndex = 0, pruningReason = "", totalLayers = 4 }) {
+function NeuralNode({ position, color = "#4fc3f7", size = 0.3, isActive = false, isPruned = false, opacity = 1, label = "", layerIndex = 0, nodeIndex = 0, pruningReason = "", totalLayers = 4, onNodeClick }) {
   const meshRef = useRef();
   
   useFrame((state) => {
@@ -50,9 +50,24 @@ function NeuralNode({ position, color = "#4fc3f7", size = 0.3, isActive = false,
   // All layers equally visible (no focus layer)
   const effectiveOpacity = opacity;
 
+  const handleClick = (event) => {
+    event.stopPropagation();
+    if (onNodeClick) {
+      onNodeClick({
+        label,
+        layerIndex,
+        nodeIndex,
+        isPruned,
+        pruningReason,
+        color,
+        position
+      });
+    }
+  };
+
   return (
     <group position={position}>
-      <Sphere ref={meshRef} args={[size, 16, 16]}>
+      <Sphere ref={meshRef} args={[size, 16, 16]} onClick={handleClick} style={{ cursor: 'pointer' }}>
         <meshStandardMaterial 
           color={isPruned ? "#ff4444" : color} 
           opacity={isPruned ? 0.6 : effectiveOpacity}
@@ -232,7 +247,7 @@ function DataFlow({ step, isActive, seedKey = 'dataflow' }) {
   );
 }
 
-function NeuralNetwork({ step, selectedModel }) {
+function NeuralNetwork({ step, selectedModel, onNodeClick }) {
   const { camera, gl, controls } = useThree();
   const networkRef = useRef();
   
@@ -571,7 +586,7 @@ function NeuralNetwork({ step, selectedModel }) {
       
              {/* Nodes */}
       {nodes.map((node) => (
-        <NeuralNode key={node.id} {...node} totalLayers={config.layers.length} />
+        <NeuralNode key={node.id} {...node} totalLayers={config.layers.length} onNodeClick={onNodeClick} />
       ))}
       
       {/* Data flow particles */}
@@ -686,6 +701,23 @@ const Visualization = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { trainingComplete, selectedModel, metrics } = location.state || {};
+  
+  // Load persisted evaluation results if not passed via state
+  const [persistedMetrics, setPersistedMetrics] = useState(null);
+  
+  useEffect(() => {
+    if (!metrics) {
+      const persistedResults = localStorage.getItem('kd_pruning_evaluation_results');
+      if (persistedResults) {
+        try {
+          const parsedResults = JSON.parse(persistedResults);
+          setPersistedMetrics(parsedResults);
+        } catch (error) {
+          console.error('Error parsing persisted results:', error);
+        }
+      }
+    }
+  }, [metrics]);
   const [started, setStarted] = useState(false);
   const [step, setStep] = useState(0);
   const [autoPlay, setAutoPlay] = useState(false);
@@ -699,6 +731,7 @@ const Visualization = () => {
   const [socketConnected, setSocketConnected] = useState(false);
   const [serverStatus, setServerStatus] = useState("checking");
   const [vizMetrics, setVizMetrics] = useState(metrics || null);
+  const [selectedNode, setSelectedNode] = useState(null);
 
   // Robust socket connection to keep server alive and stream metrics
   useEffect(() => {
@@ -753,7 +786,7 @@ const Visualization = () => {
       socket.off("connect_error");
       socket.off("disconnect");
       socket.off("training_metrics");
-      // Do not disconnect here; keep the singleton alive
+      // Do not disconnect here; keep the singleton alive for free navigation
     };
   }, []);
 
@@ -844,6 +877,31 @@ const Visualization = () => {
   const resetSimulation = () => {
     setStep(0);
     setAutoPlay(false);
+  };
+
+  const handleNodeClick = (nodeData) => {
+    setSelectedNode(nodeData);
+  };
+
+  const getNodeExplanation = (nodeData) => {
+    if (!nodeData) return null;
+    
+    const explanations = {
+      input: "Input nodes receive raw data and pass it to the first hidden layer. In neural networks, these nodes represent the features of your input data.",
+      hidden: "Hidden nodes process information between input and output layers. They learn complex patterns and relationships in the data through weighted connections.",
+      output: "Output nodes produce the final predictions or classifications. The number of output nodes typically matches the number of possible outcomes.",
+      pruned: `This node was removed during pruning because: ${nodeData.pruningReason}. Pruning helps reduce model size while maintaining performance.`
+    };
+
+    if (nodeData.isPruned) {
+      return explanations.pruned;
+    } else if (nodeData.layerIndex === 0) {
+      return explanations.input;
+    } else if (nodeData.layerIndex === 3) { // Assuming 4 layers (0-3)
+      return explanations.output;
+    } else {
+      return explanations.hidden;
+    }
   };
   
   // Calculate dynamic pruning statistics based on model and current state
@@ -944,7 +1002,7 @@ const Visualization = () => {
                       color: 'white',
                       textAlign: 'center'
                     }}>
-                      <div style={{ fontSize: '48px', marginBottom: '20px' }}>🧠</div>
+                      <div style={{ fontSize: '48px', marginBottom: '20px' }}>Neural Network</div>
                       <Title level={2} style={{ color: 'white', marginBottom: '16px' }}>
                         3D Neural Network Demo
                       </Title>
@@ -962,7 +1020,7 @@ const Visualization = () => {
                           border: 'none'
                         }}
                       >
-                        🚀 Start Demo
+                        Start Demo
                       </Button>
                     </div>
                   ) : (
@@ -994,7 +1052,7 @@ const Visualization = () => {
                         <pointLight position={[10, 10, 10]} intensity={1} />
                         <pointLight position={[-10, -10, -10]} intensity={0.5} />
                         
-                        <NeuralNetwork step={step} selectedModel={selectedModel} />
+                        <NeuralNetwork step={step} selectedModel={selectedModel} onNodeClick={handleNodeClick} />
                         
                         <OrbitControls 
                           makeDefault
@@ -1064,7 +1122,7 @@ const Visualization = () => {
                                                {/* Model Header */}
                         <Card style={{ marginBottom: 16, borderRadius: '12px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%)' }}>
                           <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '24px', marginBottom: '8px' }}>🧠</div>
+                            <div style={{ fontSize: '24px', marginBottom: '8px' }}>Neural Network</div>
                             <Title level={4} style={{ margin: 0, color: '#1890ff' }}>
                               {selectedModel}
                             </Title>
@@ -1077,7 +1135,7 @@ const Visualization = () => {
                         {/* Instructions */}
                         <Card style={{ marginBottom: 16, borderRadius: '12px', background: 'linear-gradient(135deg, #fff7e6 0%, #fff2d9 100%)' }}>
                           <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '20px', marginBottom: '8px' }}>💡</div>
+                            <div style={{ fontSize: '20px', marginBottom: '8px' }}>Instructions</div>
                             <Title level={5} style={{ margin: '0 0 8px 0', color: '#d46b08' }}>
                               How to Use
                             </Title>
@@ -1103,7 +1161,7 @@ const Visualization = () => {
                         <Divider style={{ margin: '16px 0' }} />
                         
                         <div style={{ marginBottom: 12 }}>
-                          <AntText strong style={{ color: '#52c41a' }}>💡 Visual Hint:</AntText>
+                          <AntText strong style={{ color: '#52c41a' }}>Visual Hint:</AntText>
                           <Paragraph style={{ fontSize: '12px', color: '#666', marginTop: 4 }}>
                             {stepInfo.visualHint}
                           </Paragraph>
@@ -1111,7 +1169,7 @@ const Visualization = () => {
 
                         {showTechnicalDetails && (
                           <div style={{ marginTop: 16 }}>
-                            <AntText strong style={{ color: '#722ed1' }}>🔧 Technical Details:</AntText>
+                            <AntText strong style={{ color: '#722ed1' }}>Technical Details:</AntText>
                             <ul style={{ fontSize: '12px', color: '#666', marginTop: 8 }}>
                               {stepInfo.technicalDetails.map((detail, index) => (
                                 <li key={index}>{detail}</li>
@@ -1130,7 +1188,7 @@ const Visualization = () => {
                               disabled={step === 0}
                               style={{ flex: 1 }}
                             >
-                              ⬅️ Previous
+                              Previous
                             </Button>
                             <Button 
                               onClick={nextStep} 
@@ -1138,7 +1196,7 @@ const Visualization = () => {
                               type="primary"
                               style={{ flex: 1 }}
                             >
-                              Next ➡️
+                              Next
                             </Button>
                           </div>
                           
@@ -1147,14 +1205,14 @@ const Visualization = () => {
                              type={autoPlay ? "default" : "primary"}
                              style={{ width: '100%' }}
                            >
-                             {autoPlay ? '⏸️ Stop Auto-play' : '▶️ Start Auto-play'}
+                             {autoPlay ? 'Stop Auto-play' : 'Start Auto-play'}
                            </Button>
                           
                           <Button 
                             onClick={resetSimulation}
                             style={{ width: '100%' }}
                           >
-                            🔄 Reset Simulation
+                            Reset Simulation
                           </Button>
                           
                           <Button 
@@ -1162,7 +1220,15 @@ const Visualization = () => {
                             type="dashed"
                             style={{ width: '100%' }}
                           >
-                            {showTechnicalDetails ? '🔽 Hide' : '🔼 Show'} Technical Details
+                            {showTechnicalDetails ? 'Hide' : 'Show'} Technical Details
+                          </Button>
+                          
+                          <Button 
+                            onClick={() => navigate('/training')}
+                            type="default"
+                            style={{ width: '100%' }}
+                          >
+                            Back to Training
                           </Button>
 
                           {/* Visualization clarity controls simplified */}
@@ -1170,6 +1236,43 @@ const Visualization = () => {
                           {/* Focus layer and camera reset removed */}
                         </Space>
                       </Card>
+
+                      {/* Node Explanation Panel */}
+                      {selectedNode && (
+                        <Card style={{ marginBottom: 16, borderRadius: '12px', background: 'linear-gradient(135deg, #e6f7ff 0%, #f0f9ff 100%)' }}>
+                          <Title level={5} style={{ color: '#1890ff', marginBottom: 12 }}>
+                            Node Information
+                          </Title>
+                          <div style={{ fontSize: '12px', color: '#666' }}>
+                            <div style={{ marginBottom: '8px' }}>
+                              <strong>Node:</strong> {selectedNode.label}
+                            </div>
+                            <div style={{ marginBottom: '8px' }}>
+                              <strong>Layer:</strong> {selectedNode.layerIndex + 1}
+                            </div>
+                            <div style={{ marginBottom: '8px' }}>
+                              <strong>Status:</strong> {selectedNode.isPruned ? 'Pruned' : 'Active'}
+                            </div>
+                            {selectedNode.isPruned && selectedNode.pruningReason && (
+                              <div style={{ marginBottom: '8px' }}>
+                                <strong>Reason:</strong> {selectedNode.pruningReason}
+                              </div>
+                            )}
+                            <Divider style={{ margin: '8px 0' }} />
+                            <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                              <strong>Explanation:</strong><br />
+                              {getNodeExplanation(selectedNode)}
+                            </div>
+                          </div>
+                          <Button 
+                            onClick={() => setSelectedNode(null)}
+                            size="small"
+                            style={{ width: '100%', marginTop: '8px' }}
+                          >
+                            Close
+                          </Button>
+                        </Card>
+                      )}
 
                       {/* Progress */}
                       <Card style={{ marginBottom: 16, borderRadius: '12px' }}>
@@ -1189,7 +1292,7 @@ const Visualization = () => {
 
                       {/* Visualization Legend */}
                       <Card style={{ marginBottom: 16, borderRadius: '12px' }}>
-                        <Title level={5} style={{ marginBottom: 12 }}>🔍 What You're Seeing</Title>
+                        <Title level={5} style={{ marginBottom: 12 }}>What You're Seeing</Title>
                         <div style={{ fontSize: '12px', color: '#666' }}>
                           <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
                             <div style={{ 
@@ -1252,19 +1355,19 @@ const Visualization = () => {
                       </Card>
 
                       {/* Training Results (always visible if available) */}
-                      { (vizMetrics || metrics) && (
+                      { (vizMetrics || metrics || persistedMetrics) && (
                         <Card style={{ borderRadius: '12px', background: 'linear-gradient(135deg, #f6ffed 0%, #f0f9ff 100%)' }}>
                           <Title level={4} style={{ color: '#52c41a', marginBottom: 16 }}>
-                            🎯 Compression Results
+                            Compression Results
                           </Title>
                           
-                          {(vizMetrics || metrics).model_performance && (
+                          {(vizMetrics || metrics || persistedMetrics)?.model_performance && (
                             <div style={{ marginBottom: 16 }}>
                               <Row gutter={8}>
                                 <Col span={12}>
                                   <div style={{ textAlign: 'center', padding: '12px', background: '#f6ffed', borderRadius: '8px' }}>
                                     <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#52c41a' }}>
-                                      {(vizMetrics || metrics).model_performance.metrics?.accuracy || 'N/A'}
+                                      {(vizMetrics || metrics || persistedMetrics)?.model_performance?.metrics?.accuracy || 'N/A'}
                                     </div>
                                     <div style={{ fontSize: '12px', color: '#666' }}>Accuracy</div>
                                   </div>
@@ -1272,7 +1375,7 @@ const Visualization = () => {
                                 <Col span={12}>
                                   <div style={{ textAlign: 'center', padding: '12px', background: '#fff7e6', borderRadius: '8px' }}>
                                     <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#fa8c16' }}>
-                                      {(vizMetrics || metrics).model_performance.metrics?.size_mb || 'N/A'}
+                                      {(vizMetrics || metrics || persistedMetrics)?.model_performance?.metrics?.size_mb || 'N/A'}
                                     </div>
                                     <div style={{ fontSize: '12px', color: '#666' }}>Size (MB)</div>
                                   </div>
@@ -1292,7 +1395,7 @@ const Visualization = () => {
                                              {/* Pruning Statistics */}
                        {step >= 4 && (
                          <Card style={{ marginBottom: 16, borderRadius: '12px', background: 'linear-gradient(135deg, #fff2f0 0%, #fff1f0 100%)' }}>
-                           <Title level={5} style={{ color: '#cf1322', marginBottom: 12 }}>✂️ Dynamic Pruning Results</Title>
+                           <Title level={5} style={{ color: '#cf1322', marginBottom: 12 }}>Dynamic Pruning Results</Title>
                            <div style={{ fontSize: '12px', color: '#666' }}>
                              <Row gutter={8} style={{ marginBottom: '8px' }}>
                                <Col span={12}>
@@ -1343,11 +1446,11 @@ const Visualization = () => {
                         Watch your model in action:
                       </Paragraph>
                       <ul style={{ fontSize: '14px', color: '#666' }}>
-                        <li>🎯 See the network structure</li>
-                        <li>⚡ Watch data flow through</li>
-                        <li>✂️ See parts get removed</li>
-                        <li>📊 Check the results</li>
-                        <li>🎓 Learn step by step</li>
+                        <li>See the network structure</li>
+                        <li>Watch data flow through</li>
+                        <li>See parts get removed</li>
+                        <li>Check the results</li>
+                        <li>Learn step by step</li>
                       </ul>
                       <Divider />
                       <Paragraph style={{ fontSize: '12px', color: '#999' }}>

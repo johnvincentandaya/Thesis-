@@ -5,6 +5,7 @@ import Training from './pages/Training';
 import Visualization from './pages/Visualization';
 import Instructions from './pages/Instructions';
 import Assessment from './pages/Assessment';
+import './App.css';
 
 function App() {
   return (
