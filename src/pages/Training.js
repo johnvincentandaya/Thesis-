@@ -65,6 +65,14 @@ const Training = () => {
     }
     return null; // Start with no model selected
   });
+
+  // Update selected model when URL changes
+  useEffect(() => {
+    const modelParam = getQueryParam("model");
+    if (modelParam && validModelValues.includes(modelParam)) {
+      setSelectedModel(modelParam);
+    }
+  }, [location.search]);
   
   const [training, setTraining] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -76,6 +84,8 @@ const Training = () => {
   const [metrics, setMetrics] = useState(null);
   const [trainingPhase, setTrainingPhase] = useState(null);
   const [trainingMessage, setTrainingMessage] = useState(null);
+  const [evaluationResults, setEvaluationResults] = useState(null);
+  const [currentResultIndex, setCurrentResultIndex] = useState(0);
 
   // Server connection test
   const testServerConnection = async () => {
@@ -95,6 +105,20 @@ const Training = () => {
 
   useEffect(() => {
     testServerConnection();
+    
+    // Load persisted evaluation results
+    const persistedResults = localStorage.getItem('kd_pruning_evaluation_results');
+    if (persistedResults) {
+      try {
+        const parsedResults = JSON.parse(persistedResults);
+        setEvaluationResults(parsedResults);
+        setMetrics(parsedResults);
+      } catch (error) {
+        console.error('Error parsing persisted results:', error);
+        localStorage.removeItem('kd_pruning_evaluation_results');
+      }
+    }
+    
     socket.on("connect", () => {
       setSocketConnected(true);
       setServerStatus("connected");
@@ -148,13 +172,21 @@ const Training = () => {
         console.log("Merged metrics:", mergedMetrics);
         console.log("Model performance check:", mergedMetrics.model_performance);
         console.log("Model performance metrics check:", mergedMetrics.model_performance?.metrics);
+        
+        // Store evaluation results for persistence
+        if (mergedMetrics.model_performance) {
+          setEvaluationResults(mergedMetrics);
+          // Store in localStorage for persistence across page navigation
+          localStorage.setItem('kd_pruning_evaluation_results', JSON.stringify(mergedMetrics));
+        }
+        
         return mergedMetrics;
       });
     });
     socket.on("training_error", (data) => {
       setTraining(false);
       setProgress(0);
-      message.error({ content: `🚨 Training Failed: ${data.error}`, key: "training", duration: 0 });
+      message.error({ content: `Training Failed: ${data.error}`, key: "training", duration: 0 });
     });
     return () => {
       socket.off("connect");
@@ -164,7 +196,7 @@ const Training = () => {
       socket.off("training_status");
       socket.off("training_metrics");
       socket.off("training_error");
-      // Do not disconnect the shared socket here
+      // Do not disconnect the shared socket here to allow free navigation
     };
     // eslint-disable-next-line
   }, []);
@@ -176,7 +208,12 @@ const Training = () => {
 
   const handleModelSelect = (model) => {
     setSelectedModel(model);
-    setMetrics(null);
+    // Only clear results if starting a new training session
+    if (training) {
+      setMetrics(null);
+      setEvaluationResults(null);
+      localStorage.removeItem('kd_pruning_evaluation_results');
+    }
     setProgress(0);
     setTrainingComplete(false);
     setCurrentLoss(null);
@@ -184,7 +221,7 @@ const Training = () => {
 
   const startTraining = async () => {
     if (!selectedModel) {
-      message.error("⚠️ Please select a model first.");
+      message.error("Please select a model first.");
       return;
     }
     // Ensure socket is attempting to connect, but do not block training on WS state
@@ -193,7 +230,7 @@ const Training = () => {
       message.info("Connecting to server... training will still start.");
     }
     if (training) {
-      message.warning("⚠️ Training is already in progress.");
+      message.warning("Training is already in progress.");
       return;
     }
     setTraining(true);
@@ -201,8 +238,11 @@ const Training = () => {
     setTrainingComplete(false);
     setCurrentLoss(null);
     setMetrics(null);
+    setEvaluationResults(null);
     setTrainingPhase(null);
     setTrainingMessage(null);
+    // Clear previous results when starting new training
+    localStorage.removeItem('kd_pruning_evaluation_results');
     try {
       // Ensure server is up (idempotent)
       await testServerConnection();
@@ -226,8 +266,18 @@ const Training = () => {
       setTraining(false);
       setProgress(0);
       // Even if WS is not ready, keep server actions flowing
-      message.error({ content: `🚨 Error: ${error.message}`, key: "training", duration: 5 });
+      message.error({ content: `Error: ${error.message}`, key: "training", duration: 5 });
     }
+  };
+
+  const cancelTraining = () => {
+    setTraining(false);
+    setProgress(0);
+    setTrainingComplete(false);
+    setCurrentLoss(null);
+    setTrainingPhase(null);
+    setTrainingMessage(null);
+    message.info("Training cancelled. You can start a new training session.");
   };
 
   const proceedToVisualization = () => {
@@ -236,6 +286,23 @@ const Training = () => {
       return;
     }
     navigate("/visualization", { state: { selectedModel, trainingComplete: true, metrics } });
+  };
+
+  const nextEvaluationResult = () => {
+    if (evaluationResults) {
+      const resultKeys = Object.keys(evaluationResults).filter(key => 
+        key !== 'error' && key !== 'basic_metrics'
+      );
+      if (currentResultIndex < resultKeys.length - 1) {
+        setCurrentResultIndex(currentResultIndex + 1);
+      }
+    }
+  };
+
+  const previousEvaluationResult = () => {
+    if (currentResultIndex > 0) {
+      setCurrentResultIndex(currentResultIndex - 1);
+    }
   };
 
   // Server status indicator
@@ -630,6 +697,15 @@ const renderEducationalMetrics = (metrics) => {
                 <Card className="mb-4" style={{ marginBottom: 24 }}>
                   <Title level={4}>{modelOptions.find(m => m.value === selectedModel)?.label}</Title>
                   <Paragraph>{modelData[selectedModel]?.description}</Paragraph>
+                  {getQueryParam("model") && (
+                    <Alert
+                      message="Model Auto-Selected"
+                      description="This model was automatically selected from the Models page. You can now start training immediately."
+                      type="success"
+                      showIcon
+                      style={{ marginTop: 16 }}
+                    />
+                  )}
                 </Card>
               )}
               
@@ -718,18 +794,33 @@ const renderEducationalMetrics = (metrics) => {
                       <Button
                         type="default"
                         size="large"
-                        onClick={() => {
-                          setTraining(false);
-                          setProgress(0);
-                          setTrainingComplete(false);
-                          setCurrentLoss(null);
-                          setMetrics(null);
-                          setTrainingPhase(null);
-                          setTrainingMessage(null);
-                        }}
+                        onClick={cancelTraining}
                         danger
                       >
-                        Stop Training
+                        Cancel Training
+                      </Button>
+                    )}
+                    
+                    {trainingComplete && !training && (
+                      <Button
+                        type="primary"
+                        size="large"
+                        onClick={() => {
+                          setTrainingComplete(false);
+                          setProgress(0);
+                          setCurrentLoss(null);
+                          setMetrics(null);
+                          setEvaluationResults(null);
+                          setTrainingPhase(null);
+                          setTrainingMessage(null);
+                          localStorage.removeItem('kd_pruning_evaluation_results');
+                        }}
+                        style={{ 
+                          backgroundColor: '#52c41a',
+                          borderColor: '#52c41a'
+                        }}
+                      >
+                        Train Another Model
                       </Button>
                     )}
                     
@@ -745,23 +836,20 @@ const renderEducationalMetrics = (metrics) => {
                       }}
                     >
                       <ArrowRightOutlined style={{ marginRight: 8 }} />
-                      {progress === 100 ? "🎯 Proceed to Visualization" : "Proceed to Visualization"}
+                      Proceed to Visualization
                     </Button>
                   </div>
                   {trainingComplete && metrics && (
                     <Card style={{ marginTop: 20, textAlign: 'left' }}>
                       <Alert
-                        message="🎉 Training Complete!"
+                        message="Training Complete!"
                         description={
                           <div>
                             <p><strong>The model has been successfully compressed using Knowledge Distillation and Pruning!</strong></p>
-                            <p>✅ Model loaded and processed</p>
-                            <p>✅ Knowledge distillation applied</p>
-                            <p>✅ Model pruning completed</p>
+                            <p>Model loaded and processed</p>
+                            <p>Knowledge distillation applied</p>
+                            <p>Model pruning completed</p>
                             <p><strong>You can now proceed to the visualization to see the step-by-step process and evaluation results.</strong></p>
-                            <p style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
-                              Debug: Metrics received - {Object.keys(metrics).join(', ')}
-                            </p>
                           </div>
                         }
                         type="success"
@@ -772,7 +860,7 @@ const renderEducationalMetrics = (metrics) => {
                       {/* Enhanced Metrics Display */}
                       {metrics && (
                         <div>
-                          <Title level={4} style={{ marginTop: 16, marginBottom: 16 }}>📊 Training Results Summary</Title>
+                          <Title level={4} style={{ marginTop: 16, marginBottom: 16 }}>Training Results Summary</Title>
                           
                           {metrics.model_performance && (
                             <div style={{ marginBottom: '20px' }}>
@@ -802,32 +890,15 @@ const renderEducationalMetrics = (metrics) => {
                             </div>
                           )}
                           
-                          {/* Fallback display when model_performance is missing */}
+                          {/* Only show results when we have actual data */}
                           {!metrics.model_performance && (
                             <div style={{ marginBottom: '20px' }}>
-                              <Title level={5} style={{ color: '#1890ff' }}>Model Performance (Fallback)</Title>
-                              <Row gutter={16}>
-                                <Col span={12}>
-                                  <Card size="small" style={{ background: '#f6ffed', borderColor: '#b7eb8f' }}>
-                                    <div style={{ textAlign: 'center' }}>
-                                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#52c41a' }}>
-                                        89.0%
-                                      </div>
-                                      <div style={{ fontSize: '14px', color: '#666' }}>Final Accuracy</div>
-                                    </div>
-                                  </Card>
-                                </Col>
-                                <Col span={12}>
-                                  <Card size="small" style={{ background: '#fff7e6', borderColor: '#ffd591' }}>
-                                    <div style={{ textAlign: 'center' }}>
-                                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#fa8c16' }}>
-                                        1.1 MB
-                                      </div>
-                                      <div style={{ fontSize: '14px', color: '#666' }}>Model Size (MB)</div>
-                                    </div>
-                                  </Card>
-                                </Col>
-                              </Row>
+                              <Alert
+                                message="Training Results Not Available"
+                                description="Complete training to see detailed performance metrics."
+                                type="info"
+                                showIcon
+                              />
                             </div>
                           )}
                           
@@ -870,7 +941,7 @@ const renderEducationalMetrics = (metrics) => {
                           )}
                           
                           <div style={{ background: '#f0f8ff', padding: '16px', borderRadius: '6px', border: '1px solid #d6e4ff' }}>
-                            <strong>💡 What You've Learned:</strong> This training demonstrates how Knowledge Distillation transfers knowledge from a larger teacher model to a smaller student model, 
+                            <strong>What You've Learned:</strong> This training demonstrates how Knowledge Distillation transfers knowledge from a larger teacher model to a smaller student model, 
                             while Pruning removes redundant weights to create a more efficient, deployable model. The trade-off between model size and accuracy is a key concept in AI model optimization.
                           </div>
                         </div>
@@ -880,7 +951,41 @@ const renderEducationalMetrics = (metrics) => {
                 </div>
               </Card>
               {/* Metrics After Training */}
-              {metrics && renderEducationalMetrics(metrics)}
+              {metrics && (
+                <div>
+                  {/* Navigation for evaluation results */}
+                  {evaluationResults && Object.keys(evaluationResults).filter(key => 
+                    key !== 'error' && key !== 'basic_metrics'
+                  ).length > 1 && (
+                    <Card style={{ marginBottom: 16 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Button 
+                          onClick={previousEvaluationResult}
+                          disabled={currentResultIndex === 0}
+                          size="small"
+                        >
+                          Previous
+                        </Button>
+                        <span style={{ fontSize: '14px', color: '#666' }}>
+                          Result {currentResultIndex + 1} of {Object.keys(evaluationResults).filter(key => 
+                            key !== 'error' && key !== 'basic_metrics'
+                          ).length}
+                        </span>
+                        <Button 
+                          onClick={nextEvaluationResult}
+                          disabled={currentResultIndex >= Object.keys(evaluationResults).filter(key => 
+                            key !== 'error' && key !== 'basic_metrics'
+                          ).length - 1}
+                          size="small"
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </Card>
+                  )}
+                  {renderEducationalMetrics(metrics)}
+                </div>
+              )}
             </Col>
           </Row>
         </Content>
