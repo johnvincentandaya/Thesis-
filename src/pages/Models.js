@@ -3,6 +3,7 @@ import { Container, Row, Col, Card, Navbar, Nav, Table, Badge, Tooltip, Button, 
 import { Link } from "react-router-dom";
 import { InfoCircle, PlayCircle } from "react-bootstrap-icons";
 import "./Models.css";
+import Footer from "../components/Footer";
 
 const Models = () => {
     const [selectedModel, setSelectedModel] = useState(null);
@@ -321,6 +322,7 @@ const Models = () => {
                     </Button>
                 </Modal.Footer>
             </Modal>
+            <Footer />
         </>
     );
 };

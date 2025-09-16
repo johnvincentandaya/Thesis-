@@ -8,6 +8,7 @@ import { OrbitControls, Text, Box, Sphere, Cylinder, Html } from '@react-three/d
 import * as THREE from 'three';
 import './Visualization.css';
 import { socket, SOCKET_URL } from "../socket";
+import Footer from "../components/Footer";
 
 const { Title, Paragraph, Text: AntText } = Typography;
 const { Content } = Layout;
@@ -887,10 +888,10 @@ const Visualization = () => {
     if (!nodeData) return null;
     
     const explanations = {
-      input: "Input nodes receive raw data and pass it to the first hidden layer. In neural networks, these nodes represent the features of your input data.",
-      hidden: "Hidden nodes process information between input and output layers. They learn complex patterns and relationships in the data through weighted connections.",
-      output: "Output nodes produce the final predictions or classifications. The number of output nodes typically matches the number of possible outcomes.",
-      pruned: `This node was removed during pruning because: ${nodeData.pruningReason}. Pruning helps reduce model size while maintaining performance.`
+      input: `Input Layer (${nodeData.label}): These nodes receive raw data and pass it to the first hidden layer. In neural networks, these nodes represent the features of your input data. Each input node corresponds to a specific feature or dimension of your input.`,
+      hidden: `Hidden Layer ${nodeData.layerIndex + 1} (${nodeData.label}): These nodes process information between input and output layers. They learn complex patterns and relationships in the data through weighted connections. Each hidden node can detect different patterns or features in the data.`,
+      output: `Output Layer (${nodeData.label}): These nodes produce the final predictions or classifications. The number of output nodes typically matches the number of possible outcomes. Each output node represents a different class or prediction value.`,
+      pruned: `Pruned Node (${nodeData.label}): This node was removed during pruning because: ${nodeData.pruningReason}. Pruning helps reduce model size while maintaining performance by removing redundant or less important connections.`
     };
 
     if (nodeData.isPruned) {
@@ -1002,11 +1003,11 @@ const Visualization = () => {
                       color: 'white',
                       textAlign: 'center'
                     }}>
-                      <div style={{ fontSize: '48px', marginBottom: '20px' }}>Neural Network</div>
-                      <Title level={2} style={{ color: 'white', marginBottom: '16px' }}>
+                      <div style={{ fontSize: '4rem', marginBottom: '20px', fontWeight: 'bold' }}>🧠 Neural Network</div>
+                      <Title level={1} style={{ color: 'white', marginBottom: '16px', fontSize: '2.5rem', fontWeight: 'bold' }}>
                         3D Neural Network Demo
                       </Title>
-                      <Paragraph style={{ color: '#ccc', fontSize: '14px', marginBottom: '24px' }}>
+                      <Paragraph style={{ color: '#ccc', fontSize: '1.2rem', marginBottom: '24px', fontWeight: '400' }}>
                         Watch {selectedModel} compress in 3D
                       </Paragraph>
                       <Button 
@@ -1237,39 +1238,59 @@ const Visualization = () => {
                         </Space>
                       </Card>
 
-                      {/* Node Explanation Panel */}
+                      {/* Enhanced Node Explanation Panel */}
                       {selectedNode && (
                         <Card style={{ marginBottom: 16, borderRadius: '12px', background: 'linear-gradient(135deg, #e6f7ff 0%, #f0f9ff 100%)' }}>
-                          <Title level={5} style={{ color: '#1890ff', marginBottom: 12 }}>
-                            Node Information
+                          <Title level={5} style={{ color: '#1890ff', marginBottom: 16 }}>
+                            🧠 Node Analysis: {selectedNode.label}
                           </Title>
-                          <div style={{ fontSize: '12px', color: '#666' }}>
-                            <div style={{ marginBottom: '8px' }}>
-                              <strong>Node:</strong> {selectedNode.label}
+                          
+                          <div style={{ fontSize: '13px', color: '#333', lineHeight: '1.6' }}>
+                            <div style={{ marginBottom: '12px', padding: '8px', background: '#f0f9ff', borderRadius: '6px', border: '1px solid #91d5ff' }}>
+                              <strong>📍 Layer Position:</strong> Layer {selectedNode.layerIndex + 1} of 4
                             </div>
-                            <div style={{ marginBottom: '8px' }}>
-                              <strong>Layer:</strong> {selectedNode.layerIndex + 1}
+                            
+                            <div style={{ marginBottom: '12px', padding: '8px', background: selectedNode.isPruned ? '#fff2f0' : '#f6ffed', borderRadius: '6px', border: `1px solid ${selectedNode.isPruned ? '#ffccc7' : '#b7eb8f'}` }}>
+                              <strong>🔧 Status:</strong> {selectedNode.isPruned ? '❌ Pruned (Removed)' : '✅ Active (Working)'}
                             </div>
-                            <div style={{ marginBottom: '8px' }}>
-                              <strong>Status:</strong> {selectedNode.isPruned ? 'Pruned' : 'Active'}
-                            </div>
+                            
                             {selectedNode.isPruned && selectedNode.pruningReason && (
-                              <div style={{ marginBottom: '8px' }}>
-                                <strong>Reason:</strong> {selectedNode.pruningReason}
+                              <div style={{ marginBottom: '12px', padding: '8px', background: '#fff2f0', borderRadius: '6px', border: '1px solid #ffccc7' }}>
+                                <strong>✂️ Pruning Reason:</strong> {selectedNode.pruningReason}
                               </div>
                             )}
-                            <Divider style={{ margin: '8px 0' }} />
-                            <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
-                              <strong>Explanation:</strong><br />
+                            
+                            <Divider style={{ margin: '12px 0' }} />
+                            
+                            <div style={{ marginBottom: '12px' }}>
+                              <strong style={{ color: '#1890ff' }}>📚 Educational Explanation:</strong>
+                            </div>
+                            
+                            <div style={{ fontSize: '12px', lineHeight: '1.5', color: '#555' }}>
                               {getNodeExplanation(selectedNode)}
                             </div>
+                            
+                            <Divider style={{ margin: '12px 0' }} />
+                            
+                            <div style={{ fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
+                              <strong>💡 Learning Tip:</strong> {
+                                selectedNode.isPruned 
+                                  ? "Pruned nodes show how neural networks can be made more efficient by removing unnecessary parts while maintaining performance."
+                                  : selectedNode.layerIndex === 0
+                                    ? "Input nodes are the 'eyes' of the neural network - they see and process the raw data."
+                                    : selectedNode.layerIndex === 3
+                                      ? "Output nodes are the 'brain' of the neural network - they make the final decisions."
+                                      : "Hidden nodes are the 'thinking' part of the neural network - they process and transform information."
+                              }
+                            </div>
                           </div>
+                          
                           <Button 
                             onClick={() => setSelectedNode(null)}
                             size="small"
-                            style={{ width: '100%', marginTop: '8px' }}
+                            style={{ width: '100%', marginTop: '12px' }}
                           >
-                            Close
+                            Close Analysis
                           </Button>
                         </Card>
                       )}
@@ -1467,6 +1488,7 @@ const Visualization = () => {
           </div>
         </Content>
       </Layout>
+      <Footer />
     </>
   );
 };

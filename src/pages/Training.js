@@ -6,6 +6,7 @@ import { socket, SOCKET_URL } from "../socket";
 import { Navbar, Nav, Container, DropdownButton, Dropdown } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./Training.css";
+import Footer from "../components/Footer";
 
 const { Title, Text, Paragraph } = Typography;
 const { Content } = Layout;
@@ -188,6 +189,19 @@ const Training = () => {
       setProgress(0);
       message.error({ content: `Training Failed: ${data.error}`, key: "training", duration: 0 });
     });
+    
+    socket.on("training_cancelled", (data) => {
+      setTraining(false);
+      setProgress(0);
+      setTrainingComplete(false);
+      setCurrentLoss(null);
+      setTrainingPhase(null);
+      setTrainingMessage(null);
+      setMetrics(null);
+      setEvaluationResults(null);
+      localStorage.removeItem('kd_pruning_evaluation_results');
+      message.info("Training has been cancelled.");
+    });
     return () => {
       socket.off("connect");
       socket.off("connect_error");
@@ -196,6 +210,7 @@ const Training = () => {
       socket.off("training_status");
       socket.off("training_metrics");
       socket.off("training_error");
+      socket.off("training_cancelled");
       // Do not disconnect the shared socket here to allow free navigation
     };
     // eslint-disable-next-line
@@ -270,14 +285,39 @@ const Training = () => {
     }
   };
 
-  const cancelTraining = () => {
-    setTraining(false);
-    setProgress(0);
-    setTrainingComplete(false);
-    setCurrentLoss(null);
-    setTrainingPhase(null);
-    setTrainingMessage(null);
-    message.info("Training cancelled. You can start a new training session.");
+  const cancelTraining = async () => {
+    try {
+      // Show confirmation dialog
+      const confirmed = window.confirm("Are you sure you want to stop the training? This action cannot be undone.");
+      if (!confirmed) {
+        return;
+      }
+
+      // Call backend to cancel training
+      const response = await fetch(`${SOCKET_URL}/cancel_training`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (response.ok) {
+        // Reset frontend state
+        setTraining(false);
+        setProgress(0);
+        setTrainingComplete(false);
+        setCurrentLoss(null);
+        setTrainingPhase(null);
+        setTrainingMessage(null);
+        setMetrics(null);
+        setEvaluationResults(null);
+        localStorage.removeItem('kd_pruning_evaluation_results');
+        message.success("Training has been cancelled successfully.");
+      } else {
+        message.error("Failed to cancel training. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error cancelling training:", error);
+      message.error("Error cancelling training. Please try again.");
+    }
   };
 
   const proceedToVisualization = () => {
@@ -649,9 +689,11 @@ const renderEducationalMetrics = (metrics) => {
 
       <Layout>
         <Content style={{ padding: "20px", minHeight: "80vh" }}>
-          <div className="text-center mb-4">
-            <Title level={2}>Model Training Process</Title>
-            <Text type="secondary">
+          <div className="text-center mb-5">
+            <Title level={1} style={{ fontSize: '3rem', fontWeight: 'bold', color: '#1890ff', marginBottom: '1rem' }}>
+              🚀 Model Training Process
+            </Title>
+            <Text style={{ fontSize: '1.2rem', color: '#666', fontWeight: '400' }}>
               Experience the Knowledge Distillation and Pruning process step by step
             </Text>
           </div>
@@ -659,9 +701,11 @@ const renderEducationalMetrics = (metrics) => {
           <Row justify="center">
             <Col xs={24} sm={20} md={16} lg={12} xl={10}>
               {/* Model Selection */}
-              <Card className="mb-4" style={{ marginBottom: 24 }}>
-                <Title level={4} className="mb-3">Select a Model to Train</Title>
-                <Paragraph className="mb-3">
+              <Card className="mb-4" style={{ marginBottom: 24, borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+                <Title level={3} style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#1890ff', marginBottom: '1rem', textAlign: 'center' }}>
+                  🎯 Select a Model to Train
+                </Title>
+                <Paragraph style={{ fontSize: '1.1rem', color: '#666', textAlign: 'center', marginBottom: '1.5rem' }}>
                   Choose a model from the dropdown below to begin the Knowledge Distillation and Pruning process.
                 </Paragraph>
                 <DropdownButton
@@ -721,7 +765,7 @@ const renderEducationalMetrics = (metrics) => {
               )}
               
               {/* Training Progress */}
-              <Card className="mb-4">
+              <Card className="mb-4" style={{ borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
                 <div className="text-center">
                   {training && (
                     <Alert
@@ -950,46 +994,134 @@ const renderEducationalMetrics = (metrics) => {
                   )}
                 </div>
               </Card>
-              {/* Metrics After Training */}
+              {/* Unified Results Panel */}
               {metrics && (
                 <div>
-                  {/* Navigation for evaluation results */}
-                  {evaluationResults && Object.keys(evaluationResults).filter(key => 
-                    key !== 'error' && key !== 'basic_metrics'
-                  ).length > 1 && (
-                    <Card style={{ marginBottom: 16 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Button 
-                          onClick={previousEvaluationResult}
-                          disabled={currentResultIndex === 0}
-                          size="small"
-                        >
-                          Previous
-                        </Button>
-                        <span style={{ fontSize: '14px', color: '#666' }}>
-                          Result {currentResultIndex + 1} of {Object.keys(evaluationResults).filter(key => 
-                            key !== 'error' && key !== 'basic_metrics'
-                          ).length}
-                        </span>
-                        <Button 
-                          onClick={nextEvaluationResult}
-                          disabled={currentResultIndex >= Object.keys(evaluationResults).filter(key => 
-                            key !== 'error' && key !== 'basic_metrics'
-                          ).length - 1}
-                          size="small"
-                        >
-                          Next
-                        </Button>
-                      </div>
-                    </Card>
-                  )}
                   {renderEducationalMetrics(metrics)}
+                  
+                  {/* Educational Lessons Section */}
+                  <Card style={{ marginTop: 24, borderRadius: '12px' }}>
+                    <Title level={3} style={{ textAlign: 'center', marginBottom: 24, color: '#1890ff' }}>
+                      📚 Learning Center
+                    </Title>
+                    
+                    <Row gutter={[24, 24]}>
+                      <Col xs={24} md={12}>
+                        <Card 
+                          size="small" 
+                          style={{ 
+                            height: '100%', 
+                            background: 'linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%)',
+                            border: '1px solid #91d5ff'
+                          }}
+                        >
+                          <Title level={4} style={{ color: '#1890ff', marginBottom: 16 }}>
+                            🧠 Knowledge Distillation
+                          </Title>
+                          <Paragraph style={{ marginBottom: 12 }}>
+                            <strong>What it is:</strong> A technique where a smaller "student" model learns from a larger "teacher" model by mimicking its predictions.
+                          </Paragraph>
+                          <Paragraph style={{ marginBottom: 12 }}>
+                            <strong>How it works:</strong> The teacher provides "soft" probability distributions instead of just correct/incorrect answers, giving the student richer information to learn from.
+                          </Paragraph>
+                          <Paragraph style={{ marginBottom: 12 }}>
+                            <strong>Benefits:</strong> Reduces model size while maintaining most of the original performance.
+                          </Paragraph>
+                          <Paragraph style={{ marginBottom: 0 }}>
+                            <strong>Real-world use:</strong> Used in mobile apps, edge devices, and any scenario where you need efficient AI models.
+                          </Paragraph>
+                        </Card>
+                      </Col>
+                      
+                      <Col xs={24} md={12}>
+                        <Card 
+                          size="small" 
+                          style={{ 
+                            height: '100%', 
+                            background: 'linear-gradient(135deg, #fff7e6 0%, #fff2d9 100%)',
+                            border: '1px solid #ffd591'
+                          }}
+                        >
+                          <Title level={4} style={{ color: '#fa8c16', marginBottom: 16 }}>
+                            ✂️ Model Pruning
+                          </Title>
+                          <Paragraph style={{ marginBottom: 12 }}>
+                            <strong>What it is:</strong> The process of removing unnecessary weights and connections from a neural network.
+                          </Paragraph>
+                          <Paragraph style={{ marginBottom: 12 }}>
+                            <strong>How it works:</strong> Identifies and removes weights that contribute little to the model's performance, making the network more efficient.
+                          </Paragraph>
+                          <Paragraph style={{ marginBottom: 12 }}>
+                            <strong>Benefits:</strong> Reduces model size, speeds up inference, and requires less memory.
+                          </Paragraph>
+                          <Paragraph style={{ marginBottom: 0 }}>
+                            <strong>Real-world use:</strong> Essential for deploying AI models on resource-constrained devices like smartphones and IoT devices.
+                          </Paragraph>
+                        </Card>
+                      </Col>
+                      
+                      <Col xs={24} md={12}>
+                        <Card 
+                          size="small" 
+                          style={{ 
+                            height: '100%', 
+                            background: 'linear-gradient(135deg, #f6ffed 0%, #f0f9ff 100%)',
+                            border: '1px solid #b7eb8f'
+                          }}
+                        >
+                          <Title level={4} style={{ color: '#52c41a', marginBottom: 16 }}>
+                            🤖 Model Types
+                          </Title>
+                          <Paragraph style={{ marginBottom: 12 }}>
+                            <strong>DistilBERT:</strong> A compressed version of BERT for natural language processing tasks.
+                          </Paragraph>
+                          <Paragraph style={{ marginBottom: 12 }}>
+                            <strong>T5-small:</strong> A text-to-text transformer that can handle various NLP tasks.
+                          </Paragraph>
+                          <Paragraph style={{ marginBottom: 12 }}>
+                            <strong>MobileNetV2:</strong> Designed for mobile and embedded vision applications.
+                          </Paragraph>
+                          <Paragraph style={{ marginBottom: 0 }}>
+                            <strong>ResNet-18:</strong> A deep residual network with skip connections for image classification.
+                          </Paragraph>
+                        </Card>
+                      </Col>
+                      
+                      <Col xs={24} md={12}>
+                        <Card 
+                          size="small" 
+                          style={{ 
+                            height: '100%', 
+                            background: 'linear-gradient(135deg, #f9f0ff 0%, #f0f9ff 100%)',
+                            border: '1px solid #d3adf7'
+                          }}
+                        >
+                          <Title level={4} style={{ color: '#722ed1', marginBottom: 16 }}>
+                            🎯 Training Process
+                          </Title>
+                          <Paragraph style={{ marginBottom: 12 }}>
+                            <strong>Step 1:</strong> Load the teacher model and create a smaller student model.
+                          </Paragraph>
+                          <Paragraph style={{ marginBottom: 12 }}>
+                            <strong>Step 2:</strong> Train the student to mimic the teacher's predictions using knowledge distillation.
+                          </Paragraph>
+                          <Paragraph style={{ marginBottom: 12 }}>
+                            <strong>Step 3:</strong> Apply pruning to remove unnecessary weights from the student model.
+                          </Paragraph>
+                          <Paragraph style={{ marginBottom: 0 }}>
+                            <strong>Step 4:</strong> Evaluate the compressed model's performance and efficiency gains.
+                          </Paragraph>
+                        </Card>
+                      </Col>
+                    </Row>
+                  </Card>
                 </div>
               )}
             </Col>
           </Row>
         </Content>
       </Layout>
+      <Footer />
     </>
   );
 };

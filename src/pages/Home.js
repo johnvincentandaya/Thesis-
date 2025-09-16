@@ -2,6 +2,7 @@ import { Navbar, Nav, Container, Row, Col, Card, Button, Accordion } from 'react
 import { Link } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './Home.css';
+import Footer from '../components/Footer';
 
 function Home() {
   return (
@@ -25,9 +26,11 @@ function Home() {
       
       <Container className="home-container">
         <div className="text-center mb-5">
-          <h1 className="display-4 mb-3">Welcome to KD & Pruning Simulator</h1>
-          <p className="lead">
-            An interactive educational tool to understand <strong>Knowledge Distillation</strong> and <strong>Model Pruning</strong> techniques for neural network compression.
+          <h1 className="display-4 mb-3" style={{ fontSize: '4rem', fontWeight: 'bold', color: '#1890ff', marginBottom: '2rem' }}>
+            🚀 Welcome to KD & Pruning Simulator
+          </h1>
+          <p className="lead" style={{ fontSize: '1.4rem', fontWeight: '400', color: '#666', lineHeight: '1.6' }}>
+            An interactive educational tool to understand <strong style={{ color: '#1890ff' }}>Knowledge Distillation</strong> and <strong style={{ color: '#52c41a' }}>Model Pruning</strong> techniques for neural network compression.
           </p>
         </div>
 
@@ -210,6 +213,7 @@ function Home() {
           </Card>
         </div>
       </Container>
+      <Footer />
     </>
   );
 }
