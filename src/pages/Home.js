@@ -126,7 +126,7 @@ function Home() {
                   <div className="row">
                     <div className="col-md-6">
                       <h6>Step 1: Teacher Training</h6>
-                      <p>A large, complex model (teacher) is trained on the target dataset until it achieves high accuracy.</p>
+                      <p>A large, complex modXel (teacher) is trained on the target dataset until it achieves high accuracy.</p>
                       
                       <h6>Step 2: Student Architecture</h6>
                       <p>A smaller, simpler model (student) is designed with fewer parameters and layers.</p>

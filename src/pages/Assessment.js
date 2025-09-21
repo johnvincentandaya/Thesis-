@@ -315,9 +315,9 @@ function Assessment() {
       <Container className="mt-4 mb-5">
         {!quizStarted ? (
           <div className="text-center p-5">
-            <h1 className="fw-bold mb-4" style={{ fontSize: '3.5rem', color: '#1890ff' }}>
-              🧠 Knowledge Assessment
-            </h1>
+             <h1 className="display-4 mb-3" style={{ fontSize: '4rem', fontWeight: 'bold', color: '#1890ff', marginBottom: '2rem' }}>
+            🧠 Knowledge Assessment
+          </h1>
             <p className="lead text-muted mb-4" style={{ fontSize: '1.3rem', fontWeight: '400' }}>
               Test your understanding of Knowledge Distillation and Pruning concepts
             </p>

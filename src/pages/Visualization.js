@@ -856,9 +856,11 @@ const Visualization = () => {
             showIcon
           />
         </div>
+         <Footer />
       </>
     );
   }
+  
 
   const stepInfo = getStepInfo(step, selectedModel);
 

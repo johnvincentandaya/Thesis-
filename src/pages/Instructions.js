@@ -38,10 +38,10 @@ function Instructions() {
         {/* Instructions Card */}
         <Card className="instructions-card">
           <Paragraph>
-            <b>1️. Models:</b> Go to the <Link to="/models">Models</Link> page and see the models descriptions. <br /><br />
-            <b>2️. Train Your Model:</b> Navigate to the <Link to="/training">Training</Link> page to choose and train a student model using KD and Pruning. <br /><br />
-            <b>3. Visualize Results:</b> Explore the impact of KD & Pruning and Check perfomance of the model on the <Link to="/visualization">Visualization</Link> page.<br /><br />
-            <b>4. Assessment:</b> Take the assessment on the <Link to="/assessment">Assessment</Link> page.
+            <b> 1. Models:</b> Go to the <Link to="/models">Models</Link> page and see the models descriptions. <br /><br />
+            <b> 2. Train Your Model:</b> Navigate to the <Link to="/training">Training</Link> page to choose and train a student model using KD and Pruning. <br /><br />
+            <b> 3. Visualize Results:</b> Explore the impact of KD & Pruning and Check perfomance of the model on the <Link to="/visualization">Visualization</Link> page.<br /><br />
+            <b> 4. Assessment:</b> Take the assessment on the <Link to="/assessment">Assessment</Link> page.
           </Paragraph>
         </Card>
       </div>

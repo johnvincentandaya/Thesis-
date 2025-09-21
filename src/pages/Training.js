@@ -668,6 +668,38 @@ const renderEducationalMetrics = (metrics) => {
   );
 };
 
+  // Always show the last training result if available, even after navigation
+  const [persistedResult, setPersistedResult] = useState(() => {
+    const saved = localStorage.getItem('kd_training_persisted_result');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) { return null; }
+    }
+    return null;
+  });
+
+  // When training completes, persist the result
+  useEffect(() => {
+    if (trainingComplete && metrics && evaluationResults) {
+      const result = {
+        progress,
+        training,
+        trainingComplete,
+        currentLoss,
+        trainingPhase,
+        trainingMessage,
+        selectedModel,
+        metrics,
+        evaluationResults
+      };
+      localStorage.setItem('kd_training_persisted_result', JSON.stringify(result));
+      setPersistedResult(result);
+    }
+  }, [trainingComplete, metrics, evaluationResults, progress, training, currentLoss, trainingPhase, trainingMessage, selectedModel]);
+
+  const showSummary = trainingComplete || persistedResult;
+
   return (
     <>
       <Navbar bg="black" variant="dark" expand="lg">
