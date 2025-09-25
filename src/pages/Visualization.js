@@ -29,6 +29,19 @@ function seededFloat(baseSeed, ...parts) {
   return (h % 1000000000) / 1000000000; // [0,1)
 }
 
+// Helper to get pruning ratio from metrics
+const getPruningRatio = (metrics) => {
+  if (metrics?.pruning_analysis?.pruning_details?.pruning_ratio) {
+    const ratioStr = metrics.pruning_analysis.pruning_details.pruning_ratio;
+    if (typeof ratioStr === 'string' && ratioStr.includes('%')) {
+      return parseFloat(ratioStr) / 100;
+    } else if (!isNaN(Number(ratioStr))) {
+      return Number(ratioStr);
+    }
+  }
+  return 0.3;
+};
+
 // 3D Neural Network Components
 function NeuralNode({ position, color = "#4fc3f7", size = 0.3, isActive = false, isPruned = false, opacity = 1, label = "", layerIndex = 0, nodeIndex = 0, pruningReason = "", totalLayers = 4, onNodeClick }) {
   const meshRef = useRef();
@@ -248,7 +261,7 @@ function DataFlow({ step, isActive, seedKey = 'dataflow' }) {
   );
 }
 
-function NeuralNetwork({ step, selectedModel, onNodeClick }) {
+function NeuralNetwork({ step, selectedModel, onNodeClick, metrics }) {
   const { camera, gl, controls } = useThree();
   const networkRef = useRef();
   
@@ -449,26 +462,19 @@ function NeuralNetwork({ step, selectedModel, onNodeClick }) {
   // Generate nodes for each layer with enhanced labeling
   config.layers.forEach((layerSize, layerIndex) => {
     const x = layerIndex * config.spacing;
-    const isPruned = step >= 4; // Pruning starts at step 4
+    const isPruned = step >= 4;
     const isActive = step >= layerIndex + 1;
-    
+    const pruningRatio = getPruningRatio(metrics);
     for (let i = 0; i < layerSize; i++) {
       const y = (layerSize - 1) / 2 - i;
-      // Stable slight depth jitter based on seed (removes flicker across renders)
       const z = (seededFloat(selectedModel || 'default-model-seed', 'z', layerIndex, i) - 0.5) * 1.0;
-      
-      // Dynamic pruning based on computational analysis
       let shouldPrune = false;
       let pruningReason = "";
       let nodeLabel = `N${layerIndex+1}-${i+1}`;
-      
       if (isPruned) {
-        // Simulate computational analysis for each node
-        const nodeImportance = calculateNodeImportance(layerIndex, i, layerSize, selectedModel);
-        shouldPrune = nodeImportance.shouldPrune;
-        pruningReason = nodeImportance.reason;
+        shouldPrune = (i >= Math.floor((1 - pruningRatio) * layerSize));
+        if (shouldPrune) pruningReason = "Pruned by ratio";
       }
-      
       nodes.push({
         id: nodeId++,
         position: [x, y, z],
@@ -1055,7 +1061,7 @@ const Visualization = () => {
                         <pointLight position={[10, 10, 10]} intensity={1} />
                         <pointLight position={[-10, -10, -10]} intensity={0.5} />
                         
-                        <NeuralNetwork step={step} selectedModel={selectedModel} onNodeClick={handleNodeClick} />
+                        <NeuralNetwork step={step} selectedModel={selectedModel} onNodeClick={handleNodeClick} metrics={vizMetrics || metrics || persistedMetrics} />
                         
                         <OrbitControls 
                           makeDefault
@@ -1244,12 +1250,12 @@ const Visualization = () => {
                       {selectedNode && (
                         <Card style={{ marginBottom: 16, borderRadius: '12px', background: 'linear-gradient(135deg, #e6f7ff 0%, #f0f9ff 100%)' }}>
                           <Title level={5} style={{ color: '#1890ff', marginBottom: 16 }}>
-                            🧠 Node Analysis: {selectedNode.label}
+                             Node Analysis: {selectedNode.label}
                           </Title>
                           
                           <div style={{ fontSize: '13px', color: '#333', lineHeight: '1.6' }}>
                             <div style={{ marginBottom: '12px', padding: '8px', background: '#f0f9ff', borderRadius: '6px', border: '1px solid #91d5ff' }}>
-                              <strong>📍 Layer Position:</strong> Layer {selectedNode.layerIndex + 1} of 4
+                              <strong> Layer Position:</strong> Layer {selectedNode.layerIndex + 1} of 4
                             </div>
                             
                             <div style={{ marginBottom: '12px', padding: '8px', background: selectedNode.isPruned ? '#fff2f0' : '#f6ffed', borderRadius: '6px', border: `1px solid ${selectedNode.isPruned ? '#ffccc7' : '#b7eb8f'}` }}>
@@ -1258,14 +1264,14 @@ const Visualization = () => {
                             
                             {selectedNode.isPruned && selectedNode.pruningReason && (
                               <div style={{ marginBottom: '12px', padding: '8px', background: '#fff2f0', borderRadius: '6px', border: '1px solid #ffccc7' }}>
-                                <strong>✂️ Pruning Reason:</strong> {selectedNode.pruningReason}
+                                <strong> Pruning Reason:</strong> {selectedNode.pruningReason}
                               </div>
                             )}
                             
                             <Divider style={{ margin: '12px 0' }} />
                             
                             <div style={{ marginBottom: '12px' }}>
-                              <strong style={{ color: '#1890ff' }}>📚 Educational Explanation:</strong>
+                              <strong style={{ color: '#1890ff' }}> Educational Explanation:</strong>
                             </div>
                             
                             <div style={{ fontSize: '12px', lineHeight: '1.5', color: '#555' }}>

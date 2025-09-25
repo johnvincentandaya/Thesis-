@@ -6,7 +6,6 @@ import {
   Button,
   Form,
   Alert,
-  ProgressBar,
   Card,
   Badge
 } from "react-bootstrap";
@@ -20,6 +19,9 @@ import {
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./Assessment.css";
 import Footer from "../components/Footer";
+import { Pie } from 'react-chartjs-2';
+import { Chart, ArcElement, Tooltip, Legend } from 'chart.js';
+Chart.register(ArcElement, Tooltip, Legend);
 
 function Assessment() {
   const [answers, setAnswers] = useState({});
@@ -273,20 +275,19 @@ function Assessment() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const totalQuestions = shuffledQuestions.length;
-  const answeredQuestions = Object.keys(answers).length;
-  const progressPercentage = (answeredQuestions / totalQuestions) * 100;
+  const totalQuestions = questionBank.length;
+  const passingScore = Math.ceil(totalQuestions * 0.7); // 70% to pass
 
-  const goNext = () => {
-    if (currentQuestion < totalQuestions - 1) {
-      setCurrentQuestion((prev) => prev + 1);
-    }
-  };
-
-  const goPrev = () => {
-    if (currentQuestion > 0) {
-      setCurrentQuestion((prev) => prev - 1);
-    }
+  // Pie chart data
+  const pieData = {
+    labels: ['Correct', 'Incorrect'],
+    datasets: [
+      {
+        data: [score || 0, (score !== null ? totalQuestions - score : 0)],
+        backgroundColor: ['#52c41a', '#ff4d4f'],
+        borderWidth: 1,
+      },
+    ],
   };
 
   return (
@@ -312,11 +313,12 @@ function Assessment() {
         </Container>
       </Navbar>
 
-      <Container className="mt-4 mb-5">
+      <Container className="mt-5">
+        <h1 className="text-center">Assessment Quiz</h1>
         {!quizStarted ? (
           <div className="text-center p-5">
              <h1 className="display-4 mb-3" style={{ fontSize: '4rem', fontWeight: 'bold', color: '#1890ff', marginBottom: '2rem' }}>
-            🧠 Knowledge Assessment
+             Knowledge Assessment
           </h1>
             <p className="lead text-muted mb-4" style={{ fontSize: '1.3rem', fontWeight: '400' }}>
               Test your understanding of Knowledge Distillation and Pruning concepts
@@ -327,20 +329,6 @@ function Assessment() {
           </div>
         ) : !isSubmitted ? (
           <>
-            {/* Timer and Progress */}
-            <Card className="mb-4 shadow-sm">
-              <Card.Body>
-                <div className="d-flex justify-content-between align-items-center">
-                  <div>
-                    <Clock className="me-2 text-primary" />
-                    Time: {formatTime(timeSpent)}
-                  </div>
-                  <Badge bg="info">{Math.round(progressPercentage)}% Complete</Badge>
-                </div>
-                <ProgressBar now={progressPercentage} variant="primary" className="mt-2" />
-              </Card.Body>
-            </Card>
-
             {/* One Question at a Time */}
             <Form>
               {shuffledQuestions.length > 0 && (
@@ -416,7 +404,7 @@ function Assessment() {
                 <Button
                   variant="secondary"
                   disabled={currentQuestion === 0}
-                  onClick={goPrev}
+                  onClick={() => setCurrentQuestion((prev) => Math.max(prev - 1, 0))}
                 >
                   <ArrowLeft className="me-2" /> Previous
                 </Button>
@@ -424,7 +412,7 @@ function Assessment() {
                 {currentQuestion < totalQuestions - 1 ? (
                   <Button
                     variant="primary"
-                    onClick={goNext}
+                    onClick={() => setCurrentQuestion((prev) => Math.min(prev + 1, totalQuestions - 1))}
                     disabled={typeof answers[currentQuestion] === "undefined"}
                   >
                     Next <ArrowRight className="ms-2" />
@@ -433,7 +421,7 @@ function Assessment() {
                   <Button
                     variant="success"
                     onClick={calculateScore}
-                    disabled={answeredQuestions !== totalQuestions}
+                    disabled={Object.keys(answers).length !== totalQuestions}
                   >
                     Submit Assessment
                   </Button>
@@ -451,6 +439,21 @@ function Assessment() {
                 <p className="text-muted">Time: {formatTime(timeSpent)}</p>
               </Card.Body>
             </Card>
+
+            <div className="mt-4 text-center">
+              <div style={{ maxWidth: 300, margin: '0 auto' }}>
+                <Pie data={pieData} />
+              </div>
+              {score >= passingScore ? (
+                <div style={{ color: '#52c41a', fontWeight: 'bold', fontSize: '1.2rem', marginTop: 16 }}>
+                  🎉 Congratulations! You passed the assessment!
+                </div>
+              ) : (
+                <div style={{ color: '#ff4d4f', fontWeight: 'bold', fontSize: '1.2rem', marginTop: 16 }}>
+                  Keep practicing! Review the material and try again. 💪
+                </div>
+              )}
+            </div>
 
             {/* Review Only Wrong Answers */}
             {(() => {

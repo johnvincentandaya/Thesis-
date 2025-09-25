@@ -27,7 +27,7 @@ function Home() {
       <Container className="home-container">
         <div className="text-center mb-5">
           <h1 className="display-4 mb-3" style={{ fontSize: '4rem', fontWeight: 'bold', color: '#1890ff', marginBottom: '2rem' }}>
-            🚀 Welcome to KD & Pruning Simulator
+          Welcome to KD & Pruning Simulator
           </h1>
           <p className="lead" style={{ fontSize: '1.4rem', fontWeight: '400', color: '#666', lineHeight: '1.6' }}>
             An interactive educational tool to understand <strong style={{ color: '#1890ff' }}>Knowledge Distillation</strong> and <strong style={{ color: '#52c41a' }}>Model Pruning</strong> techniques for neural network compression.

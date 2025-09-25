@@ -698,7 +698,39 @@ const renderEducationalMetrics = (metrics) => {
     }
   }, [trainingComplete, metrics, evaluationResults, progress, training, currentLoss, trainingPhase, trainingMessage, selectedModel]);
 
+  // On mount, restore all state from persistedResult if available
+  useEffect(() => {
+    if (persistedResult) {
+      setProgress(persistedResult.progress || 0);
+      setTraining(!!persistedResult.training);
+      setTrainingComplete(!!persistedResult.trainingComplete);
+      setCurrentLoss(persistedResult.currentLoss || null);
+      setTrainingPhase(persistedResult.trainingPhase || null);
+      setTrainingMessage(persistedResult.trainingMessage || null);
+      setSelectedModel(persistedResult.selectedModel || null);
+      setMetrics(persistedResult.metrics || null);
+      setEvaluationResults(persistedResult.evaluationResults || null);
+    }
+  }, []);
+
   const showSummary = trainingComplete || persistedResult;
+
+  const clearPersistedResult = () => {
+    localStorage.removeItem('kd_training_persisted_result');
+    setPersistedResult(null);
+  };
+
+  const handleNewTrainingSession = () => {
+    // Clear persisted result only when starting a new training session
+    clearPersistedResult();
+    setProgress(0);
+    setTrainingComplete(false);
+    setCurrentLoss(null);
+    setMetrics(null);
+    setEvaluationResults(null);
+    setTrainingPhase(null);
+    setTrainingMessage(null);
+  };
 
   return (
     <>
@@ -723,7 +755,7 @@ const renderEducationalMetrics = (metrics) => {
         <Content style={{ padding: "20px", minHeight: "80vh" }}>
           <div className="text-center mb-5">
             <Title level={1} style={{ fontSize: '3rem', fontWeight: 'bold', color: '#1890ff', marginBottom: '1rem' }}>
-              🚀 Model Training Process
+              Model Training Process
             </Title>
             <Text style={{ fontSize: '1.2rem', color: '#666', fontWeight: '400' }}>
               Experience the Knowledge Distillation and Pruning process step by step
@@ -735,7 +767,7 @@ const renderEducationalMetrics = (metrics) => {
               {/* Model Selection */}
               <Card className="mb-4" style={{ marginBottom: 24, borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
                 <Title level={3} style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#1890ff', marginBottom: '1rem', textAlign: 'center' }}>
-                  🎯 Select a Model to Train
+                  Select a Model to Train
                 </Title>
                 <Paragraph style={{ fontSize: '1.1rem', color: '#666', textAlign: 'center', marginBottom: '1.5rem' }}>
                   Choose a model from the dropdown below to begin the Knowledge Distillation and Pruning process.
@@ -1034,7 +1066,7 @@ const renderEducationalMetrics = (metrics) => {
                   {/* Educational Lessons Section */}
                   <Card style={{ marginTop: 24, borderRadius: '12px' }}>
                     <Title level={3} style={{ textAlign: 'center', marginBottom: 24, color: '#1890ff' }}>
-                      📚 Learning Center
+                    Learning Center
                     </Title>
                     
                     <Row gutter={[24, 24]}>
@@ -1048,7 +1080,7 @@ const renderEducationalMetrics = (metrics) => {
                           }}
                         >
                           <Title level={4} style={{ color: '#1890ff', marginBottom: 16 }}>
-                            🧠 Knowledge Distillation
+                          Knowledge Distillation
                           </Title>
                           <Paragraph style={{ marginBottom: 12 }}>
                             <strong>What it is:</strong> A technique where a smaller "student" model learns from a larger "teacher" model by mimicking its predictions.
@@ -1075,7 +1107,7 @@ const renderEducationalMetrics = (metrics) => {
                           }}
                         >
                           <Title level={4} style={{ color: '#fa8c16', marginBottom: 16 }}>
-                            ✂️ Model Pruning
+                          Model Pruning
                           </Title>
                           <Paragraph style={{ marginBottom: 12 }}>
                             <strong>What it is:</strong> The process of removing unnecessary weights and connections from a neural network.
@@ -1102,7 +1134,7 @@ const renderEducationalMetrics = (metrics) => {
                           }}
                         >
                           <Title level={4} style={{ color: '#52c41a', marginBottom: 16 }}>
-                            🤖 Model Types
+                          Model Types
                           </Title>
                           <Paragraph style={{ marginBottom: 12 }}>
                             <strong>DistilBERT:</strong> A compressed version of BERT for natural language processing tasks.
@@ -1129,7 +1161,7 @@ const renderEducationalMetrics = (metrics) => {
                           }}
                         >
                           <Title level={4} style={{ color: '#722ed1', marginBottom: 16 }}>
-                            🎯 Training Process
+                          Training Process
                           </Title>
                           <Paragraph style={{ marginBottom: 12 }}>
                             <strong>Step 1:</strong> Load the teacher model and create a smaller student model.
