@@ -751,14 +751,14 @@ const renderEducationalMetrics = (metrics) => {
         </Container>
       </Navbar>
 
-      <Layout>
-        <Content style={{ padding: "20px", minHeight: "80vh" }}>
+      <Layout className="training-layout">
+        <Content className="training-content" style={{ padding: "20px", minHeight: "80vh" }}>
           <div className="text-center mb-5">
-            <Title level={1} style={{ fontSize: '3rem', fontWeight: 'bold', color: '#1890ff', marginBottom: '1rem' }}>
+            <Title level={1} className="page-hero-title" style={{ fontSize: '3rem', fontWeight: 'bold', marginBottom: '1rem' }}>
               Model Training Process
             </Title>
-            <Text style={{ fontSize: '1.2rem', color: '#666', fontWeight: '400' }}>
-              Experience the Knowledge Distillation and Pruning process step by step
+            <Text className="page-hero-subtitle" style={{ fontSize: '1.2rem', color: '#ffffff', fontWeight: '400' }}>
+              Experience the <strong className="hero-accent-primary">Knowledge Distillation</strong> and <strong className="hero-accent-success">Model Pruning</strong> process step by step
             </Text>
           </div>
           {renderServerStatus()}

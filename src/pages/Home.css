@@ -1,7 +1,98 @@
-.home-container {
-  padding: 60px; /* Increased padding */
-  text-align: center;
+.home-section-title {
+  font-size: 2.2rem !important;
+  font-weight: 800 !important;
 }
+
+.home-use-title {
+  font-size: 1.6rem !important;
+  font-weight: 700 !important;
+  color: #103f79;
+}
+
+/* Remove accordion click highlight/focus */
+.accordion-button:focus {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.accordion-button:not(.collapsed) {
+  background-color: transparent !important;
+  color: inherit !important;
+  box-shadow: none !important;
+}
+
+.accordion-item {
+  background: transparent !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+/* Steps layout */
+.home-steps {
+  display: grid;
+  grid-template-columns: repeat(1, 4fr);
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 992px) {
+  .home-steps { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 576px) {
+  .home-steps { grid-template-columns: 1fr; }
+}
+
+.home-step {
+  text-align: left;
+}
+
+.home-step-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.home-step-desc {
+  color: #103f79;
+}
+.home-container {
+  padding: 72px 24px;
+  text-align: center;
+  width: 100%;
+  margin: 0;
+}
+
+/* Hero */
+.home-hero {
+  padding: 48px 16px 24px 16px;
+}
+
+.home-hero-title {
+  font-size: 3rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #e6f4ff 0%, #bae0ff 50%, #91caff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  margin: 0 0 12px 0;
+}
+
+.home-hero-subtitle {
+  font-size: 1.25rem;
+  color: #e2e8f0;
+  margin: 0 auto;
+  max-width: 860px;
+  line-height: 1.8;
+}
+
+.home-hero-cta {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.hero-accent-primary { color: var(--primary-color); }
+.hero-accent-success { color: var(--success-color); }
 
 .home-card-row {
   max-width: 1400px; /* Further increased max width */
@@ -9,22 +100,50 @@
 }
 
 .home-card {
-  border-radius: 12px; /* Slightly larger border radius */
-  box-shadow: 0px 6px 15px rgba(0, 0, 0, 0.15); /* Enhanced shadow */
-  padding: 30px; /* Restored padding for the card */
-  height: 300px; /* Set a fixed height for uniform card size */
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+  padding: 28px;
+  min-height: 300px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border-color);
 }
 
 .home-card-title {
-  font-size: 2rem; /* Increased title font size */
-  font-weight: bold; /* Made title bold */
-  margin-top: -30px; /* Further reduced margin to move title closer to the top */
-  margin-bottom: 30px; /* Added margin below the title for spacing */
+  font-size: 2.4rem !important;
+  font-weight: 700;
+  margin: 0 0 20px 0;
+  text-align: center !important;
 }
 
 .home-card-text {
-  font-size: 1.4rem; /* Larger text font size */
-  text-align: justify; /* Justify paragraph text */
+  font-size: 1.1rem;
+  text-align: justify !important;
+  color: #cbd5e1;
+}
+
+/* Full-bleed cards */
+.home-wide-card {
+  width: 100%;
+}
+
+.home-wide-card .card-body {
+  padding-left: clamp(16px, 6vw, 64px) !important;
+  padding-right: clamp(16px, 6vw, 64px) !important;
+  text-align: left !important;
+}
+
+/* CTA area */
+.home-cta-card {
+  background: rgba(0,0,0,0.35) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.home-cta-title {
+  color: #e6f4ff !important;
+}
+
+.home-cta-subtitle {
+  color: #ffffff !important;
 }
 
 .home-get-started-btn {
@@ -38,11 +157,11 @@
 }
 
 .navbar {
-  padding-top: 0px !important; /* Completely remove top padding */
-  padding-bottom: 20px !important; /* Completely remove bottom padding */
+  padding-top: 0px !important;
+  padding-bottom: 16px !important;
   display: flex;
-  justify-content: flex-start; /* Align content to the left */
-  align-items: center; /* Center the content vertically */
+  justify-content: flex-start;
+  align-items: center;
 }
 
 .navbar-nav .nav-link {
@@ -54,8 +173,8 @@
 }
 
 .navbar-brand {
-  font-size: 1.8rem; /* Increase the font size of the navbar title */
-  font-weight: bold; /* Make the title bold */
-  margin: 0 auto; /* Ensure the brand is centered */
-  margin-left: -4rem; /* Add some spacing from the left edge */
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0 auto;
+  letter-spacing: 0.2px;
 }

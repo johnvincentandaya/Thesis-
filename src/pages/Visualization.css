@@ -4,6 +4,8 @@
   overflow: hidden !important;
   width: 100% !important;
   height: 100% !important;
+  border-radius: 14px !important;
+  box-shadow: 0 16px 40px rgba(15,23,42,0.12) !important;
 }
 
 .visualization-container canvas {

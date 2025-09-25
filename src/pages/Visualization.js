@@ -1012,10 +1012,10 @@ const Visualization = () => {
                       textAlign: 'center'
                     }}>
                       <div style={{ fontSize: '4rem', marginBottom: '20px', fontWeight: 'bold' }}>🧠 Neural Network</div>
-                      <Title level={1} style={{ color: 'white', marginBottom: '16px', fontSize: '2.5rem', fontWeight: 'bold' }}>
+                      <Title level={1} className="page-hero-title" style={{ marginBottom: '16px' }}>
                         3D Neural Network Demo
                       </Title>
-                      <Paragraph style={{ color: '#ccc', fontSize: '1.2rem', marginBottom: '24px', fontWeight: '400' }}>
+                      <Paragraph className="page-hero-subtitle" style={{ color: '#ccc', fontSize: '1.2rem', marginBottom: '24px', fontWeight: '400' }}>
                         Watch {selectedModel} compress in 3D
                       </Paragraph>
                       <Button 
@@ -1132,7 +1132,7 @@ const Visualization = () => {
                         <Card style={{ marginBottom: 16, borderRadius: '12px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%)' }}>
                           <div style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: '24px', marginBottom: '8px' }}>Neural Network</div>
-                            <Title level={4} style={{ margin: 0, color: '#1890ff' }}>
+                            <Title level={4} className="page-hero-title" style={{ margin: 0 }}>
                               {selectedModel}
                             </Title>
                             <Paragraph style={{ margin: '8px 0 0 0', color: '#666', fontSize: '14px' }}>

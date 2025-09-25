@@ -314,7 +314,6 @@ function Assessment() {
       </Navbar>
 
       <Container className="mt-5">
-        <h1 className="text-center">Assessment Quiz</h1>
         {!quizStarted ? (
           <div className="text-center p-5">
              <h1 className="display-4 mb-3" style={{ fontSize: '4rem', fontWeight: 'bold', color: '#1890ff', marginBottom: '2rem' }}>
@@ -334,12 +333,25 @@ function Assessment() {
               {shuffledQuestions.length > 0 && (
                 <Card className="mb-4 shadow-sm">
                   <Card.Body>
-                    <Badge bg="primary" className="mb-2">
-                      Question {currentQuestion + 1} of {totalQuestions}
-                    </Badge>
+                    
                     <h5 className="fw-bold mb-3">
                       {shuffledQuestions[currentQuestion].question}
                     </h5>
+
+                    {/* Question number navigation */}
+                    <div className="question-nav">
+                      {Array.from({ length: totalQuestions }).map((_, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          className={`qbtn btn ${i === currentQuestion ? 'current' : ''} ${typeof answers[i] !== 'undefined' ? 'answered' : ''}`}
+                          onClick={() => setCurrentQuestion(i)}
+                          title={`Go to question ${i + 1}`}
+                        >
+                          {i + 1}
+                        </button>
+                      ))}
+                    </div>
 
                     {shuffledQuestions[currentQuestion].options ? (
                       shuffledQuestions[currentQuestion].options.map(
@@ -400,7 +412,7 @@ function Assessment() {
               )}
 
               {/* Navigation */}
-              <div className="d-flex justify-content-between">
+              <div className="d-flex justify-content-between assessment-actions">
                 <Button
                   variant="secondary"
                   disabled={currentQuestion === 0}

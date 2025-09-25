@@ -1,7 +1,7 @@
 /* Card styles */
 .card {
-  border-radius: 12px;
-  box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 14px;
+  box-shadow: 0 10px 28px rgba(15,23,42,0.08);
   text-align: center;
 }
 
@@ -27,6 +27,15 @@
 }
 
 .training-phase.active {
-  background-color: #f0f8ff;
+  background-color: #f0f5ff;
   border-color: #1890ff;
+}
+
+/* Page background to match global dark theme */
+.training-layout {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%) !important;
+}
+
+.training-content {
+  background: transparent !important;
 }

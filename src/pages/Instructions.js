@@ -29,21 +29,35 @@ function Instructions() {
 
       {/* Main Content */}
       <div className="instructions-container">
-        <Title>How to Use the KD-Pruning Simulator</Title>
-        <Paragraph>
-          This simulator allows you to explore <b>Knowledge Distillation</b> and <b>Model Pruning</b> techniques interactively.
+        <Title className="page-hero-title" style={{ fontWeight: 800 }}>How to Use the KD-Pruning Simulator</Title>
+        <Paragraph className="instructions-subtitle page-hero-subtitle">
+          This simulator allows you to explore <strong className="hero-accent-primary">Knowledge Distillation</strong> and <strong className="hero-accent-success">Model Pruning</strong> techniques interactively.
           Follow the steps below to start:
         </Paragraph>
 
-        {/* Instructions Card */}
-        <Card className="instructions-card">
-          <Paragraph>
-            <b> 1. Models:</b> Go to the <Link to="/models">Models</Link> page and see the models descriptions. <br /><br />
-            <b> 2. Train Your Model:</b> Navigate to the <Link to="/training">Training</Link> page to choose and train a student model using KD and Pruning. <br /><br />
-            <b> 3. Visualize Results:</b> Explore the impact of KD & Pruning and Check perfomance of the model on the <Link to="/visualization">Visualization</Link> page.<br /><br />
-            <b> 4. Assessment:</b> Take the assessment on the <Link to="/assessment">Assessment</Link> page.
-          </Paragraph>
-        </Card>
+        {/* Instructions Steps - four separate cards (no outer white card) */}
+        <div className="instructions-steps-grid">
+            <div className="instructions-step-card">
+              <div className="step-badge">1</div>
+              <div className="step-title">Models</div>
+              <div className="step-desc">Go to the <Link to="/models">Models</Link> page and see the models descriptions.</div>
+            </div>
+            <div className="instructions-step-card">
+              <div className="step-badge">2</div>
+              <div className="step-title">Train Your Model</div>
+              <div className="step-desc">Navigate to the <Link to="/training">Training</Link> page to choose and train a student model using KD and Pruning.</div>
+            </div>
+            <div className="instructions-step-card">
+              <div className="step-badge">3</div>
+              <div className="step-title">Visualize Results</div>
+              <div className="step-desc">Explore the impact of KD & Pruning and check performance of the model on the <Link to="/visualization">Visualization</Link> page.</div>
+            </div>
+            <div className="instructions-step-card">
+              <div className="step-badge">4</div>
+              <div className="step-title">Assessment</div>
+              <div className="step-desc">Take the assessment on the <Link to="/assessment">Assessment</Link> page.</div>
+            </div>
+        </div>
       </div>
       <Footer />
     </>

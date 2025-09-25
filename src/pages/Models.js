@@ -158,9 +158,9 @@ const Models = () => {
 
             <Container className="mt-5">
                 <div className="text-center mb-5">
-                    <h1 className="display-4 mb-3">Available Models</h1>
-                    <p className="lead">
-                        Explore our collection of pre-trained models and understand their performance characteristics before applying Knowledge Distillation and Pruning techniques.
+                    <h1 className="display-4 mb-3 page-hero-title">Available Models</h1>
+                    <p className="lead page-hero-subtitle">
+                        Explore our collection of pre-trained models and understand their performance characteristics before applying <strong className="hero-accent-primary">Knowledge Distillation</strong> and <strong className="hero-accent-success">Model Pruning</strong> techniques.
                     </p>
                 </div>
 
@@ -171,7 +171,7 @@ const Models = () => {
                                 <Card.Header className="bg-primary text-white">
                                     <div className="d-flex justify-content-between align-items-center">
                                         <h4 className="mb-0">{model.name}</h4>
-                                        <Badge bg="light" text="dark">
+                                        <Badge bg="dark" text="light">
                                             {model.metrics.modelComplexity} Complexity
                                         </Badge>
                                     </div>
