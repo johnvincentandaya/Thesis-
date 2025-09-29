@@ -507,11 +507,7 @@ def safe_emit_progress(progress=None, phase=None, message=None, loss=None, step=
         payload["status"] = status
 
     socketio.emit("training_progress", payload)
-    global last_progress, last_phase_index
-    last_progress = 0
-    last_phase_index = -1
 
-    safe_emit_progress(progress=0, phase="model_loading", message="Initializing models...")
 
 
 def training_task(model_name):
@@ -743,13 +739,13 @@ def training_task(model_name):
                     "model_size": {
                         "teacher": f"{teacher_metrics['size_mb']:.2f} MB",
                         "student": f"{student_metrics['size_mb']:.2f} MB",
-                        "reduction": f"{actual_size_reduction:.2f}%",
+                        "difference": f"-{(teacher_metrics['size_mb'] - student_metrics['size_mb']):.2f} MB" if teacher_metrics['size_mb'] >= student_metrics['size_mb'] else f"+{(student_metrics['size_mb'] - teacher_metrics['size_mb']):.2f} MB",
                         "explanation": f"Model size reduced by {actual_size_reduction:.2f}%, saving {teacher_metrics['size_mb'] - student_metrics['size_mb']:.2f} MB of storage."
                     },
                     "inference_speed": {
                         "teacher": f"{teacher_metrics['latency_ms']:.2f} ms",
                         "student": f"{student_metrics['latency_ms']:.2f} ms",
-                        "improvement": f"{actual_latency_improvement:.2f}%",
+                        "difference": f"-{(teacher_metrics['latency_ms'] - student_metrics['latency_ms']):.2f} ms" if teacher_metrics['latency_ms'] >= student_metrics['latency_ms'] else f"+{(student_metrics['latency_ms'] - teacher_metrics['latency_ms']):.2f} ms",
                         "explanation": f"Inference speed improved by {actual_latency_improvement:.2f}%, making predictions {actual_latency_improvement:.2f}% faster."
                     }
                 }
@@ -901,6 +897,9 @@ def training_task(model_name):
             })
             
             print("[TRAIN] All metrics emitted successfully!")
+            # Emit the full metrics report as the final consolidated payload to ensure completeness
+            print("[TRAIN] Emitting final consolidated metrics report...")
+            socketio.emit("training_metrics", metrics_report)
             
         except Exception as e:
             print(f"[TRAIN] Error emitting metrics: {str(e)}")

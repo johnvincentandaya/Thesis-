@@ -95,8 +95,6 @@ const Training = () => {
   // --- Pagination State ---
   // Results container: 4 pages
   const [resultsPage, setResultsPage] = useState(0);
-  // Learning center: 2 pages
-  const [learningPage, setLearningPage] = useState(0);
 
   // --- Error State ---
   const [trainingError, setTrainingError] = useState(null);
@@ -201,25 +199,68 @@ socket.on("training_progress", (data) => {
     
     // Handle chunked metrics to avoid message truncation
     socket.on("training_metrics", (data) => {
-      // Only set metrics if training is complete (progress 100)
       setMetrics(prevMetrics => {
-        if (!prevMetrics) {
-          return data;
-        }
-        const mergedMetrics = { ...prevMetrics };
-        Object.keys(data).forEach(key => {
+        // If no previous metrics, just use incoming
+        if (!prevMetrics) return data;
+
+        // Start with previous
+        const merged = { ...prevMetrics };
+
+        // Helper: deep merge comparisons
+        const mergeComparison = (prevComp, newComp) => {
+          if (!prevComp) return newComp || {};
+          if (!newComp) return prevComp;
+          const out = { ...prevComp };
+          Object.keys(newComp).forEach((metricKey) => {
+            out[metricKey] = { ...(prevComp[metricKey] || {}), ...(newComp[metricKey] || {}) };
+          });
+          return out;
+        };
+
+        // Merge each top-level section
+        Object.keys(data).forEach((key) => {
+          // Pass-through error/basic
           if (key === "error" || key === "basic_metrics") {
-            mergedMetrics[key] = data[key];
-          } else {
-            mergedMetrics[key] = { ...mergedMetrics[key], ...data[key] };
+            merged[key] = data[key];
+            return;
           }
+
+          if (key === "model_performance") {
+            // Ensure metrics are merged, not overwritten
+            const prevMp = merged.model_performance || {};
+            const newMp = data.model_performance || {};
+            merged.model_performance = {
+              ...prevMp,
+              ...newMp,
+              metrics: {
+                ...(prevMp.metrics || {}),
+                ...(newMp.metrics || {}),
+              }
+            };
+            return;
+          }
+
+          if (key === "teacher_vs_student") {
+            const prevTvs = merged.teacher_vs_student || {};
+            const newTvs = data.teacher_vs_student || {};
+            merged.teacher_vs_student = {
+              ...prevTvs,
+              ...newTvs,
+              comparison: mergeComparison(prevTvs.comparison, newTvs.comparison)
+            };
+            return;
+          }
+
+          // Default shallow merge for other sections
+          merged[key] = { ...(merged[key] || {}), ...(data[key] || {}) };
         });
-        // Store evaluation results for persistence only after training completes
-        if (mergedMetrics.model_performance) {
-          setEvaluationResults(mergedMetrics);
-          localStorage.setItem('kd_pruning_evaluation_results', JSON.stringify(mergedMetrics));
+
+        // Persist after each merge if we have core data
+        if (merged.model_performance) {
+          setEvaluationResults(merged);
+          localStorage.setItem('kd_pruning_evaluation_results', JSON.stringify(merged));
         }
-        return mergedMetrics;
+        return merged;
       });
     });
     socket.on("training_error", (data) => {
@@ -1078,8 +1119,8 @@ const renderEducationalMetrics = (metrics) => {
   };
 
   // --- Learning Center Pages ---
-  const renderLearningPage = () => {
-    switch (learningPage) {
+  const renderLearningPage = (pageIndex) => {
+    switch (pageIndex) {
       case 0:
         return (
           <div>
@@ -1192,9 +1233,8 @@ const renderEducationalMetrics = (metrics) => {
   // --- Responsive Layout ---
   const isMobile = window.innerWidth < 992;
 
-  // --- Results and Learning Center Navigation Buttons ---
+  // --- Results Navigation ---
   const resultsPagesCount = 4;
-  const learningPagesCount = 2;
 
   // --- Action Buttons ---
   const actionButtons = (
@@ -1286,20 +1326,38 @@ const renderEducationalMetrics = (metrics) => {
           </div>
           {renderServerStatus()}
 
-          {/* Model Selection Dropdown - always at the top */}
-          <Row justify="center">
-            <Col xs={24} sm={20} md={16} lg={12} xl={10}>
+          {/* Top Row: Dropdown, Training Controls, and Learning Center side-by-side */}
+          <Row gutter={[24, 24]} justify="center">
+            {/* Learning Center Page 1 (leftmost) */}
+            <Col xs={24} sm={24} md={12} lg={6} style={{ marginBottom: isMobile ? 24 : 0 }}>
+              <Card
+                style={{
+                  borderRadius: '16px',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                  minHeight: 420,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between'
+                }}
+                title="Learning Center (Page 1)"
+                bodyStyle={{ minHeight: 320, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+              >
+                <div style={{ flex: 1 }}>{renderLearningPage(0)}</div>
+              </Card>
+            </Col>
+
+            {/* Dropdown (center-left) */}
+            <Col xs={24} sm={24} md={12} lg={6}>
               <Card
                 className="mb-4"
                 style={{
                   borderRadius: '16px',
                   boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                  marginBottom: 24,
                   textAlign: 'center'
                 }}
               >
-                <Title level={3} style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#1890ff', marginBottom: '1rem', textAlign: 'center' }}>
-                  Select a Model to Train
+                <Title level={3} style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#1890ff', marginBottom: '0.75rem', textAlign: 'center' }}>
+                  Select a Model
                 </Title>
                 <DropdownButton
                   id="dropdown-item-button"
@@ -1309,7 +1367,7 @@ const renderEducationalMetrics = (metrics) => {
                       : "Select a model"
                   }
                   variant="dark"
-                  disabled={training}
+                  disabled={training || trainingComplete}
                   style={{ marginBottom: 16 }}
                 >
                   {modelOptions.map(option => (
@@ -1317,7 +1375,7 @@ const renderEducationalMetrics = (metrics) => {
                       as="button"
                       key={option.value}
                       onClick={() => setSelectedModel(option.value)}
-                      disabled={training}
+                      disabled={training || trainingComplete}
                     >
                       {option.label}
                     </Dropdown.Item>
@@ -1339,11 +1397,9 @@ const renderEducationalMetrics = (metrics) => {
                 )}
               </Card>
             </Col>
-          </Row>
 
-          {/* Progress Bar and Training Controls */}
-          <Row justify="center">
-            <Col xs={24} sm={20} md={16} lg={12} xl={10}>
+            {/* Training Controls (center-right) */}
+            <Col xs={24} sm={24} md={12} lg={6}>
               <Card className="mb-4" style={{ borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
                 <div className="text-center">
                   <Progress
@@ -1449,6 +1505,23 @@ const renderEducationalMetrics = (metrics) => {
                 </div>
               </Card>
             </Col>
+            {/* Learning Center Page 2 (rightmost) */}
+            <Col xs={24} sm={24} md={12} lg={6}>
+              <Card
+                style={{
+                  borderRadius: '16px',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                  minHeight: 420,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between'
+                }}
+                title="Learning Center (Page 2)"
+                bodyStyle={{ minHeight: 320, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+              >
+                <div style={{ flex: 1 }}>{renderLearningPage(1)}</div>
+              </Card>
+            </Col>
           </Row>
 
           {/* Results containers: only show after training is complete */}
@@ -1482,41 +1555,6 @@ const renderEducationalMetrics = (metrics) => {
                       <Button
                         onClick={() => setResultsPage((p) => Math.min(resultsPagesCount - 1, p + 1))}
                         disabled={resultsPage === resultsPagesCount - 1}
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </Card>
-                </Col>
-              </Row>
-              <Row gutter={[24, 24]} justify="center" style={{ marginTop: 0 }}>
-                <Col xs={24} md={12}>
-                  <Card
-                    style={{
-                      borderRadius: '16px',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                      minHeight: 420,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between'
-                    }}
-                    title="Learning Center"
-                    bodyStyle={{ minHeight: 320, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
-                  >
-                    <div style={{ flex: 1 }}>{renderLearningPage()}</div>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24 }}>
-                      <Button
-                        onClick={() => setLearningPage((p) => Math.max(0, p - 1))}
-                        disabled={learningPage === 0}
-                      >
-                        Previous
-                      </Button>
-                      <span style={{ alignSelf: "center" }}>
-                        Page {learningPage + 1} / {learningPagesCount}
-                      </span>
-                      <Button
-                        onClick={() => setLearningPage((p) => Math.min(learningPagesCount - 1, p + 1))}
-                        disabled={learningPage === learningPagesCount - 1}
                       >
                         Next
                       </Button>
