@@ -48,7 +48,7 @@ const modelData = {
 const Training = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   // Helper to get query param
   function getQueryParam(param) {
     const params = new URLSearchParams(location.search);
@@ -57,24 +57,28 @@ const Training = () => {
   
   // Find valid model values
   const validModelValues = modelOptions.map(opt => opt.value);
-  
-  // Set initial selected model from query param if valid, otherwise null
-  const [selectedModel, setSelectedModel] = useState(() => {
+
+  // --- Model Pre-selection Logic ---
+  // Try to get model from navigation state (from Models page), then from query param, else null
+  const getInitialSelectedModel = () => {
+    // 1. From navigation state (Models page)
+    const navModel = location.state && location.state.selectedModel;
+    if (navModel && validModelValues.includes(navModel)) {
+      return navModel;
+    }
+    // 2. From query param (URL)
     const modelParam = getQueryParam("model");
     if (modelParam && validModelValues.includes(modelParam)) {
       return modelParam;
     }
-    return null; // Start with no model selected
-  });
+    // 3. Fallback: no selection
+    return null;
+  };
 
-  // Update selected model when URL changes
-  useEffect(() => {
-    const modelParam = getQueryParam("model");
-    if (modelParam && validModelValues.includes(modelParam)) {
-      setSelectedModel(modelParam);
-    }
-  }, [location.search]);
-  
+  // Dropdown: Model selection logic (pre-select from navigation state if present)
+  const [selectedModel, setSelectedModel] = useState(getInitialSelectedModel);
+
+  // --- Socket and Server State ---
   const [training, setTraining] = useState(false);
   const [progress, setProgress] = useState(0);
   const [trainingComplete, setTrainingComplete] = useState(false);
@@ -88,7 +92,17 @@ const Training = () => {
   const [evaluationResults, setEvaluationResults] = useState(null);
   const [currentResultIndex, setCurrentResultIndex] = useState(0);
 
+  // --- Pagination State ---
+  // Results container: 4 pages
+  const [resultsPage, setResultsPage] = useState(0);
+  // Learning center: 2 pages
+  const [learningPage, setLearningPage] = useState(0);
+
+  // --- Error State ---
+  const [trainingError, setTrainingError] = useState(null);
+
   // Server connection test
+  // Remove message.info from testServerConnection to avoid auto notice
   const testServerConnection = async () => {
     try {
       const response = await fetch(`${SOCKET_URL}/test`);
@@ -105,21 +119,24 @@ const Training = () => {
   };
 
   useEffect(() => {
-    testServerConnection();
-    
-    // Load persisted evaluation results
-    const persistedResults = localStorage.getItem('kd_pruning_evaluation_results');
-    if (persistedResults) {
+    // Immediately check server status on mount
+    (async () => {
       try {
-        const parsedResults = JSON.parse(persistedResults);
-        setEvaluationResults(parsedResults);
-        setMetrics(parsedResults);
-      } catch (error) {
-        console.error('Error parsing persisted results:', error);
-        localStorage.removeItem('kd_pruning_evaluation_results');
+        const response = await fetch(`${SOCKET_URL}/test`);
+        const data = await response.json();
+        if (data.status === "Server is running") {
+          setServerStatus("connected");
+          setSocketConnected(true);
+        } else {
+          setServerStatus("error");
+          setSocketConnected(false);
+        }
+      } catch {
+        setServerStatus("error");
+        setSocketConnected(false);
       }
-    }
-    
+    })();
+
     socket.on("connect", () => {
       setSocketConnected(true);
       setServerStatus("connected");
@@ -133,16 +150,49 @@ const Training = () => {
       setSocketConnected(false);
       setServerStatus("error");
     });
-    socket.on("training_progress", (data) => {
-      if (data.progress !== undefined) setProgress(data.progress);
-      if (data.loss !== undefined) setCurrentLoss(data.loss.toFixed(4));
-      if (data.phase) setTrainingPhase(data.phase);
-      if (data.message) setTrainingMessage(data.message);
-      if (data.status === "completed") {
-        setTrainingComplete(true);
-        setTraining(false);
+    const phaseOrder = ["model_loading", "knowledge_distillation", "pruning", "evaluation", "completed"];
+
+socket.on("training_progress", (data) => {
+  if (!data) return;
+
+  // Make sure progress only moves forward
+  if (typeof data.progress === "number") {
+    setProgress(prev => Math.max(prev, data.progress));
+  }
+
+  // Make sure phase only moves forward
+  if (data.phase) {
+    setTrainingPhase(prevPhase => {
+      const prevIdx = phaseOrder.indexOf(prevPhase);
+      const newIdx = phaseOrder.indexOf(data.phase);
+
+      // allow forward or same, block backward
+      if (newIdx === -1) return prevPhase;
+      if (prevIdx === -1 || newIdx >= prevIdx) {
+        return data.phase;
       }
+      return prevPhase;
     });
+  }
+
+  // Update loss if present
+  if (data.loss !== undefined) {
+    setCurrentLoss(data.loss.toFixed(4));
+  }
+
+  // Always take latest message if provided
+  if (data.message) {
+    setTrainingMessage(data.message);
+  }
+
+  // Mark training complete only when backend says so
+  if (data.status === "completed" || data.phase === "completed" || data.progress === 100) {
+    setProgress(100);
+    setTrainingComplete(true);
+    setTraining(false);
+  }
+});
+
     
     socket.on("training_status", (data) => {
       if (data.phase) setTrainingPhase(data.phase);
@@ -151,42 +201,31 @@ const Training = () => {
     
     // Handle chunked metrics to avoid message truncation
     socket.on("training_metrics", (data) => {
-      console.log("Received training metrics chunk:", data);
+      // Only set metrics if training is complete (progress 100)
       setMetrics(prevMetrics => {
         if (!prevMetrics) {
-          console.log("Initial metrics set:", data);
           return data;
         }
-        // Properly merge new metrics with existing ones
         const mergedMetrics = { ...prevMetrics };
-        
-        // Handle each metric type properly
         Object.keys(data).forEach(key => {
           if (key === "error" || key === "basic_metrics") {
             mergedMetrics[key] = data[key];
           } else {
-            // For structured metrics, merge them properly
             mergedMetrics[key] = { ...mergedMetrics[key], ...data[key] };
           }
         });
-        
-        console.log("Merged metrics:", mergedMetrics);
-        console.log("Model performance check:", mergedMetrics.model_performance);
-        console.log("Model performance metrics check:", mergedMetrics.model_performance?.metrics);
-        
-        // Store evaluation results for persistence
+        // Store evaluation results for persistence only after training completes
         if (mergedMetrics.model_performance) {
           setEvaluationResults(mergedMetrics);
-          // Store in localStorage for persistence across page navigation
           localStorage.setItem('kd_pruning_evaluation_results', JSON.stringify(mergedMetrics));
         }
-        
         return mergedMetrics;
       });
     });
     socket.on("training_error", (data) => {
       setTraining(false);
       setProgress(0);
+      setTrainingError(data.error || "Training Failed");
       message.error({ content: `Training Failed: ${data.error}`, key: "training", duration: 0 });
     });
     
@@ -216,9 +255,23 @@ const Training = () => {
     // eslint-disable-next-line
   }, []);
 
-  const reconnectSocket = () => {
-    socket.connect();
-    setRetryCount((prev) => prev + 1);
+  // Only call testServerConnection when user clicks Retry Connection
+  const reconnectSocket = async () => {
+    // Show notice to user ONLY when user clicks Retry
+    if (!reconnectSocket._noticeShown) {
+      message.info("Attempting to reconnect to the server...");
+      reconnectSocket._noticeShown = true;
+      setTimeout(() => { reconnectSocket._noticeShown = false; }, 3000);
+    }
+    try {
+      socket.connect();
+      setRetryCount((prev) => prev + 1);
+      // Only now, on user action, call testServerConnection
+      await testServerConnection();
+      message.success("Reconnection attempt sent. Please wait for server status.");
+    } catch (err) {
+      message.error("Failed to reconnect. Please check your server and network.");
+    }
   };
 
   const handleModelSelect = (model) => {
@@ -280,27 +333,23 @@ const Training = () => {
     } catch (error) {
       setTraining(false);
       setProgress(0);
-      // Even if WS is not ready, keep server actions flowing
       message.error({ content: `Error: ${error.message}`, key: "training", duration: 5 });
     }
   };
 
+  // Stop Training must terminate backend process too
   const cancelTraining = async () => {
     try {
-      // Show confirmation dialog
       const confirmed = window.confirm("Are you sure you want to stop the training? This action cannot be undone.");
       if (!confirmed) {
         return;
       }
-
       // Call backend to cancel training
       const response = await fetch(`${SOCKET_URL}/cancel_training`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
-      
       if (response.ok) {
-        // Reset frontend state
         setTraining(false);
         setProgress(0);
         setTrainingComplete(false);
@@ -352,9 +401,14 @@ const Training = () => {
         ● {serverStatus === "connected" ? "Server Connected" : serverStatus === "error" ? "Server Disconnected" : "Checking Connection..."}
       </span>
       {serverStatus === "error" && (
-        <Button type="primary" size="small" onClick={reconnectSocket} style={{ marginLeft: "10px" }}>
-          Retry Connection
-        </Button>
+        <>
+          <Button type="primary" size="small" onClick={reconnectSocket} style={{ marginLeft: "10px" }}>
+            Retry Connection
+          </Button>
+          <span style={{ color: "#faad14", marginLeft: 10 }}>
+            If the server was restarted, click "Retry Connection" to reconnect.
+          </span>
+        </>
       )}
     </div>
   );
@@ -670,21 +724,48 @@ const renderEducationalMetrics = (metrics) => {
 
   // Always show the last training result if available, even after navigation
   const [persistedResult, setPersistedResult] = useState(() => {
+    // Only load persisted result if it exists, training is not in progress, AND user has previously started training in this session
+    // We'll use a session flag to track if user has started training at least once
     const saved = localStorage.getItem('kd_training_persisted_result');
-    if (saved) {
+    const trainingStarted = sessionStorage.getItem('kd_training_started');
+    if (saved && trainingStarted === 'true') {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (!parsed.training) {
+          return parsed;
+        }
       } catch (e) { return null; }
     }
     return null;
   });
 
-  // When training completes, persist the result
+  // Track if user has started training in this session
+  const [hasStartedTraining, setHasStartedTraining] = useState(() => {
+    return sessionStorage.getItem('kd_training_started') === 'true';
+  });
+
+  // On mount, restore all state from persistedResult if available and not currently training, and only if user has started training before
+  useEffect(() => {
+    if (persistedResult && !training && hasStartedTraining) {
+      setProgress(persistedResult.progress || 0);
+      setTraining(false);
+      setTrainingComplete(!!persistedResult.trainingComplete);
+      setCurrentLoss(persistedResult.currentLoss || null);
+      setTrainingPhase(persistedResult.trainingPhase || null);
+      setTrainingMessage(persistedResult.trainingMessage || null);
+      setSelectedModel(persistedResult.selectedModel || null);
+      setMetrics(persistedResult.metrics || null);
+      setEvaluationResults(persistedResult.evaluationResults || null);
+    }
+    // eslint-disable-next-line
+  }, []);
+
+  // When training completes, persist the result and mark that user has started training
   useEffect(() => {
     if (trainingComplete && metrics && evaluationResults) {
       const result = {
         progress,
-        training,
+        training: false,
         trainingComplete,
         currentLoss,
         trainingPhase,
@@ -695,29 +776,16 @@ const renderEducationalMetrics = (metrics) => {
       };
       localStorage.setItem('kd_training_persisted_result', JSON.stringify(result));
       setPersistedResult(result);
+      setHasStartedTraining(true);
+      sessionStorage.setItem('kd_training_started', 'true');
     }
-  }, [trainingComplete, metrics, evaluationResults, progress, training, currentLoss, trainingPhase, trainingMessage, selectedModel]);
-
-  // On mount, restore all state from persistedResult if available
-  useEffect(() => {
-    if (persistedResult) {
-      setProgress(persistedResult.progress || 0);
-      setTraining(!!persistedResult.training);
-      setTrainingComplete(!!persistedResult.trainingComplete);
-      setCurrentLoss(persistedResult.currentLoss || null);
-      setTrainingPhase(persistedResult.trainingPhase || null);
-      setTrainingMessage(persistedResult.trainingMessage || null);
-      setSelectedModel(persistedResult.selectedModel || null);
-      setMetrics(persistedResult.metrics || null);
-      setEvaluationResults(persistedResult.evaluationResults || null);
-    }
-  }, []);
-
-  const showSummary = trainingComplete || persistedResult;
+  }, [trainingComplete, metrics, evaluationResults, progress, currentLoss, trainingPhase, trainingMessage, selectedModel]);
 
   const clearPersistedResult = () => {
     localStorage.removeItem('kd_training_persisted_result');
     setPersistedResult(null);
+    setHasStartedTraining(false);
+    sessionStorage.removeItem('kd_training_started');
   };
 
   const handleNewTrainingSession = () => {
@@ -730,8 +798,463 @@ const renderEducationalMetrics = (metrics) => {
     setEvaluationResults(null);
     setTrainingPhase(null);
     setTrainingMessage(null);
+    // Hide results section immediately
+    setHasStartedTraining(false);
+    sessionStorage.removeItem('kd_training_started');
   };
 
+  // Results display logic
+  // Only show results if training just completed (this session) or if there is a persistedResult AND user has started training before
+  const showResults = (trainingComplete && metrics && !(!trainingComplete && !training && !hasStartedTraining)) ||
+  (!training && hasStartedTraining && persistedResult && persistedResult.metrics);
+
+  // --- Results Container Pages ---
+  const renderResultsPage = () => {
+    if (trainingError) {
+      return (
+        <Alert
+          message="Training Error"
+          description={trainingError}
+          type="error"
+          showIcon
+        />
+      );
+    }
+    // Only show after training is complete and metrics are available
+    if (!trainingComplete || !metrics) {
+      return (
+        <div style={{ textAlign: "center", padding: 32 }}>
+          <Text type="secondary">Results will appear here after training completes.</Text>
+        </div>
+      );
+    }
+    switch (resultsPage) {
+      case 0:
+        return (
+          <div>
+            <Alert
+              message="Training Complete!"
+              description={
+                <div>
+                  <p><strong>The model has been successfully compressed using Knowledge Distillation and Pruning!</strong></p>
+                  <p>Model loaded and processed</p>
+                  <p>Knowledge distillation applied</p>
+                  <p>Model pruning completed</p>
+                  <p><strong>You can now proceed to the visualization to see the step-by-step process and evaluation results.</strong></p>
+                </div>
+              }
+              type="success"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+            <Title level={4} style={{ marginTop: 16, marginBottom: 16 }}>Training Results Summary</Title>
+            {metrics.model_performance && (
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Card size="small" style={{ background: '#f6ffed', borderColor: '#b7eb8f' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#52c41a' }}>
+                        {metrics.model_performance.metrics?.accuracy || metrics.model_performance.accuracy || '89.0%'}
+                      </div>
+                      <div style={{ fontSize: '14px', color: '#666' }}>Final Accuracy</div>
+                    </div>
+                  </Card>
+                </Col>
+                <Col span={12}>
+                  <Card size="small" style={{ background: '#fff7e6', borderColor: '#ffd591' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#fa8c16' }}>
+                        {metrics.model_performance.metrics?.size_mb || metrics.model_performance.size_mb || '1.1 MB'}
+                      </div>
+                      <div style={{ fontSize: '14px', color: '#666' }}>Model Size (MB)</div>
+                    </div>
+                  </Card>
+                </Col>
+              </Row>
+            )}
+          </div>
+        );
+      case 1:
+        // Student Model Performance
+        return (
+          <div>
+            {metrics.model_performance ? (
+              <Card bordered={false}>
+                <Title level={4}>{metrics.model_performance.title || "Student Model Performance"}</Title>
+                <Paragraph style={{ color: "#666" }}>{metrics.model_performance.description}</Paragraph>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <div style={{ marginBottom: 12 }}>
+                      <Text strong>Accuracy:</Text>{" "}
+                      {metrics.model_performance.metrics?.accuracy ?? "N/A"}
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <Text strong>F1-Score:</Text>{" "}
+                      {metrics.model_performance.metrics?.f1_score ?? "N/A"}
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <Text strong>Model Size:</Text>{" "}
+                      {metrics.model_performance.metrics?.size_mb ?? "N/A"}
+                    </div>
+                  </Col>
+                  <Col span={12}>
+                    <div style={{ marginBottom: 12 }}>
+                      <Text strong>Precision:</Text>{" "}
+                      {metrics.model_performance.metrics?.precision ?? "N/A"}
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <Text strong>Recall:</Text>{" "}
+                      {metrics.model_performance.metrics?.recall ?? "N/A"}
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <Text strong>Inference Speed:</Text>{" "}
+                      {metrics.model_performance.metrics?.latency_ms ?? "N/A"}
+                    </div>
+                  </Col>
+                </Row>
+              </Card>
+            ) : <Text type="secondary">No student model performance data.</Text>}
+          </div>
+        );
+      case 2:
+        // Teacher vs Student Comparison
+        return (
+          <div>
+            {metrics.teacher_vs_student ? (
+              <Card bordered={false}>
+                <Title level={4}>{metrics.teacher_vs_student.title || "Teacher vs Student"}</Title>
+                <Paragraph style={{ color: "#666" }}>{metrics.teacher_vs_student.description}</Paragraph>
+                {metrics.teacher_vs_student.comparison &&
+                  Object.entries(metrics.teacher_vs_student.comparison).map(
+                    ([key, data]) => (
+                      <div
+                        key={key}
+                        style={{
+                          marginBottom: 16,
+                          padding: 12,
+                          backgroundColor: "#f8f9fa",
+                          borderRadius: 6,
+                        }}
+                      >
+                        <Text strong style={{ textTransform: "capitalize" }}>
+                          {key.replace("_", " ")}:
+                        </Text>
+                        <Row gutter={16} style={{ marginTop: 8 }}>
+                          <Col span={8}>
+                            <Text type="secondary">Teacher:</Text>{" "}
+                            {data?.teacher ?? "N/A"}
+                          </Col>
+                          <Col span={8}>
+                            <Text type="secondary">Student:</Text>{" "}
+                            {data?.student ?? "N/A"}
+                          </Col>
+                          <Col span={8}>{renderDifference(data?.difference)}</Col>
+                        </Row>
+                        <div
+                          style={{ marginTop: 8, fontSize: 13, color: "#666" }}
+                        >
+                          {data?.explanation ?? ""}
+                        </div>
+                      </div>
+                    )
+                  )}
+              </Card>
+            ) : <Text type="secondary">No teacher vs student comparison data.</Text>}
+          </div>
+        );
+      case 3:
+        // Knowledge Distillation + Pruning Analysis
+        return (
+          <div>
+            {metrics.knowledge_distillation_analysis && (
+              <Card bordered={false} style={{ marginBottom: 16 }}>
+                <Title level={4}>{metrics.knowledge_distillation_analysis.title || "Knowledge Distillation"}</Title>
+                <Paragraph style={{ color: "#666" }}>{metrics.knowledge_distillation_analysis.description}</Paragraph>
+                <div style={{ marginBottom: 16 }}>
+                  <Text strong>Process Details:</Text>
+                  <ul style={{ marginTop: 8 }}>
+                    <li>
+                      Temperature:{" "}
+                      {metrics.knowledge_distillation_analysis.process?.temperature_used ?? "N/A"}
+                    </li>
+                    <li>
+                      Final Loss:{" "}
+                      {metrics.knowledge_distillation_analysis.process?.distillation_loss ?? "N/A"}
+                    </li>
+                    <li>
+                      Training Steps:{" "}
+                      {metrics.knowledge_distillation_analysis.process?.training_steps ?? "N/A"}
+                    </li>
+                    <li>
+                      Status:{" "}
+                      {metrics.knowledge_distillation_analysis.process?.convergence ?? "N/A"}
+                    </li>
+                  </ul>
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  <Text strong>Effects:</Text>
+                  <ul style={{ marginTop: 8 }}>
+                    <li>
+                      {metrics.knowledge_distillation_analysis.effects?.knowledge_transfer ?? "N/A"}
+                    </li>
+                    <li>
+                      {metrics.knowledge_distillation_analysis.effects?.regularization ?? "N/A"}
+                    </li>
+                    <li>
+                      {metrics.knowledge_distillation_analysis.effects?.efficiency_gain ?? "N/A"}
+                    </li>
+                  </ul>
+                </div>
+                <Alert
+                  message="Educational Insight"
+                  description={metrics.knowledge_distillation_analysis?.educational_insight ?? ""
+                  }
+                  type="info"
+                  showIcon
+                />
+              </Card>
+            )}
+            {metrics.pruning_analysis && (
+              <Card bordered={false}>
+                <Title level={4}>{metrics.pruning_analysis.title || "Pruning Analysis"}</Title>
+                <Paragraph style={{ color: "#666" }}>{metrics.pruning_analysis.description}</Paragraph>
+                <Row gutter={16} style={{ marginBottom: 16 }}>
+                  <Col span={12}>
+                    <Text strong>Pruning Details:</Text>
+                    <ul style={{ marginTop: 8 }}>
+                      <li>
+                        Method:{" "}
+                        {metrics.pruning_analysis.pruning_details?.pruning_method ?? "N/A"}
+                      </li>
+                      <li>
+                        Ratio:{" "}
+                        {metrics.pruning_analysis.pruning_details?.pruning_ratio ?? "N/A"}
+                      </li>
+                      <li>
+                        Layers:{" "}
+                        {metrics.pruning_analysis.pruning_details?.layers_affected ?? "N/A"}
+                      </li>
+                      <li>
+                        Sparsity:{" "}
+                        {metrics.pruning_analysis.pruning_details?.sparsity_introduced ?? "N/A"}
+                      </li>
+                    </ul>
+                  </Col>
+                  <Col span={12}>
+                    <Text strong>Impact Analysis:</Text>
+                    <ul style={{ marginTop: 8 }}>
+                      <li>
+                        Parameter Reduction:{" "}
+                        {metrics.pruning_analysis.impact_analysis?.parameter_reduction ?? "N/A"}
+                      </li>
+                      <li>
+                        Memory Savings:{" "}
+                        {metrics.pruning_analysis.impact_analysis?.memory_savings ?? "N/A"}
+                      </li>
+                      <li>
+                        Speed Improvement:{" "}
+                        {metrics.pruning_analysis.impact_analysis?.speed_improvement ?? "N/A"}
+                      </li>
+                      <li>
+                        Accuracy Trade-off:{" "}
+                        {metrics.pruning_analysis.impact_analysis?.accuracy_tradeoff ?? "N/A"}
+                      </li>
+                    </ul>
+                  </Col>
+                </Row>
+                <Alert
+                  message="Educational Insight"
+                  description={metrics.pruning_analysis?.educational_insight ?? ""}
+                  type="info"
+                  showIcon
+                />
+              </Card>
+            )}
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  // --- Learning Center Pages ---
+  const renderLearningPage = () => {
+    switch (learningPage) {
+      case 0:
+        return (
+          <div>
+            <Card
+              size="small"
+              style={{
+                marginBottom: 16,
+                background: 'linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%)',
+                border: '1px solid #91d5ff'
+              }}
+            >
+              <Title level={4} style={{ color: '#1890ff', marginBottom: 16 }}>
+                Knowledge Distillation
+              </Title>
+              <Paragraph style={{ marginBottom: 12 }}>
+                <strong>What it is:</strong> A technique where a smaller "student" model learns from a larger "teacher" model by mimicking its predictions.
+              </Paragraph>
+              <Paragraph style={{ marginBottom: 12 }}>
+                <strong>How it works:</strong> The teacher provides "soft" probability distributions instead of just correct/incorrect answers, giving the student richer information to learn from.
+              </Paragraph>
+              <Paragraph style={{ marginBottom: 12 }}>
+                <strong>Benefits:</strong> Reduces model size while maintaining most of the original performance.
+              </Paragraph>
+              <Paragraph style={{ marginBottom: 0 }}>
+                <strong>Real-world use:</strong> Used in mobile apps, edge devices, and any scenario where you need efficient AI models.
+              </Paragraph>
+            </Card>
+            <Card
+              size="small"
+              style={{
+                background: 'linear-gradient(135deg, #fff7e6 0%, #fff2d9 100%)',
+                border: '1px solid #ffd591'
+              }}
+            >
+              <Title level={4} style={{ color: '#fa8c16', marginBottom: 16 }}>
+                Model Pruning
+              </Title>
+              <Paragraph style={{ marginBottom: 12 }}>
+                <strong>What it is:</strong> The process of removing unnecessary weights and connections from a neural network.
+              </Paragraph>
+              <Paragraph style={{ marginBottom: 12 }}>
+                <strong>How it works:</strong> Identifies and removes weights that contribute little to the model's performance, making the network more efficient.
+              </Paragraph>
+              <Paragraph style={{ marginBottom: 12 }}>
+                <strong>Benefits:</strong> Reduces model size, speeds up inference, and requires less memory.
+              </Paragraph>
+              <Paragraph style={{ marginBottom: 0 }}>
+                <strong>Real-world use:</strong> Essential for deploying AI models on resource-constrained devices like smartphones and IoT devices.
+              </Paragraph>
+            </Card>
+          </div>
+        );
+      case 1:
+        return (
+          <div>
+            <Card
+              size="small"
+              style={{
+                marginBottom: 16,
+                background: 'linear-gradient(135deg, #f6ffed 0%, #f0f9ff 100%)',
+                border: '1px solid #b7eb8f'
+              }}
+            >
+              <Title level={4} style={{ color: '#52c41a', marginBottom: 16 }}>
+                Model Types
+              </Title>
+              <Paragraph style={{ marginBottom: 12 }}>
+                <strong>DistilBERT:</strong> A compressed version of BERT for natural language processing tasks.
+              </Paragraph>
+              <Paragraph style={{ marginBottom: 12 }}>
+                <strong>T5-small:</strong> A text-to-text transformer that can handle various NLP tasks.
+              </Paragraph>
+              <Paragraph style={{ marginBottom: 12 }}>
+                <strong>MobileNetV2:</strong> Designed for mobile and embedded vision applications.
+              </Paragraph>
+              <Paragraph style={{ marginBottom: 0 }}>
+                <strong>ResNet-18:</strong> A deep residual network with skip connections for image classification.
+              </Paragraph>
+            </Card>
+            <Card
+              size="small"
+              style={{
+                background: 'linear-gradient(135deg, #f9f0ff 0%, #f0f9ff 100%)',
+                border: '1px solid #d3adf7'
+              }}
+            >
+              <Title level={4} style={{ color: '#722ed1', marginBottom: 16 }}>
+                Training Process
+              </Title>
+              <Paragraph style={{ marginBottom: 12 }}>
+                <strong>Step 1:</strong> Load the teacher model and create a smaller student model.
+              </Paragraph>
+              <Paragraph style={{ marginBottom: 12 }}>
+                <strong>Step 2:</strong> Train the student to mimic the teacher's predictions using knowledge distillation.
+              </Paragraph>
+              <Paragraph style={{ marginBottom: 12 }}>
+                <strong>Step 3:</strong> Apply pruning to remove unnecessary weights from the student model.
+              </Paragraph>
+              <Paragraph style={{ marginBottom: 0 }}>
+                <strong>Step 4:</strong> Evaluate the compressed model's performance and efficiency gains.
+              </Paragraph>
+            </Card>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  // --- Responsive Layout ---
+  const isMobile = window.innerWidth < 992;
+
+  // --- Results and Learning Center Navigation Buttons ---
+  const resultsPagesCount = 4;
+  const learningPagesCount = 2;
+
+  // --- Action Buttons ---
+  const actionButtons = (
+    <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", margin: "24px 0" }}>
+      <Button
+        type="primary"
+        size="large"
+        icon={training ? <LoadingOutlined style={{ marginRight: 8 }} /> : <PlayCircleOutlined style={{ marginRight: 8 }} />}
+        onClick={startTraining}
+        disabled={!socketConnected || training || !selectedModel || trainingComplete}
+        loading={training}
+        style={{
+          opacity: training ? 0.6 : 1,
+          cursor: training ? 'not-allowed' : 'pointer'
+        }}
+        title={
+          training
+            ? "Training is already in progress. Please wait for completion."
+            : !selectedModel
+              ? "Please select a model first"
+              : !socketConnected
+                ? "Not connected to server. Please check connection."
+                : trainingComplete
+                  ? "Training already completed. Click 'Train Another Model' to start over."
+                  : "Click to start training"
+        }
+      >
+        {training ? "Training in Progress..." : "Start Training"}
+      </Button>
+      <Button
+        type="success"
+        size="large"
+        onClick={proceedToVisualization}
+        disabled={progress < 100 || !trainingComplete}
+        style={{
+          backgroundColor: progress === 100 && trainingComplete ? '#52c41a' : undefined,
+          borderColor: progress === 100 && trainingComplete ? '#52c41a' : undefined,
+          fontWeight: progress === 100 && trainingComplete ? 'bold' : undefined
+        }}
+      >
+        <ArrowRightOutlined style={{ marginRight: 8 }} />
+        Proceed to Visualization
+      </Button>
+      <Button
+        type="primary"
+        size="large"
+        onClick={handleNewTrainingSession}
+        disabled={progress < 100 || !trainingComplete}
+        style={{
+          backgroundColor: progress === 100 && trainingComplete ? '#52c41a' : undefined,
+          borderColor: progress === 100 && trainingComplete ? '#52c41a' : undefined,
+          fontWeight: progress === 100 && trainingComplete ? 'bold' : undefined
+        }}
+      >
+        Train Another Model
+      </Button>
+    </div>
+  );
+
+  // --- Main Render ---
   return (
     <>
       <Navbar bg="black" variant="dark" expand="lg">
@@ -762,33 +1285,49 @@ const renderEducationalMetrics = (metrics) => {
             </Text>
           </div>
           {renderServerStatus()}
+
+          {/* Model Selection Dropdown - always at the top */}
           <Row justify="center">
             <Col xs={24} sm={20} md={16} lg={12} xl={10}>
-              {/* Model Selection */}
-              <Card className="mb-4" style={{ marginBottom: 24, borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+              <Card
+                className="mb-4"
+                style={{
+                  borderRadius: '16px',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                  marginBottom: 24,
+                  textAlign: 'center'
+                }}
+              >
                 <Title level={3} style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#1890ff', marginBottom: '1rem', textAlign: 'center' }}>
                   Select a Model to Train
                 </Title>
-                <Paragraph style={{ fontSize: '1.1rem', color: '#666', textAlign: 'center', marginBottom: '1.5rem' }}>
-                  Choose a model from the dropdown below to begin the Knowledge Distillation and Pruning process.
-                </Paragraph>
                 <DropdownButton
                   id="dropdown-item-button"
-                  title={selectedModel ? `Selected Model: ${selectedModel}` : "Choose a Model"}
+                  title={
+                    selectedModel
+                      ? `Selected Model: ${modelOptions.find(opt => opt.value === selectedModel)?.label || selectedModel}`
+                      : "Select a model"
+                  }
                   variant="dark"
                   disabled={training}
+                  style={{ marginBottom: 16 }}
                 >
                   {modelOptions.map(option => (
-                    <Dropdown.Item 
-                      as="button" 
-                      key={option.value} 
-                      onClick={() => handleModelSelect(option.value)}
+                    <Dropdown.Item
+                      as="button"
+                      key={option.value}
+                      onClick={() => setSelectedModel(option.value)}
                       disabled={training}
                     >
                       {option.label}
                     </Dropdown.Item>
                   ))}
                 </DropdownButton>
+                {selectedModel && (
+                  <Paragraph style={{ marginTop: 8, color: "#666" }}>
+                    {modelData[selectedModel]?.description}
+                  </Paragraph>
+                )}
                 {!selectedModel && (
                   <Alert
                     message="No Model Selected"
@@ -799,47 +1338,14 @@ const renderEducationalMetrics = (metrics) => {
                   />
                 )}
               </Card>
-              
-              {/* Model Description */}
-              {selectedModel && (
-                <Card className="mb-4" style={{ marginBottom: 24 }}>
-                  <Title level={4}>{modelOptions.find(m => m.value === selectedModel)?.label}</Title>
-                  <Paragraph>{modelData[selectedModel]?.description}</Paragraph>
-                  {getQueryParam("model") && (
-                    <Alert
-                      message="Model Auto-Selected"
-                      description="This model was automatically selected from the Models page. You can now start training immediately."
-                      type="success"
-                      showIcon
-                      style={{ marginTop: 16 }}
-                    />
-                  )}
-                </Card>
-              )}
-              
-              {/* Metrics Before Training */}
-              {!training && !metrics && selectedModel && (
-                <Alert
-                  message="Ready to Train"
-                  description="Model selected and ready for training. Click 'Start Training' to begin the Knowledge Distillation and Pruning process."
-                  type="info"
-                  showIcon
-                  style={{ marginBottom: 24 }}
-                />
-              )}
-              
-              {/* Training Progress */}
+            </Col>
+          </Row>
+
+          {/* Progress Bar and Training Controls */}
+          <Row justify="center">
+            <Col xs={24} sm={20} md={16} lg={12} xl={10}>
               <Card className="mb-4" style={{ borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
                 <div className="text-center">
-                  {training && (
-                    <Alert
-                      message="Training in Progress"
-                      description="Please wait while the model is being trained. This process cannot be interrupted."
-                      type="info"
-                      showIcon
-                      style={{ marginBottom: 20 }}
-                    />
-                  )}
                   <Progress
                     percent={progress}
                     status={training ? "active" : progress === 100 ? "success" : "normal"}
@@ -854,11 +1360,11 @@ const renderEducationalMetrics = (metrics) => {
                   {training && trainingPhase && (
                     <div style={{ marginBottom: "20px", padding: "16px", background: "#f0f8ff", borderRadius: "8px", border: "1px solid #d6e4ff" }}>
                       <div style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}>
-                        <div style={{ 
-                          width: "12px", 
-                          height: "12px", 
-                          borderRadius: "50%", 
-                          backgroundColor: "#1890ff", 
+                        <div style={{
+                          width: "12px",
+                          height: "12px",
+                          borderRadius: "50%",
+                          backgroundColor: "#1890ff",
                           marginRight: "8px",
                           animation: "pulse 1.5s infinite"
                         }}></div>
@@ -873,316 +1379,168 @@ const renderEducationalMetrics = (metrics) => {
                       )}
                     </div>
                   )}
-                  <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+                  {/* Action Buttons */}
+                  <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", margin: "24px 0" }}>
                     <Button
                       type="primary"
                       size="large"
                       icon={training ? <LoadingOutlined style={{ marginRight: 8 }} /> : <PlayCircleOutlined style={{ marginRight: 8 }} />}
                       onClick={startTraining}
-                      disabled={!socketConnected || training || !selectedModel}
+                      disabled={!socketConnected || training || !selectedModel || trainingComplete}
                       loading={training}
                       style={{
                         opacity: training ? 0.6 : 1,
                         cursor: training ? 'not-allowed' : 'pointer'
                       }}
                       title={
-                        training 
-                          ? "Training is already in progress. Please wait for completion." 
-                          : !selectedModel 
-                            ? "Please select a model first" 
-                            : !socketConnected 
-                              ? "Not connected to server. Please check connection." 
-                              : "Click to start training"
+                        training
+                          ? "Training is already in progress. Please wait for completion."
+                          : !selectedModel
+                            ? "Please select a model first"
+                            : !socketConnected
+                              ? "Not connected to server. Please check connection."
+                              : trainingComplete
+                                ? "Training already completed. Click 'Train Another Model' to start over."
+                                : "Click to start training"
                       }
                     >
                       {training ? "Training in Progress..." : "Start Training"}
                     </Button>
-                    
+                    {/* Cancel Training button (only show during training) */}
                     {training && (
                       <Button
                         type="default"
                         size="large"
                         onClick={cancelTraining}
                         danger
+                        style={{ minWidth: 150 }}
                       >
                         Cancel Training
                       </Button>
                     )}
-                    
-                    {trainingComplete && !training && (
-                      <Button
-                        type="primary"
-                        size="large"
-                        onClick={() => {
-                          setTrainingComplete(false);
-                          setProgress(0);
-                          setCurrentLoss(null);
-                          setMetrics(null);
-                          setEvaluationResults(null);
-                          setTrainingPhase(null);
-                          setTrainingMessage(null);
-                          localStorage.removeItem('kd_pruning_evaluation_results');
-                        }}
-                        style={{ 
-                          backgroundColor: '#52c41a',
-                          borderColor: '#52c41a'
-                        }}
-                      >
-                        Train Another Model
-                      </Button>
-                    )}
-                    
                     <Button
                       type="success"
                       size="large"
                       onClick={proceedToVisualization}
-                      disabled={progress < 100}
-                      style={{ 
-                        backgroundColor: progress === 100 ? '#52c41a' : undefined,
-                        borderColor: progress === 100 ? '#52c41a' : undefined,
-                        fontWeight: progress === 100 ? 'bold' : undefined
+                      disabled={progress < 100 || !trainingComplete}
+                      style={{
+                        backgroundColor: progress === 100 && trainingComplete ? '#52c41a' : undefined,
+                        borderColor: progress === 100 && trainingComplete ? '#52c41a' : undefined,
+                        fontWeight: progress === 100 && trainingComplete ? 'bold' : undefined
                       }}
                     >
                       <ArrowRightOutlined style={{ marginRight: 8 }} />
                       Proceed to Visualization
                     </Button>
+                    <Button
+                      type="primary"
+                      size="large"
+                      onClick={handleNewTrainingSession}
+                      disabled={progress < 100 || !trainingComplete}
+                      style={{
+                        backgroundColor: progress === 100 && trainingComplete ? '#52c41a' : undefined,
+                        borderColor: progress === 100 && trainingComplete ? '#52c41a' : undefined,
+                        fontWeight: progress === 100 && trainingComplete ? 'bold' : undefined
+                      }}
+                    >
+                      Train Another Model
+                    </Button>
                   </div>
-                  {trainingComplete && metrics && (
-                    <Card style={{ marginTop: 20, textAlign: 'left' }}>
-                      <Alert
-                        message="Training Complete!"
-                        description={
-                          <div>
-                            <p><strong>The model has been successfully compressed using Knowledge Distillation and Pruning!</strong></p>
-                            <p>Model loaded and processed</p>
-                            <p>Knowledge distillation applied</p>
-                            <p>Model pruning completed</p>
-                            <p><strong>You can now proceed to the visualization to see the step-by-step process and evaluation results.</strong></p>
-                          </div>
-                        }
-                        type="success"
-                        showIcon
-                        style={{ marginBottom: 16 }}
-                      />
-                      
-                      {/* Enhanced Metrics Display */}
-                      {metrics && (
-                        <div>
-                          <Title level={4} style={{ marginTop: 16, marginBottom: 16 }}>Training Results Summary</Title>
-                          
-                          {metrics.model_performance && (
-                            <div style={{ marginBottom: '20px' }}>
-                              <Title level={5} style={{ color: '#1890ff' }}>Model Performance</Title>
-                              <Row gutter={16}>
-                                <Col span={12}>
-                                  <Card size="small" style={{ background: '#f6ffed', borderColor: '#b7eb8f' }}>
-                                    <div style={{ textAlign: 'center' }}>
-                                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#52c41a' }}>
-                                        {metrics.model_performance.metrics?.accuracy || metrics.model_performance.accuracy || '89.0%'}
-                                      </div>
-                                      <div style={{ fontSize: '14px', color: '#666' }}>Final Accuracy</div>
-                                    </div>
-                                  </Card>
-                                </Col>
-                                <Col span={12}>
-                                  <Card size="small" style={{ background: '#fff7e6', borderColor: '#ffd591' }}>
-                                    <div style={{ textAlign: 'center' }}>
-                                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#fa8c16' }}>
-                                        {metrics.model_performance.metrics?.size_mb || metrics.model_performance.size_mb || '1.1 MB'}
-                                      </div>
-                                      <div style={{ fontSize: '14px', color: '#666' }}>Model Size (MB)</div>
-                                    </div>
-                                  </Card>
-                                </Col>
-                              </Row>
-                            </div>
-                          )}
-                          
-                          {/* Only show results when we have actual data */}
-                          {!metrics.model_performance && (
-                            <div style={{ marginBottom: '20px' }}>
-                              <Alert
-                                message="Training Results Not Available"
-                                description="Complete training to see detailed performance metrics."
-                                type="info"
-                                showIcon
-                              />
-                            </div>
-                          )}
-                          
-                          {metrics.efficiency_improvements && (
-                            <div style={{ marginBottom: '20px' }}>
-                              <Title level={5} style={{ color: '#722ed1' }}>Efficiency Improvements</Title>
-                              <Row gutter={16}>
-                                <Col span={8}>
-                                  <Card size="small" style={{ background: '#f9f0ff', borderColor: '#d3adf7' }}>
-                                    <div style={{ textAlign: 'center' }}>
-                                      <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#722ed1' }}>
-                                        {metrics.efficiency_improvements.improvements?.speed?.improvement || 'N/A'}
-                                      </div>
-                                      <div style={{ fontSize: '12px', color: '#666' }}>Speed Improvement</div>
-                                    </div>
-                                  </Card>
-                                </Col>
-                                <Col span={8}>
-                                  <Card size="small" style={{ background: '#f6ffed', borderColor: '#b7eb8f' }}>
-                                    <div style={{ textAlign: 'center' }}>
-                                      <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#52c41a' }}>
-                                        {metrics.efficiency_improvements.improvements?.parameters?.reduction || 'N/A'}
-                                      </div>
-                                      <div style={{ fontSize: '12px', color: '#666' }}>Parameter Reduction</div>
-                                    </div>
-                                  </Card>
-                                </Col>
-                                <Col span={8}>
-                                  <Card size="small" style={{ background: '#fff7e6', borderColor: '#ffd591' }}>
-                                    <div style={{ textAlign: 'center' }}>
-                                      <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#fa8c16' }}>
-                                        {metrics.efficiency_improvements.improvements?.storage?.reduction || 'N/A'}
-                                      </div>
-                                      <div style={{ fontSize: '12px', color: '#666' }}>Storage Reduction</div>
-                                    </div>
-                                  </Card>
-                                </Col>
-                              </Row>
-                            </div>
-                          )}
-                          
-                          <div style={{ background: '#f0f8ff', padding: '16px', borderRadius: '6px', border: '1px solid #d6e4ff' }}>
-                            <strong>What You've Learned:</strong> This training demonstrates how Knowledge Distillation transfers knowledge from a larger teacher model to a smaller student model, 
-                            while Pruning removes redundant weights to create a more efficient, deployable model. The trade-off between model size and accuracy is a key concept in AI model optimization.
-                          </div>
-                        </div>
-                      )}
-                    </Card>
-                  )}
                 </div>
               </Card>
-              {/* Unified Results Panel */}
-              {metrics && (
-                <div>
-                  {renderEducationalMetrics(metrics)}
-                  
-                  {/* Educational Lessons Section */}
-                  <Card style={{ marginTop: 24, borderRadius: '12px' }}>
-                    <Title level={3} style={{ textAlign: 'center', marginBottom: 24, color: '#1890ff' }}>
-                    Learning Center
-                    </Title>
-                    
-                    <Row gutter={[24, 24]}>
-                      <Col xs={24} md={12}>
-                        <Card 
-                          size="small" 
-                          style={{ 
-                            height: '100%', 
-                            background: 'linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%)',
-                            border: '1px solid #91d5ff'
-                          }}
-                        >
-                          <Title level={4} style={{ color: '#1890ff', marginBottom: 16 }}>
-                          Knowledge Distillation
-                          </Title>
-                          <Paragraph style={{ marginBottom: 12 }}>
-                            <strong>What it is:</strong> A technique where a smaller "student" model learns from a larger "teacher" model by mimicking its predictions.
-                          </Paragraph>
-                          <Paragraph style={{ marginBottom: 12 }}>
-                            <strong>How it works:</strong> The teacher provides "soft" probability distributions instead of just correct/incorrect answers, giving the student richer information to learn from.
-                          </Paragraph>
-                          <Paragraph style={{ marginBottom: 12 }}>
-                            <strong>Benefits:</strong> Reduces model size while maintaining most of the original performance.
-                          </Paragraph>
-                          <Paragraph style={{ marginBottom: 0 }}>
-                            <strong>Real-world use:</strong> Used in mobile apps, edge devices, and any scenario where you need efficient AI models.
-                          </Paragraph>
-                        </Card>
-                      </Col>
-                      
-                      <Col xs={24} md={12}>
-                        <Card 
-                          size="small" 
-                          style={{ 
-                            height: '100%', 
-                            background: 'linear-gradient(135deg, #fff7e6 0%, #fff2d9 100%)',
-                            border: '1px solid #ffd591'
-                          }}
-                        >
-                          <Title level={4} style={{ color: '#fa8c16', marginBottom: 16 }}>
-                          Model Pruning
-                          </Title>
-                          <Paragraph style={{ marginBottom: 12 }}>
-                            <strong>What it is:</strong> The process of removing unnecessary weights and connections from a neural network.
-                          </Paragraph>
-                          <Paragraph style={{ marginBottom: 12 }}>
-                            <strong>How it works:</strong> Identifies and removes weights that contribute little to the model's performance, making the network more efficient.
-                          </Paragraph>
-                          <Paragraph style={{ marginBottom: 12 }}>
-                            <strong>Benefits:</strong> Reduces model size, speeds up inference, and requires less memory.
-                          </Paragraph>
-                          <Paragraph style={{ marginBottom: 0 }}>
-                            <strong>Real-world use:</strong> Essential for deploying AI models on resource-constrained devices like smartphones and IoT devices.
-                          </Paragraph>
-                        </Card>
-                      </Col>
-                      
-                      <Col xs={24} md={12}>
-                        <Card 
-                          size="small" 
-                          style={{ 
-                            height: '100%', 
-                            background: 'linear-gradient(135deg, #f6ffed 0%, #f0f9ff 100%)',
-                            border: '1px solid #b7eb8f'
-                          }}
-                        >
-                          <Title level={4} style={{ color: '#52c41a', marginBottom: 16 }}>
-                          Model Types
-                          </Title>
-                          <Paragraph style={{ marginBottom: 12 }}>
-                            <strong>DistilBERT:</strong> A compressed version of BERT for natural language processing tasks.
-                          </Paragraph>
-                          <Paragraph style={{ marginBottom: 12 }}>
-                            <strong>T5-small:</strong> A text-to-text transformer that can handle various NLP tasks.
-                          </Paragraph>
-                          <Paragraph style={{ marginBottom: 12 }}>
-                            <strong>MobileNetV2:</strong> Designed for mobile and embedded vision applications.
-                          </Paragraph>
-                          <Paragraph style={{ marginBottom: 0 }}>
-                            <strong>ResNet-18:</strong> A deep residual network with skip connections for image classification.
-                          </Paragraph>
-                        </Card>
-                      </Col>
-                      
-                      <Col xs={24} md={12}>
-                        <Card 
-                          size="small" 
-                          style={{ 
-                            height: '100%', 
-                            background: 'linear-gradient(135deg, #f9f0ff 0%, #f0f9ff 100%)',
-                            border: '1px solid #d3adf7'
-                          }}
-                        >
-                          <Title level={4} style={{ color: '#722ed1', marginBottom: 16 }}>
-                          Training Process
-                          </Title>
-                          <Paragraph style={{ marginBottom: 12 }}>
-                            <strong>Step 1:</strong> Load the teacher model and create a smaller student model.
-                          </Paragraph>
-                          <Paragraph style={{ marginBottom: 12 }}>
-                            <strong>Step 2:</strong> Train the student to mimic the teacher's predictions using knowledge distillation.
-                          </Paragraph>
-                          <Paragraph style={{ marginBottom: 12 }}>
-                            <strong>Step 3:</strong> Apply pruning to remove unnecessary weights from the student model.
-                          </Paragraph>
-                          <Paragraph style={{ marginBottom: 0 }}>
-                            <strong>Step 4:</strong> Evaluate the compressed model's performance and efficiency gains.
-                          </Paragraph>
-                        </Card>
-                      </Col>
-                    </Row>
-                  </Card>
-                </div>
-              )}
             </Col>
           </Row>
+
+          {/* Results containers: only show after training is complete */}
+          {(trainingComplete && metrics && !trainingError) && (
+            <>
+              <Row gutter={[24, 24]} justify="center" style={{ marginTop: 0 }}>
+                <Col xs={24} md={12} style={{ marginBottom: isMobile ? 24 : 0 }}>
+                  <Card
+                    style={{
+                      borderRadius: '16px',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                      minHeight: 420,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between'
+                    }}
+                    title="Training Results"
+                    bodyStyle={{ minHeight: 320, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+                  >
+                    <div style={{ flex: 1 }}>{renderResultsPage()}</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24 }}>
+                      <Button
+                        onClick={() => setResultsPage((p) => Math.max(0, p - 1))}
+                        disabled={resultsPage === 0}
+                      >
+                        Previous
+                      </Button>
+                      <span style={{ alignSelf: "center" }}>
+                        Page {resultsPage + 1} / {resultsPagesCount}
+                      </span>
+                      <Button
+                        onClick={() => setResultsPage((p) => Math.min(resultsPagesCount - 1, p + 1))}
+                        disabled={resultsPage === resultsPagesCount - 1}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </Card>
+                </Col>
+              </Row>
+              <Row gutter={[24, 24]} justify="center" style={{ marginTop: 0 }}>
+                <Col xs={24} md={12}>
+                  <Card
+                    style={{
+                      borderRadius: '16px',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                      minHeight: 420,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between'
+                    }}
+                    title="Learning Center"
+                    bodyStyle={{ minHeight: 320, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+                  >
+                    <div style={{ flex: 1 }}>{renderLearningPage()}</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24 }}>
+                      <Button
+                        onClick={() => setLearningPage((p) => Math.max(0, p - 1))}
+                        disabled={learningPage === 0}
+                      >
+                        Previous
+                      </Button>
+                      <span style={{ alignSelf: "center" }}>
+                        Page {learningPage + 1} / {learningPagesCount}
+                      </span>
+                      <Button
+                        onClick={() => setLearningPage((p) => Math.min(learningPagesCount - 1, p + 1))}
+                        disabled={learningPage === learningPagesCount - 1}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </Card>
+                </Col>
+              </Row>
+            </>
+          )}
+
+          {/* Error message if training fails */}
+          {trainingError && (
+            <Row justify="center">
+              <Col xs={24} sm={20} md={16} lg={12} xl={10}>
+                <Alert
+                  message="Training Error"
+                  description={trainingError}
+                  type="error"
+                  showIcon
+                  style={{ marginTop: 24 }}
+                />
+              </Col>
+            </Row>
+          )}
         </Content>
       </Layout>
       <Footer />

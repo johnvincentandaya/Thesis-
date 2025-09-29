@@ -53,6 +53,10 @@ last_teacher_metrics = None
 last_student_metrics = None
 last_effectiveness_metrics = None
 training_cancelled = False
+phase_order = ["model_loading", "knowledge_distillation", "pruning", "evaluation", "completed"]
+last_progress = 0
+last_phase_index = -1
+
 
 def calculate_compression_metrics(model_name, teacher_metrics, student_metrics):
     """Calculate realistic compression metrics based on model type and actual measurements."""
@@ -469,6 +473,46 @@ class CustomDataset(Dataset):
         :return: A tuple (input, label).
         """
         return self.inputs[idx], self.labels[idx]
+
+def safe_emit_progress(progress=None, phase=None, message=None, loss=None, step=None, total_steps=None, status=None):
+    """Emit training_progress only if it moves forward (never backwards)."""
+    global last_progress, last_phase_index
+
+    # Determine new phase index
+    new_phase_index = phase_order.index(phase) if phase in phase_order else last_phase_index
+
+    # Guard progress
+    new_progress = last_progress if progress is None else int(progress)
+
+    # Only emit if progress increased OR phase moved forward
+    if new_progress < last_progress and new_phase_index <= last_phase_index:
+        return  # ignore backward updates
+
+    # Update trackers
+    last_progress = max(last_progress, new_progress)
+    last_phase_index = max(last_phase_index, new_phase_index)
+
+    payload = {"progress": last_progress}
+    if phase is not None:
+        payload["phase"] = phase
+    if message is not None:
+        payload["message"] = message
+    if loss is not None:
+        payload["loss"] = float(loss)
+    if step is not None:
+        payload["step"] = step
+    if total_steps is not None:
+        payload["total_steps"] = total_steps
+    if status is not None:
+        payload["status"] = status
+
+    socketio.emit("training_progress", payload)
+    global last_progress, last_phase_index
+    last_progress = 0
+    last_phase_index = -1
+
+    safe_emit_progress(progress=0, phase="model_loading", message="Initializing models...")
+
 
 def training_task(model_name):
     """The background task for training the model."""
