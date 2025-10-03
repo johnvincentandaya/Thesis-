@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Layout, Card, Button, Progress, message, Typography, Row, Col, Alert } from "antd";
 import { PlayCircleOutlined, ArrowRightOutlined, LoadingOutlined } from "@ant-design/icons";
 import { useNavigate, Link, useLocation } from "react-router-dom";
-import { socket, SOCKET_URL } from "../socket";
+import { socket, SOCKET_URL, checkConnectionHealth, forceReconnect } from "../socket";
 import { Navbar, Nav, Container, DropdownButton, Dropdown } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./Training.css";
@@ -119,43 +119,110 @@ const Training = () => {
     }
   };
 
-  useEffect(() => {
-    // Immediately check server status on mount
-    (async () => {
-      try {
-        const response = await fetch(`${SOCKET_URL}/test`);
-        const data = await response.json();
-        if (data.status === "Server is running") {
-          setServerStatus("connected");
-          setSocketConnected(true);
-        } else {
-          setServerStatus("error");
-          setSocketConnected(false);
-        }
-      } catch {
+  // Enhanced server status checking function
+  const checkServerStatus = async () => {
+    try {
+      const response = await fetch(`${SOCKET_URL}/test`, {
+        method: 'GET',
+        timeout: 5000
+      });
+      const data = await response.json();
+      if (data.status === "Server is running") {
+        setServerStatus("connected");
+        setSocketConnected(true);
+        return true;
+      } else {
         setServerStatus("error");
         setSocketConnected(false);
+        return false;
       }
-    })();
+    } catch (error) {
+      console.log("Server status check failed:", error);
+      setServerStatus("error");
+      setSocketConnected(false);
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    // Immediately check server status on mount
+    checkServerStatus();
+
+    // Set up periodic server status checks
+    const statusCheckInterval = setInterval(checkServerStatus, 10000); // Check every 10 seconds
 
     socket.on("connect", () => {
+      console.log("Socket connected successfully");
       setSocketConnected(true);
       setServerStatus("connected");
+      setTrainingError(null); // Clear any previous errors
     });
-    socket.on("connect_error", () => {
+
+    // Enhanced connection monitoring
+    socket.on("server_ready", (data) => {
+      console.log("Server ready:", data);
+      setServerStatus("connected");
+      setSocketConnected(true);
+    });
+
+    socket.on("connection_acknowledged", (data) => {
+      console.log("Connection acknowledged by server:", data);
+      setServerStatus("connected");
+      setSocketConnected(true);
+    });
+
+    socket.on("health_status", (data) => {
+      console.log("Server health status:", data);
+      setServerStatus("connected");
+      setSocketConnected(true);
+    });
+
+    socket.on("server_error", (data) => {
+      console.error("Server error:", data);
+      message.error(`Server error: ${data.error}`);
+    });
+    
+    socket.on("connect_error", (error) => {
+      console.log("Socket connection error:", error);
       setSocketConnected(false);
-      setServerStatus("error");
+      // Don't immediately set server status to error - check HTTP first
+      checkServerStatus();
     });
+    
     socket.on("disconnect", (reason) => {
       console.log("Socket disconnected:", reason);
       setSocketConnected(false);
-      setServerStatus("error");
+      // Check if server is still reachable via HTTP
+      if (!training) {
+        checkServerStatus();
+      }
     });
+    
+    socket.on("reconnect", (attemptNumber) => {
+      console.log("Socket reconnected after", attemptNumber, "attempts");
+      setSocketConnected(true);
+      setServerStatus("connected");
+      setTrainingError(null);
+    });
+    
     socket.on("reconnect_failed", () => {
+      console.log("Socket reconnection failed");
       setSocketConnected(false);
-      setServerStatus("error");
-      message.error("Failed to reconnect to server after multiple attempts. Please check your server and try again.");
+      // Check if server is still reachable via HTTP
+      checkServerStatus();
+      if (training) {
+        message.error("Lost socket connection during training. Training may continue in background.");
+      } else {
+        message.error("Socket reconnection failed. Checking server status...");
+      }
     });
+    
+    // Add heartbeat to keep connection alive during training
+    const heartbeat = setInterval(() => {
+      if (socket.connected && training) {
+        socket.emit('ping');
+      }
+    }, 30000); // Ping every 30 seconds during training
     const phaseOrder = ["model_loading", "knowledge_distillation", "pruning", "evaluation", "completed"];
 
 socket.on("training_progress", (data) => {
@@ -291,9 +358,11 @@ socket.on("training_progress", (data) => {
       message.info("Training has been cancelled.");
     });
     return () => {
+      clearInterval(heartbeat);
       socket.off("connect");
       socket.off("connect_error");
       socket.off("disconnect");
+      socket.off("reconnect");
       socket.off("reconnect_failed");
       socket.off("training_progress");
       socket.off("training_status");
@@ -305,23 +374,44 @@ socket.on("training_progress", (data) => {
     // eslint-disable-next-line
   }, []);
 
-  // Only call testServerConnection when user clicks Retry Connection
+  // Enhanced reconnection with health check
   const reconnectSocket = async () => {
     if (retryLoading) return; // Prevent multiple clicks
     setRetryLoading(true);
+    
     // Show notice to user ONLY when user clicks Retry
     if (!reconnectSocket._noticeShown) {
       message.info("Attempting to reconnect to the server...");
       reconnectSocket._noticeShown = true;
       setTimeout(() => { reconnectSocket._noticeShown = false; }, 3000);
     }
+    
     try {
-      socket.connect();
+      // Check current connection health
+      const health = checkConnectionHealth();
+      console.log("Connection health before reconnect:", health);
+      
+      // Force reconnection
+      forceReconnect();
       setRetryCount((prev) => prev + 1);
-      // Only now, on user action, call testServerConnection
+      
+      // Wait a moment for connection to establish
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Test server connection
       await testServerConnection();
-      message.success("Reconnection attempt sent. Please wait for server status.");
+      
+      // Check health again
+      const newHealth = checkConnectionHealth();
+      console.log("Connection health after reconnect:", newHealth);
+      
+      if (newHealth.isConnected) {
+        message.success("Successfully reconnected to server!");
+      } else {
+        message.warning("Reconnection attempted. Please check server status.");
+      }
     } catch (err) {
+      console.error("Reconnection error:", err);
       message.error("Failed to reconnect. Please check your server and network.");
     } finally {
       setRetryLoading(false);
@@ -346,15 +436,13 @@ socket.on("training_progress", (data) => {
       message.error("Please select a model first.");
       return;
     }
-    // Ensure socket is attempting to connect, but do not block training on WS state
-    if (!socketConnected) {
-      try { socket.connect(); } catch (_) {}
-      message.info("Connecting to server... training will still start.");
-    }
+    
     if (training) {
       message.warning("Training is already in progress.");
       return;
     }
+    
+    // Reset training state
     setTraining(true);
     setProgress(0);
     setTrainingComplete(false);
@@ -363,31 +451,73 @@ socket.on("training_progress", (data) => {
     setEvaluationResults(null);
     setTrainingPhase(null);
     setTrainingMessage(null);
+    setTrainingError(null);
     // Clear previous results when starting new training
     localStorage.removeItem('kd_pruning_evaluation_results');
+    
     try {
-      // Ensure server is up (idempotent)
-      await testServerConnection();
+      // Test server connection first
+      console.log("Testing server connection...");
+      const serverResponse = await fetch(`${SOCKET_URL}/test`, {
+        method: "GET",
+        timeout: 10000
+      });
+      
+      if (!serverResponse.ok) {
+        throw new Error("Server is not responding");
+      }
+      
+      const serverData = await serverResponse.json();
+      if (serverData.status !== "Server is running") {
+        throw new Error("Server is not ready");
+      }
+      
+      console.log("Server connection verified");
+      
       // Test model loading
+      console.log(`Testing model loading for ${selectedModel}...`);
       const testResponse = await fetch(`${SOCKET_URL}/test_model`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ model_name: selectedModel }),
+        timeout: 15000
       });
+      
       const testData = await testResponse.json();
+      console.log("Model test response:", testData);
+      
       if (!testResponse.ok || !testData.success) {
         throw new Error(testData.error || "Failed to load model");
       }
+      
+      console.log("Model loading test passed");
+      
       // Start training
-      await fetch(`${SOCKET_URL}/train`, {
+      console.log("Starting training...");
+      const trainResponse = await fetch(`${SOCKET_URL}/train`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ model_name: selectedModel }),
+        timeout: 5000
       });
+      
+      if (!trainResponse.ok) {
+        throw new Error("Failed to start training");
+      }
+      
+      console.log("Training started successfully");
+      message.success("Training started successfully!");
+      
     } catch (error) {
+      console.error("Training start error:", error);
       setTraining(false);
       setProgress(0);
-      message.error({ content: `Error: ${error.message}`, key: "training", duration: 5 });
+      setTrainingError(error.message);
+      message.error({ 
+        content: `Failed to start training: ${error.message}`, 
+        key: "training", 
+        duration: 10 
+      });
     }
   };
 
@@ -448,24 +578,41 @@ socket.on("training_progress", (data) => {
     }
   };
 
-  // Server status indicator
-  const renderServerStatus = () => (
-    <div style={{ textAlign: "center", marginBottom: "20px" }}>
-      <span style={{ color: serverStatus === "connected" ? "green" : serverStatus === "error" ? "red" : "orange", marginRight: "10px" }}>
-        ● {serverStatus === "connected" ? "Server Connected" : serverStatus === "error" ? "Server Disconnected" : "Checking Connection..."}
-      </span>
-      {serverStatus === "error" && (
-        <>
-          <Button type="primary" size="small" onClick={reconnectSocket} loading={retryLoading} disabled={retryLoading} style={{ marginLeft: "10px" }}>
-            Retry Connection
-          </Button>
-          <span style={{ color: "#faad14", marginLeft: 10 }}>
-            If the server was restarted, click "Retry Connection" to reconnect.
-          </span>
-        </>
-      )}
-    </div>
-  );
+  // Enhanced server status indicator with health check
+  const renderServerStatus = () => {
+    const handleHealthCheck = () => {
+      const health = checkConnectionHealth();
+      console.log("Connection health check:", health);
+      message.info(`Connection Status: ${health.isConnected ? 'Connected' : 'Disconnected'}\nServer: ${health.serverUrl}\nLast Ping: ${health.lastPing || 'Never'}`);
+    };
+
+    return (
+      <div style={{ textAlign: "center", marginBottom: "20px" }}>
+        <span style={{ color: serverStatus === "connected" ? "green" : serverStatus === "error" ? "red" : "orange", marginRight: "10px" }}>
+          ● {serverStatus === "connected" ? "Server Connected" : serverStatus === "error" ? "Server Disconnected" : "Checking Connection..."}
+        </span>
+        <Button 
+          type="default" 
+          size="small" 
+          onClick={handleHealthCheck}
+          style={{ marginLeft: "10px" }}
+          title="Check connection health"
+        >
+          Health Check
+        </Button>
+        {serverStatus === "error" && (
+          <>
+            <Button type="primary" size="small" onClick={reconnectSocket} loading={retryLoading} disabled={retryLoading} style={{ marginLeft: "10px" }}>
+              Retry Connection
+            </Button>
+            <span style={{ color: "#faad14", marginLeft: 10 }}>
+              If the server was restarted, click "Retry Connection" to reconnect.
+            </span>
+          </>
+        )}
+      </div>
+    );
+  };
 
   // Enhanced metrics display with educational content
 // Safe helper to render difference with color
@@ -798,19 +945,50 @@ const renderEducationalMetrics = (metrics) => {
     return sessionStorage.getItem('kd_training_started') === 'true';
   });
 
+  // Function to load previous results from backend
+  const loadPreviousResults = async () => {
+    try {
+      const response = await fetch(`${SOCKET_URL}/get_previous_results`);
+      const data = await response.json();
+      
+      if (data.success && data.results) {
+        console.log("Loaded previous results from backend:", data.results);
+        setMetrics(data.results.compression_results);
+        setEvaluationResults(data.results.compression_results);
+        setTrainingComplete(true);
+        setProgress(100);
+        setSelectedModel("distillBert"); // Default model, could be made dynamic
+        message.success("Previous training results loaded successfully!");
+        return true;
+      }
+    } catch (error) {
+      console.log("No previous results available from backend:", error.message);
+    }
+    return false;
+  };
+
   // On mount, restore all state from persistedResult if available and not currently training, and only if user has started training before
   useEffect(() => {
-    if (persistedResult && !training && hasStartedTraining) {
-      setProgress(persistedResult.progress || 0);
-      setTraining(false);
-      setTrainingComplete(!!persistedResult.trainingComplete);
-      setCurrentLoss(persistedResult.currentLoss || null);
-      setTrainingPhase(persistedResult.trainingPhase || null);
-      setTrainingMessage(persistedResult.trainingMessage || null);
-      setSelectedModel(persistedResult.selectedModel || null);
-      setMetrics(persistedResult.metrics || null);
-      setEvaluationResults(persistedResult.evaluationResults || null);
-    }
+    const restoreState = async () => {
+      // First try to restore from localStorage
+      if (persistedResult && !training && hasStartedTraining) {
+        setProgress(persistedResult.progress || 0);
+        setTraining(false);
+        setTrainingComplete(!!persistedResult.trainingComplete);
+        setCurrentLoss(persistedResult.currentLoss || null);
+        setTrainingPhase(persistedResult.trainingPhase || null);
+        setTrainingMessage(persistedResult.trainingMessage || null);
+        setSelectedModel(persistedResult.selectedModel || null);
+        setMetrics(persistedResult.metrics || null);
+        setEvaluationResults(persistedResult.evaluationResults || null);
+        console.log("Restored state from localStorage");
+      } else if (!training && !hasStartedTraining) {
+        // If no localStorage data, try to load from backend
+        await loadPreviousResults();
+      }
+    };
+    
+    restoreState();
     // eslint-disable-next-line
   }, []);
 
@@ -1305,6 +1483,14 @@ const renderEducationalMetrics = (metrics) => {
       >
         Train Another Model
       </Button>
+      <Button
+        type="default"
+        size="large"
+        onClick={loadPreviousResults}
+        disabled={training}
+      >
+        Load Previous Results
+      </Button>
     </div>
   );
 
@@ -1512,6 +1698,15 @@ const renderEducationalMetrics = (metrics) => {
                       }}
                     >
                       Train Another Model
+                    </Button>
+                    <Button
+                      type="default"
+                      size="large"
+                      onClick={loadPreviousResults}
+                      disabled={training}
+                      style={{ marginLeft: 8 }}
+                    >
+                      Load Previous Results
                     </Button>
                   </div>
                 </div>
