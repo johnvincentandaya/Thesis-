@@ -707,24 +707,29 @@ const getStepInfo = (step, selectedModel) => {
 const Visualization = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { trainingComplete, selectedModel, metrics } = location.state || {};
-  
+  const { trainingComplete: stateTrainingComplete, selectedModel: stateSelectedModel, metrics: stateMetrics } = location.state || {};
+
   // Load persisted evaluation results if not passed via state
-  const [persistedMetrics, setPersistedMetrics] = useState(null);
-  
+  const [persistedResults, setPersistedResults] = useState(null);
+
   useEffect(() => {
-    if (!metrics) {
-      const persistedResults = localStorage.getItem('kd_pruning_evaluation_results');
-      if (persistedResults) {
+    if (!stateMetrics) {
+      const persisted = localStorage.getItem('kd_pruning_evaluation_results');
+      if (persisted) {
         try {
-          const parsedResults = JSON.parse(persistedResults);
-          setPersistedMetrics(parsedResults);
+          const parsed = JSON.parse(persisted);
+          setPersistedResults(parsed);
         } catch (error) {
           console.error('Error parsing persisted results:', error);
         }
       }
     }
-  }, [metrics]);
+  }, [stateMetrics]);
+
+  // Use state values if available, otherwise use persisted values
+  const trainingComplete = stateTrainingComplete || (persistedResults ? true : false);
+  const selectedModel = stateSelectedModel || (persistedResults ? persistedResults.selectedModel : null);
+  const metrics = stateMetrics || persistedResults;
   const [started, setStarted] = useState(false);
   const [step, setStep] = useState(0);
   const [autoPlay, setAutoPlay] = useState(false);
@@ -824,48 +829,6 @@ const Visualization = () => {
     }
   }, [autoPlay, step, started]);
 
-  // If not trained, redirect or show warning (with server status)
-  if (!trainingComplete) {
-    return (
-      <>
-        <Navbar bg="black" variant="dark" expand="lg">
-          <Container>
-            <Navbar.Brand as={Link} to="/">KD-Pruning Simulator</Navbar.Brand>
-            <Navbar.Toggle aria-controls="basic-navbar-nav" />
-            <Navbar.Collapse id="basic-navbar-nav">
-              <Nav className="ms-auto">
-                <Nav.Link as={Link} to="/">Home</Nav.Link>
-                <Nav.Link as={Link} to="/instructions">Instructions</Nav.Link>
-                <Nav.Link as={Link} to="/models">Models</Nav.Link>
-                <Nav.Link as={Link} to="/training">Training</Nav.Link>
-                <Nav.Link as={Link} to="/visualization">Visualization</Nav.Link>
-                <Nav.Link as={Link} to="/assessment">Assessment</Nav.Link>
-              </Nav>
-            </Navbar.Collapse>
-          </Container>
-        </Navbar>
-        <div style={{ padding: 40, textAlign: 'center' }}>
-          <div style={{ marginBottom: 12 }}>
-            <span style={{ color: serverStatus === 'connected' ? 'green' : serverStatus === 'error' ? 'red' : 'orange' }}>
-              ● {serverStatus === 'connected' ? 'Server Connected' : serverStatus === 'error' ? 'Server Disconnected' : 'Checking Connection...'}
-            </span>
-          </div>
-          <Alert
-            message="Training Required"
-            description={<>
-              You must complete training before running the simulation.<br />
-              <Button type="primary" style={{ marginTop: 16 }} onClick={() => navigate('/training')}>
-                Go to Training
-              </Button>
-            </>}
-            type="warning"
-            showIcon
-          />
-        </div>
-         <Footer />
-      </>
-    );
-  }
   
 
   const stepInfo = getStepInfo(step, selectedModel);
@@ -1061,7 +1024,7 @@ const Visualization = () => {
                         <pointLight position={[10, 10, 10]} intensity={1} />
                         <pointLight position={[-10, -10, -10]} intensity={0.5} />
                         
-                        <NeuralNetwork step={step} selectedModel={selectedModel} onNodeClick={handleNodeClick} metrics={vizMetrics || metrics || persistedMetrics} />
+                        <NeuralNetwork step={step} selectedModel={selectedModel} onNodeClick={handleNodeClick} metrics={vizMetrics || metrics || persistedResults} />
                         
                         <OrbitControls 
                           makeDefault
@@ -1384,19 +1347,19 @@ const Visualization = () => {
                       </Card>
 
                       {/* Training Results (always visible if available) */}
-                      { (vizMetrics || metrics || persistedMetrics) && (
+                      { (vizMetrics || metrics || persistedResults) && (
                         <Card style={{ borderRadius: '12px', background: 'linear-gradient(135deg, #f6ffed 0%, #f0f9ff 100%)' }}>
                           <Title level={4} style={{ color: '#52c41a', marginBottom: 16 }}>
                             Compression Results
                           </Title>
-                          
-                          {(vizMetrics || metrics || persistedMetrics)?.model_performance && (
+
+                          {(vizMetrics || metrics || persistedResults)?.model_performance && (
                             <div style={{ marginBottom: 16 }}>
                               <Row gutter={8}>
                                 <Col span={12}>
                                   <div style={{ textAlign: 'center', padding: '12px', background: '#f6ffed', borderRadius: '8px' }}>
                                     <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#52c41a' }}>
-                                      {(vizMetrics || metrics || persistedMetrics)?.model_performance?.metrics?.accuracy || 'N/A'}
+                                      {(vizMetrics || metrics || persistedResults)?.model_performance?.metrics?.accuracy || 'N/A'}
                                     </div>
                                     <div style={{ fontSize: '12px', color: '#666' }}>Accuracy</div>
                                   </div>
@@ -1404,7 +1367,7 @@ const Visualization = () => {
                                 <Col span={12}>
                                   <div style={{ textAlign: 'center', padding: '12px', background: '#fff7e6', borderRadius: '8px' }}>
                                     <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#fa8c16' }}>
-                                      {(vizMetrics || metrics || persistedMetrics)?.model_performance?.metrics?.size_mb || 'N/A'}
+                                      {(vizMetrics || metrics || persistedResults)?.model_performance?.metrics?.size_mb || 'N/A'}
                                     </div>
                                     <div style={{ fontSize: '12px', color: '#666' }}>Size (MB)</div>
                                   </div>
@@ -1412,7 +1375,7 @@ const Visualization = () => {
                               </Row>
                             </div>
                           )}
-                          
+
                           <Alert
                             message="Simulation Complete!"
                             description="You've successfully witnessed the complete Knowledge Distillation and Pruning process in 3D."

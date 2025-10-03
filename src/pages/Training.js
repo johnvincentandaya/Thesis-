@@ -85,12 +85,16 @@ const Training = () => {
   const [socketConnected, setSocketConnected] = useState(false);
   const [serverStatus, setServerStatus] = useState("checking");
   const [retryCount, setRetryCount] = useState(0);
+  const [retryLoading, setRetryLoading] = useState(false);
   const [currentLoss, setCurrentLoss] = useState(null);
   const [metrics, setMetrics] = useState(null);
   const [trainingPhase, setTrainingPhase] = useState(null);
   const [trainingMessage, setTrainingMessage] = useState(null);
   const [evaluationResults, setEvaluationResults] = useState(null);
   const [currentResultIndex, setCurrentResultIndex] = useState(0);
+  const [visualizationUnlocked, setVisualizationUnlocked] = useState(() => {
+    return localStorage.getItem('visualization_unlocked') === 'true';
+  });
 
   // --- Pagination State ---
   // Results container: 4 pages
@@ -107,7 +111,6 @@ const Training = () => {
       const data = await response.json();
       if (data.status === "Server is running") {
         setServerStatus("connected");
-        if (!socketConnected) reconnectSocket();
       } else {
         setServerStatus("error");
       }
@@ -147,6 +150,11 @@ const Training = () => {
       console.log("Socket disconnected:", reason);
       setSocketConnected(false);
       setServerStatus("error");
+    });
+    socket.on("reconnect_failed", () => {
+      setSocketConnected(false);
+      setServerStatus("error");
+      message.error("Failed to reconnect to server after multiple attempts. Please check your server and try again.");
     });
     const phaseOrder = ["model_loading", "knowledge_distillation", "pruning", "evaluation", "completed"];
 
@@ -286,6 +294,7 @@ socket.on("training_progress", (data) => {
       socket.off("connect");
       socket.off("connect_error");
       socket.off("disconnect");
+      socket.off("reconnect_failed");
       socket.off("training_progress");
       socket.off("training_status");
       socket.off("training_metrics");
@@ -298,6 +307,8 @@ socket.on("training_progress", (data) => {
 
   // Only call testServerConnection when user clicks Retry Connection
   const reconnectSocket = async () => {
+    if (retryLoading) return; // Prevent multiple clicks
+    setRetryLoading(true);
     // Show notice to user ONLY when user clicks Retry
     if (!reconnectSocket._noticeShown) {
       message.info("Attempting to reconnect to the server...");
@@ -312,6 +323,8 @@ socket.on("training_progress", (data) => {
       message.success("Reconnection attempt sent. Please wait for server status.");
     } catch (err) {
       message.error("Failed to reconnect. Please check your server and network.");
+    } finally {
+      setRetryLoading(false);
     }
   };
 
@@ -443,7 +456,7 @@ socket.on("training_progress", (data) => {
       </span>
       {serverStatus === "error" && (
         <>
-          <Button type="primary" size="small" onClick={reconnectSocket} style={{ marginLeft: "10px" }}>
+          <Button type="primary" size="small" onClick={reconnectSocket} loading={retryLoading} disabled={retryLoading} style={{ marginLeft: "10px" }}>
             Retry Connection
           </Button>
           <span style={{ color: "#faad14", marginLeft: 10 }}>
@@ -819,6 +832,9 @@ const renderEducationalMetrics = (metrics) => {
       setPersistedResult(result);
       setHasStartedTraining(true);
       sessionStorage.setItem('kd_training_started', 'true');
+      // Unlock visualization
+      setVisualizationUnlocked(true);
+      localStorage.setItem('visualization_unlocked', 'true');
     }
   }, [trainingComplete, metrics, evaluationResults, progress, currentLoss, trainingPhase, trainingMessage, selectedModel]);
 
@@ -1244,7 +1260,7 @@ const renderEducationalMetrics = (metrics) => {
         size="large"
         icon={training ? <LoadingOutlined style={{ marginRight: 8 }} /> : <PlayCircleOutlined style={{ marginRight: 8 }} />}
         onClick={startTraining}
-        disabled={!socketConnected || training || !selectedModel || trainingComplete}
+        disabled={training || !selectedModel || trainingComplete}
         loading={training}
         style={{
           opacity: training ? 0.6 : 1,
@@ -1255,11 +1271,9 @@ const renderEducationalMetrics = (metrics) => {
             ? "Training is already in progress. Please wait for completion."
             : !selectedModel
               ? "Please select a model first"
-              : !socketConnected
-                ? "Not connected to server. Please check connection."
-                : trainingComplete
-                  ? "Training already completed. Click 'Train Another Model' to start over."
-                  : "Click to start training"
+              : trainingComplete
+                ? "Training already completed. Click 'Train Another Model' to start over."
+                : "Click to start training"
         }
       >
         {training ? "Training in Progress..." : "Start Training"}
@@ -1307,7 +1321,7 @@ const renderEducationalMetrics = (metrics) => {
               <Nav.Link as={Link} to="/instructions">Instructions</Nav.Link>
               <Nav.Link as={Link} to="/models">Models</Nav.Link>
               <Nav.Link as={Link} to="/training">Training</Nav.Link>
-              <Nav.Link as={Link} to="/visualization">Visualization</Nav.Link>
+              <Nav.Link as={Link} to="/visualization" disabled={!visualizationUnlocked} style={{ pointerEvents: visualizationUnlocked ? 'auto' : 'none', opacity: visualizationUnlocked ? 1 : 0.5 }}>Visualization</Nav.Link>
               <Nav.Link as={Link} to="/assessment">Assessment</Nav.Link>
             </Nav>
           </Navbar.Collapse>
@@ -1442,7 +1456,7 @@ const renderEducationalMetrics = (metrics) => {
                       size="large"
                       icon={training ? <LoadingOutlined style={{ marginRight: 8 }} /> : <PlayCircleOutlined style={{ marginRight: 8 }} />}
                       onClick={startTraining}
-                      disabled={!socketConnected || training || !selectedModel || trainingComplete}
+                      disabled={training || !selectedModel || trainingComplete}
                       loading={training}
                       style={{
                         opacity: training ? 0.6 : 1,
@@ -1453,11 +1467,9 @@ const renderEducationalMetrics = (metrics) => {
                           ? "Training is already in progress. Please wait for completion."
                           : !selectedModel
                             ? "Please select a model first"
-                            : !socketConnected
-                              ? "Not connected to server. Please check connection."
-                              : trainingComplete
-                                ? "Training already completed. Click 'Train Another Model' to start over."
-                                : "Click to start training"
+                            : trainingComplete
+                              ? "Training already completed. Click 'Train Another Model' to start over."
+                              : "Click to start training"
                       }
                     >
                       {training ? "Training in Progress..." : "Start Training"}

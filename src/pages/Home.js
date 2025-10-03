@@ -1,10 +1,22 @@
 import { Navbar, Nav, Container, Row, Col, Card, Button, Accordion } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './Home.css';
 import Footer from '../components/Footer';
 
 function Home() {
+  const [visualizationUnlocked, setVisualizationUnlocked] = useState(() => {
+    return localStorage.getItem('visualization_unlocked') === 'true';
+  });
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setVisualizationUnlocked(localStorage.getItem('visualization_unlocked') === 'true');
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
   return (
     <>
       <Navbar bg="black" variant="dark" expand="lg">
@@ -17,7 +29,7 @@ function Home() {
               <Nav.Link as={Link} to="/instructions">Instructions</Nav.Link>
               <Nav.Link as={Link} to="/models">Models</Nav.Link>
               <Nav.Link as={Link} to="/training">Training</Nav.Link>
-              <Nav.Link as={Link} to="/visualization">Visualization</Nav.Link>
+              <Nav.Link as={Link} to="/visualization" disabled={!visualizationUnlocked} style={{ pointerEvents: visualizationUnlocked ? 'auto' : 'none', opacity: visualizationUnlocked ? 1 : 0.5 }}>Visualization</Nav.Link>
               <Nav.Link as={Link} to="/assessment">Assessment</Nav.Link>
             </Nav>
           </Navbar.Collapse>
