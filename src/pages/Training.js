@@ -945,27 +945,7 @@ const renderEducationalMetrics = (metrics) => {
     return sessionStorage.getItem('kd_training_started') === 'true';
   });
 
-  // Function to load previous results from backend
-  const loadPreviousResults = async () => {
-    try {
-      const response = await fetch(`${SOCKET_URL}/get_previous_results`);
-      const data = await response.json();
-      
-      if (data.success && data.results) {
-        console.log("Loaded previous results from backend:", data.results);
-        setMetrics(data.results.compression_results);
-        setEvaluationResults(data.results.compression_results);
-        setTrainingComplete(true);
-        setProgress(100);
-        setSelectedModel("distillBert"); // Default model, could be made dynamic
-        message.success("Previous training results loaded successfully!");
-        return true;
-      }
-    } catch (error) {
-      console.log("No previous results available from backend:", error.message);
-    }
-    return false;
-  };
+  
 
   // On mount, restore all state from persistedResult if available and not currently training, and only if user has started training before
   useEffect(() => {
@@ -983,8 +963,8 @@ const renderEducationalMetrics = (metrics) => {
         setEvaluationResults(persistedResult.evaluationResults || null);
         console.log("Restored state from localStorage");
       } else if (!training && !hasStartedTraining) {
-        // If no localStorage data, try to load from backend
-        await loadPreviousResults();
+        // Previous results loading is disabled for real training
+        console.log("Starting fresh training session - no cached results");
       }
     };
     
@@ -1483,14 +1463,7 @@ const renderEducationalMetrics = (metrics) => {
       >
         Train Another Model
       </Button>
-      <Button
-        type="default"
-        size="large"
-        onClick={loadPreviousResults}
-        disabled={training}
-      >
-        Load Previous Results
-      </Button>
+      
     </div>
   );
 
@@ -1699,15 +1672,7 @@ const renderEducationalMetrics = (metrics) => {
                     >
                       Train Another Model
                     </Button>
-                    <Button
-                      type="default"
-                      size="large"
-                      onClick={loadPreviousResults}
-                      disabled={training}
-                      style={{ marginLeft: 8 }}
-                    >
-                      Load Previous Results
-                    </Button>
+                    
                   </div>
                 </div>
               </Card>
