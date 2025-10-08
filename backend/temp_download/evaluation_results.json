@@ -1,0 +1,44 @@
+{
+    "effectiveness": [
+        {
+            "metric": "Accuracy (agreement)",
+            "before": "92.00%",
+            "after": "99.69%"
+        },
+        {
+            "metric": "Precision (agreement)",
+            "before": "91.80%",
+            "after": "99.38%"
+        },
+        {
+            "metric": "Recall (agreement)",
+            "before": "91.50%",
+            "after": "99.69%"
+        },
+        {
+            "metric": "F1-Score (agreement)",
+            "before": "91.60%",
+            "after": "99.53%"
+        }
+    ],
+    "efficiency": [
+        {
+            "metric": "Latency (ms)",
+            "before": "2589.15 ms",
+            "after": "1682.95 ms"
+        },
+        {
+            "metric": "Model Size (MB)",
+            "before": "255.41 MB",
+            "after": "153.25 MB"
+        }
+    ],
+    "compression": [
+        {
+            "metric": "Parameters Count",
+            "before": "66,955,010",
+            "after": "41,512,106"
+        }
+    ],
+    "complexity": []
+}
