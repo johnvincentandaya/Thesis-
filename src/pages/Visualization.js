@@ -791,6 +791,16 @@ const Visualization = () => {
       });
     });
 
+    // Listen for evaluation metrics (4 categories)
+    socket.on("evaluation_metrics", (data) => {
+      console.log("Received evaluation metrics in Visualization:", data);
+      setVizMetrics((prev) => {
+        const merged = { ...prev };
+        merged.evaluation_metrics = data;
+        return merged;
+      });
+    });
+
     const interval = setInterval(testServerConnection, 15000);
     return () => {
       clearInterval(interval);
@@ -1352,6 +1362,34 @@ const Visualization = () => {
                           <Title level={4} style={{ color: '#52c41a', marginBottom: 16 }}>
                             Compression Results
                           </Title>
+
+                          {/* Display Evaluation Metrics (4 Categories) */}
+                          {(vizMetrics || metrics || persistedResults)?.evaluation_metrics && (
+                            <div style={{ marginBottom: 16 }}>
+                              <Title level={5} style={{ color: '#52c41a', marginBottom: 12 }}>
+                                📊 Evaluation Metrics (4 Categories)
+                              </Title>
+                              <Row gutter={[8, 8]}>
+                                {Object.entries((vizMetrics || metrics || persistedResults).evaluation_metrics).map(([category, metrics]) => (
+                                  <Col span={6} key={category}>
+                                    <Card size="small" style={{ height: '100%', background: '#f6ffed' }}>
+                                      <Title level={6} style={{ color: '#1890ff', marginBottom: 8, fontSize: '12px' }}>
+                                        {category.charAt(0).toUpperCase() + category.slice(1)}
+                                      </Title>
+                                      {metrics.map((metric, index) => (
+                                        <div key={index} style={{ marginBottom: 4, fontSize: '10px' }}>
+                                          <div style={{ fontWeight: 'bold', color: '#666' }}>{metric.metric}</div>
+                                          <div style={{ color: '#52c41a' }}>
+                                            {metric.before} → {metric.after}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </Card>
+                                  </Col>
+                                ))}
+                              </Row>
+                            </div>
+                          )}
 
                           {(vizMetrics || metrics || persistedResults)?.model_performance && (
                             <div style={{ marginBottom: 16 }}>

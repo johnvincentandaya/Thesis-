@@ -20,7 +20,7 @@ Pillow>=8.3.0
 # Optional performance profiling
 thop>=0.1.1
 
-# Optional T5 dependencies
+# T5 dependencies (required for T5-small)
 sentencepiece>=0.1.96
 
 # Development and testing

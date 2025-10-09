@@ -338,6 +338,17 @@ socket.on("training_progress", (data) => {
         return merged;
       });
     });
+
+    // Listen for evaluation metrics (4 categories)
+    socket.on("evaluation_metrics", (data) => {
+      console.log("Received evaluation metrics:", data);
+      setEvaluationResults(prevResults => {
+        const merged = { ...prevResults };
+        merged.evaluation_metrics = data;
+        localStorage.setItem('kd_pruning_evaluation_results', JSON.stringify(merged));
+        return merged;
+      });
+    });
     socket.on("training_error", (data) => {
       setTraining(false);
       setProgress(0);
@@ -1063,6 +1074,35 @@ const renderEducationalMetrics = (metrics) => {
               style={{ marginBottom: 16 }}
             />
             <Title level={4} style={{ marginTop: 16, marginBottom: 16 }}>Training Results Summary</Title>
+            
+            {/* Display Evaluation Metrics (4 Categories) */}
+            {evaluationResults?.evaluation_metrics && (
+              <Card style={{ marginBottom: 16, background: 'linear-gradient(135deg, #f6ffed 0%, #f0f9ff 100%)' }}>
+                <Title level={5} style={{ color: '#52c41a', marginBottom: 16 }}>
+                  📊 Evaluation Metrics (4 Categories)
+                </Title>
+                <Row gutter={[16, 16]}>
+                  {Object.entries(evaluationResults.evaluation_metrics).map(([category, metrics]) => (
+                    <Col span={6} key={category}>
+                      <Card size="small" style={{ height: '100%' }}>
+                        <Title level={5} style={{ color: '#1890ff', marginBottom: 12 }}>
+                          {category.charAt(0).toUpperCase() + category.slice(1)}
+                        </Title>
+                        {metrics.map((metric, index) => (
+                          <div key={index} style={{ marginBottom: 8, fontSize: '12px' }}>
+                            <div style={{ fontWeight: 'bold', color: '#666' }}>{metric.metric}</div>
+                            <div style={{ color: '#52c41a' }}>
+                              {metric.before} → {metric.after}
+                            </div>
+                          </div>
+                        ))}
+                      </Card>
+                    </Col>
+                  ))}
+                </Row>
+              </Card>
+            )}
+            
             {metrics.model_performance && (
               <Row gutter={16}>
                 <Col span={12}>
