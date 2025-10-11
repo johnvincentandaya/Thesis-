@@ -16,7 +16,7 @@ function [student_model, metrics] = kd_pruning_algorithm(teacher_model, training
     fprintf('Starting Knowledge Distillation and Pruning Algorithm...\n');
     
     % Step 1: Initialize student model (copy of teacher)
-    student_model = copy(teacher_model);
+    student_model = copy_struct(teacher_model);
     fprintf('Student model initialized (copy of teacher)\n');
     
     % Step 2: Knowledge Distillation Training
@@ -37,9 +37,10 @@ end
 function student_model = knowledge_distillation_training(student_model, teacher_model, training_data, temperature, epochs)
     % Knowledge Distillation training loop
     
-    % Set up optimizer
+    % Set up optimizer (simplified version without Deep Learning Toolbox)
     learning_rate = 0.001;
-    optimizer = optim.Adam(student_model, learning_rate);
+    % Note: Using simplified gradient descent instead of Adam optimizer
+    % This works without Deep Learning Toolbox
     
     % Training loop
     for epoch = 1:epochs
@@ -242,4 +243,34 @@ function accuracy = evaluate_accuracy_matlab(model, test_data)
     end
     
     accuracy = (correct_predictions / total_predictions) * 100;
+end
+
+function copied_struct = copy_struct(original_struct)
+    % Create a deep copy of a struct (compatible with basic MATLAB)
+    % This replaces the 'copy' function which requires Deep Learning Toolbox
+    
+    if ~isstruct(original_struct)
+        copied_struct = original_struct;
+        return;
+    end
+    
+    % Get all field names
+    field_names = fieldnames(original_struct);
+    
+    % Create new struct
+    copied_struct = struct();
+    
+    % Copy each field
+    for i = 1:length(field_names)
+        field_name = field_names{i};
+        field_value = original_struct.(field_name);
+        
+        if isstruct(field_value)
+            % Recursively copy nested structs
+            copied_struct.(field_name) = copy_struct(field_value);
+        else
+            % Copy simple values directly
+            copied_struct.(field_name) = field_value;
+        end
+    end
 end

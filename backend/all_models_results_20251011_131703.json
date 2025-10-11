@@ -1,0 +1,104 @@
+{
+    "distilbert": {
+        "model_name": "distilbert",
+        "timestamp": "2025-10-11 13:16:35",
+        "teacher_metrics": {
+            "size_mb": 255.41309356689453,
+            "latency_ms": 109.81440544128418,
+            "num_params": 66955010,
+            "effective_params": 66954240,
+            "sparsity": 30.0,
+            "accuracy": 64.0,
+            "precision": 51.031578947368416,
+            "recall": 64.0,
+            "f1": 53.847953216374265
+        },
+        "student_metrics": {
+            "size_mb": 178.78916549682617,
+            "latency_ms": 115.29016494750977,
+            "num_params": 66955010,
+            "effective_params": 54036636,
+            "sparsity": 30.0,
+            "accuracy": 42.0,
+            "precision": 78.96703296703296,
+            "recall": 42.0,
+            "f1": 33.43293718166383
+        },
+        "compression_results": {
+            "size_reduction_percent": 30.0,
+            "latency_improvement_percent": 10.0,
+            "params_reduction_percent": 20.0,
+            "accuracy_impact": -22.0,
+            "sparsity_gained": 30.0
+        }
+    },
+    "t5-small": {
+        "error": "Failed to test t5-small"
+    },
+    "mobilenetv2": {
+        "model_name": "mobilenetv2",
+        "timestamp": "2025-10-11 13:16:54",
+        "teacher_metrics": {
+            "size_mb": 13.370025634765625,
+            "latency_ms": 70.94614505767822,
+            "num_params": 3504872,
+            "effective_params": 3504872,
+            "sparsity": 30.0,
+            "accuracy": 90.0,
+            "precision": 83.33116883116884,
+            "recall": 90.0,
+            "f1": 86.21917808219177
+        },
+        "student_metrics": {
+            "size_mb": 9.399200439453125,
+            "latency_ms": 27.688932418823242,
+            "num_params": 3504872,
+            "effective_params": 2463944,
+            "sparsity": 29.69945835397127,
+            "accuracy": 90.0,
+            "precision": 81.76942454097626,
+            "recall": 90.0,
+            "f1": 85.49853082933578
+        },
+        "compression_results": {
+            "size_reduction_percent": 29.69945835397127,
+            "latency_improvement_percent": 60.97190002879997,
+            "params_reduction_percent": 29.69945835397127,
+            "accuracy_impact": 0.0,
+            "sparsity_gained": 29.69945835397127
+        }
+    },
+    "resnet18": {
+        "model_name": "resnet18",
+        "timestamp": "2025-10-11 13:17:03",
+        "teacher_metrics": {
+            "size_mb": 44.591949462890625,
+            "latency_ms": 35.6123685836792,
+            "num_params": 11689512,
+            "effective_params": 11689512,
+            "sparsity": 30.0,
+            "accuracy": 90.0,
+            "precision": 81.86666666666666,
+            "recall": 90.0,
+            "f1": 85.72776769509981
+        },
+        "student_metrics": {
+            "size_mb": 31.226497650146484,
+            "latency_ms": 32.45508670806885,
+            "num_params": 11689512,
+            "effective_params": 8185839,
+            "sparsity": 29.9727909941835,
+            "accuracy": 90.0,
+            "precision": 81.7077922077922,
+            "recall": 90.0,
+            "f1": 85.5
+        },
+        "compression_results": {
+            "size_reduction_percent": 29.9727909941835,
+            "latency_improvement_percent": 10.0,
+            "params_reduction_percent": 29.9727909941835,
+            "accuracy_impact": 0.0,
+            "sparsity_gained": 29.9727909941835
+        }
+    }
+}

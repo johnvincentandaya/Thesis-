@@ -1,0 +1,134 @@
+{
+    "distilbert": {
+        "model_name": "distilbert",
+        "timestamp": "2025-10-11 13:20:39",
+        "teacher_metrics": {
+            "size_mb": 255.41309356689453,
+            "latency_ms": 44.46713924407959,
+            "num_params": 66955010,
+            "effective_params": 66954240,
+            "sparsity": 30.0,
+            "accuracy": 64.0,
+            "precision": 51.031578947368416,
+            "recall": 64.0,
+            "f1": 53.847953216374265
+        },
+        "student_metrics": {
+            "size_mb": 178.78916549682617,
+            "latency_ms": 41.016197204589844,
+            "num_params": 66955010,
+            "effective_params": 54036636,
+            "sparsity": 30.0,
+            "accuracy": 57.99999999999999,
+            "precision": 42.7032967032967,
+            "recall": 57.99999999999999,
+            "f1": 49.18987341772152
+        },
+        "compression_results": {
+            "size_reduction_percent": 30.0,
+            "latency_improvement_percent": 10.0,
+            "params_reduction_percent": 20.0,
+            "accuracy_impact": -6.000000000000007,
+            "sparsity_gained": 30.0
+        }
+    },
+    "t5-small": {
+        "model_name": "t5-small",
+        "timestamp": "2025-10-11 13:21:14",
+        "teacher_metrics": {
+            "size_mb": 230.814453125,
+            "latency_ms": 105.34133911132812,
+            "num_params": 60506624,
+            "effective_params": 60506624,
+            "sparsity": 30.0,
+            "accuracy": 5.0,
+            "precision": 0.5263157894736842,
+            "recall": 5.0,
+            "f1": 0.9523809523809523
+        },
+        "student_metrics": {
+            "size_mb": 161.5894889831543,
+            "latency_ms": 89.72070217132568,
+            "num_params": 60506624,
+            "effective_params": 42359715,
+            "sparsity": 29.991607199899306,
+            "accuracy": 5.0,
+            "precision": 0.5263157894736842,
+            "recall": 5.0,
+            "f1": 0.9523809523809523
+        },
+        "compression_results": {
+            "size_reduction_percent": 29.991607199899306,
+            "latency_improvement_percent": 14.828591578367964,
+            "params_reduction_percent": 29.991607199899306,
+            "accuracy_impact": 0.0,
+            "sparsity_gained": 29.991607199899306
+        }
+    },
+    "mobilenetv2": {
+        "model_name": "mobilenetv2",
+        "timestamp": "2025-10-11 13:21:35",
+        "teacher_metrics": {
+            "size_mb": 13.370025634765625,
+            "latency_ms": 102.70791053771973,
+            "num_params": 3504872,
+            "effective_params": 3504872,
+            "sparsity": 30.0,
+            "accuracy": 90.0,
+            "precision": 82.27182952182952,
+            "recall": 90.0,
+            "f1": 85.8444247264123
+        },
+        "student_metrics": {
+            "size_mb": 9.399200439453125,
+            "latency_ms": 107.67509937286377,
+            "num_params": 3504872,
+            "effective_params": 2463944,
+            "sparsity": 29.69945835397127,
+            "accuracy": 90.0,
+            "precision": 81.19047619047619,
+            "recall": 90.0,
+            "f1": 85.31645569620252
+        },
+        "compression_results": {
+            "size_reduction_percent": 29.69945835397127,
+            "latency_improvement_percent": 10.0,
+            "params_reduction_percent": 29.69945835397127,
+            "accuracy_impact": 0.0,
+            "sparsity_gained": 29.69945835397127
+        }
+    },
+    "resnet18": {
+        "model_name": "resnet18",
+        "timestamp": "2025-10-11 13:22:01",
+        "teacher_metrics": {
+            "size_mb": 44.591949462890625,
+            "latency_ms": 90.46878814697266,
+            "num_params": 11689512,
+            "effective_params": 11689512,
+            "sparsity": 30.0,
+            "accuracy": 90.0,
+            "precision": 81.24576923076924,
+            "recall": 90.0,
+            "f1": 85.33391304347826
+        },
+        "student_metrics": {
+            "size_mb": 31.226497650146484,
+            "latency_ms": 75.99735260009766,
+            "num_params": 11689512,
+            "effective_params": 8185839,
+            "sparsity": 29.9727909941835,
+            "accuracy": 90.0,
+            "precision": 81.99818181818182,
+            "recall": 90.0,
+            "f1": 85.76590394769927
+        },
+        "compression_results": {
+            "size_reduction_percent": 29.9727909941835,
+            "latency_improvement_percent": 15.996053272389563,
+            "params_reduction_percent": 29.9727909941835,
+            "accuracy_impact": 0.0,
+            "sparsity_gained": 29.9727909941835
+        }
+    }
+}
