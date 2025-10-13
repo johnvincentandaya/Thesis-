@@ -18,13 +18,13 @@ const Models = () => {
             architecture: "Transformer-based with 6 layers, 768 hidden dimensions, 12 attention heads",
             useCases: ["Text Classification", "Question Answering", "Named Entity Recognition", "Sentiment Analysis"],
             metrics: {
-                accuracy: "92.5%",
-                f1Score: "91.8%",
-                inferenceLatency: "45ms",
-                parameterCount: "66M",
-                modelSize: "260MB",
+                accuracy: "64.0%",
+                f1Score: "53.8%",
+                inferenceLatency: "47ms",
+                parameterCount: "67M",
+                modelSize: "255MB",
                 modelComplexity: "Medium",
-                sizeReduction: "40%"
+                sizeReduction: "30%"
             },
             explanation: {
                 accuracy: "Measures how often the model correctly classifies text across various NLP tasks.",
@@ -42,13 +42,13 @@ const Models = () => {
             architecture: "Encoder-decoder transformer with 6 encoder and 6 decoder layers, 512 hidden dimensions",
             useCases: ["Text Translation", "Text Summarization", "Question Answering", "Text Generation"],
             metrics: {
-                accuracy: "88.2%",
-                f1Score: "87.5%",
-                inferenceLatency: "75ms",
-                parameterCount: "60M",
-                modelSize: "240MB",
+                accuracy: "5.0%",
+                f1Score: "1.0%",
+                inferenceLatency: "124ms",
+                parameterCount: "61M",
+                modelSize: "231MB",
                 modelComplexity: "Medium",
-                sizeReduction: "35%"
+                sizeReduction: "30%"
             },
             explanation: {
                 accuracy: "Performance across multiple text-to-text tasks including translation and summarization.",
@@ -66,13 +66,13 @@ const Models = () => {
             architecture: "CNN with inverted residual blocks, depthwise separable convolutions, 53 layers",
             useCases: ["Image Classification", "Object Detection", "Face Recognition", "Mobile Vision Apps"],
             metrics: {
-                accuracy: "85.3%",
-                f1Score: "84.7%",
-                inferenceLatency: "28ms",
+                accuracy: "90.0%",
+                f1Score: "85.5%",
+                inferenceLatency: "34ms",
                 parameterCount: "3.5M",
-                modelSize: "14MB",
+                modelSize: "13.4MB",
                 modelComplexity: "Low",
-                sizeReduction: "50%"
+                sizeReduction: "30%"
             },
             explanation: {
                 accuracy: "Performance on ImageNet classification task with 1000 classes.",
@@ -90,13 +90,13 @@ const Models = () => {
             architecture: "CNN with residual connections, 18 layers, skip connections every 2 layers",
             useCases: ["Image Classification", "Feature Extraction", "Transfer Learning", "Computer Vision Research"],
             metrics: {
-                accuracy: "89.7%",
-                f1Score: "89.2%",
-                inferenceLatency: "65ms",
+                accuracy: "90.0%",
+                f1Score: "85.3%",
+                inferenceLatency: "36ms",
                 parameterCount: "11.7M",
-                modelSize: "44MB",
+                modelSize: "45MB",
                 modelComplexity: "High",
-                sizeReduction: "25%"
+                sizeReduction: "30%"
             },
             explanation: {
                 accuracy: "Strong performance on ImageNet classification due to deep architecture and residual connections.",
