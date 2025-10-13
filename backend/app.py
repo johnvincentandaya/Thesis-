@@ -1581,7 +1581,7 @@ def cancel_training():
 @app.route('/upload', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:
-        return jsonify({"success": False, "error": "No file part in the request"}), 400
+         return jsonify({"success": False, "error": "No file part in the request"}), 400
     file = request.files['file']
     if file.filename == '' or file.filename is None:
         return jsonify({"success": False, "error": "No file selected"}), 400

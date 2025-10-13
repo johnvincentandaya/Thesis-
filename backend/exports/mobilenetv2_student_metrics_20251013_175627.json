@@ -1,0 +1,47 @@
+{
+    "model_name": "MobileNetV2",
+    "timestamp": "20251013_175627",
+    "training_completed": true,
+    "student_metrics": {
+        "size_mb": 9.399200439453125,
+        "size_mb_effective": 6.607688819331459,
+        "latency_ms": 37.972140312194824,
+        "num_params": 3504872,
+        "effective_params": 2463944,
+        "sparsity": 29.69945835397127,
+        "accuracy": 90.0,
+        "precision": 81.0,
+        "recall": 90.0,
+        "f1": 85.26315789473684
+    },
+    "teacher_metrics": {
+        "size_mb": 13.370025634765625,
+        "latency_ms": 45.43318748474121,
+        "num_params": 3504872,
+        "effective_params": 3504872,
+        "sparsity": 30.0,
+        "accuracy": 90.0,
+        "precision": 81.9226475279107,
+        "recall": 90.0,
+        "f1": 85.74386724386724
+    },
+    "compression_results": {
+        "size_reduction_percent": 29.69945835397127,
+        "latency_improvement_percent": 16.42202008180075,
+        "params_reduction_percent": 29.69945835397127,
+        "accuracy_impact": 0.0,
+        "sparsity_gained": 29.69945835397127
+    },
+    "algorithm_details": {
+        "knowledge_distillation": {
+            "temperature": 2.0,
+            "training_steps": 30,
+            "final_loss": 0.20243367552757263
+        },
+        "pruning": {
+            "pruning_ratio": 0.3,
+            "pruning_method": "L1 Unstructured Pruning",
+            "layers_affected": "Convolutional and Linear layers"
+        }
+    }
+}

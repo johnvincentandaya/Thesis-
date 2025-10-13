@@ -1,0 +1,47 @@
+{
+    "model_name": "T5-small",
+    "timestamp": "20251013_174638",
+    "training_completed": true,
+    "student_metrics": {
+        "size_mb": 161.5894889831543,
+        "size_mb_effective": 113.1262041710021,
+        "latency_ms": 90.028977394104,
+        "num_params": 60506624,
+        "effective_params": 42359715,
+        "sparsity": 29.991607199899306,
+        "accuracy": 5.0,
+        "precision": 0.5263157894736842,
+        "recall": 5.0,
+        "f1": 0.9523809523809523
+    },
+    "teacher_metrics": {
+        "size_mb": 230.814453125,
+        "latency_ms": 123.71375560760498,
+        "num_params": 60506624,
+        "effective_params": 60506624,
+        "sparsity": 30.0,
+        "accuracy": 5.0,
+        "precision": 0.5263157894736842,
+        "recall": 5.0,
+        "f1": 0.9523809523809523
+    },
+    "compression_results": {
+        "size_reduction_percent": 29.991607199899306,
+        "latency_improvement_percent": 27.22799744301861,
+        "params_reduction_percent": 29.991607199899306,
+        "accuracy_impact": 0.0,
+        "sparsity_gained": 29.991607199899306
+    },
+    "algorithm_details": {
+        "knowledge_distillation": {
+            "temperature": 2.0,
+            "training_steps": 30,
+            "final_loss": 23428.244140625
+        },
+        "pruning": {
+            "pruning_ratio": 0.3,
+            "pruning_method": "L1 Unstructured Pruning",
+            "layers_affected": "Convolutional and Linear layers"
+        }
+    }
+}

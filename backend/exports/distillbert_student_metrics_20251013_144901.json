@@ -1,0 +1,47 @@
+{
+    "model_name": "distillBert",
+    "timestamp": "20251013_144901",
+    "training_completed": true,
+    "student_metrics": {
+        "size_mb": 178.78916549682617,
+        "size_mb_effective": 125.15241584777831,
+        "latency_ms": 25.014829635620117,
+        "num_params": 66955010,
+        "effective_params": 54037406,
+        "sparsity": 30.0,
+        "accuracy": 57.99999999999999,
+        "precision": 42.7032967032967,
+        "recall": 57.99999999999999,
+        "f1": 49.18987341772152
+    },
+    "teacher_metrics": {
+        "size_mb": 255.41309356689453,
+        "latency_ms": 47.34385013580322,
+        "num_params": 66955010,
+        "effective_params": 66954240,
+        "sparsity": 30.0,
+        "accuracy": 37.0,
+        "precision": 55.541666666666664,
+        "recall": 37.0,
+        "f1": 29.387802071346375
+    },
+    "compression_results": {
+        "size_reduction_percent": 30.0,
+        "latency_improvement_percent": 47.16350790257561,
+        "params_reduction_percent": 20.0,
+        "accuracy_impact": 20.999999999999993,
+        "sparsity_gained": 30.0
+    },
+    "algorithm_details": {
+        "knowledge_distillation": {
+            "temperature": 2.0,
+            "training_steps": 30,
+            "final_loss": 0.004676139447838068
+        },
+        "pruning": {
+            "pruning_ratio": 0.3,
+            "pruning_method": "L1 Unstructured Pruning",
+            "layers_affected": "Convolutional and Linear layers"
+        }
+    }
+}
