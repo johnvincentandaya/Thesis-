@@ -1539,80 +1539,105 @@ const renderEducationalMetrics = (metrics) => {
           </div>
           {renderServerStatus()}
 
-          {/* Top Row: Dropdown, Training Controls, and Learning Center side-by-side */}
+          {/* Main Layout: Left Side (Learning Centers) and Right Side (Controls) */}
           <Row gutter={[24, 24]} justify="center">
-            {/* Learning Center Page 1 (leftmost) */}
-            <Col xs={24} sm={24} md={12} lg={6} style={{ marginBottom: isMobile ? 24 : 0 }}>
-              <Card
-                style={{
-                  borderRadius: '16px',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                  minHeight: 420,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between'
-                }}
-                title="Learning Center (Page 1)"
-                bodyStyle={{ minHeight: 320, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
-              >
-                <div style={{ flex: 1 }}>{renderLearningPage(0)}</div>
-              </Card>
+            {/* Left Side: Learning Centers */}
+            <Col xs={24} lg={12}>
+              <Row gutter={[16, 16]}>
+                {/* Learning Center Page 1 */}
+                <Col xs={24}>
+                  <Card
+                    style={{
+                      borderRadius: '16px',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                      minHeight: 420,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between'
+                    }}
+                    title="Learning Center (Page 1)"
+                    bodyStyle={{ minHeight: 320, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+                  >
+                    <div style={{ flex: 1 }}>{renderLearningPage(0)}</div>
+                  </Card>
+                </Col>
+                {/* Learning Center Page 2 */}
+                <Col xs={24}>
+                  <Card
+                    style={{
+                      borderRadius: '16px',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                      minHeight: 420,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between'
+                    }}
+                    title="Learning Center (Page 2)"
+                    bodyStyle={{ minHeight: 320, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+                  >
+                    <div style={{ flex: 1 }}>{renderLearningPage(1)}</div>
+                  </Card>
+                </Col>
+              </Row>
             </Col>
 
-            {/* Dropdown (center-left) */}
-            <Col xs={24} sm={24} md={12} lg={6}>
-              <Card
-                className="mb-4"
-                style={{
-                  borderRadius: '16px',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                  textAlign: 'center'
-                }}
-              >
-                <Title level={3} style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#1890ff', marginBottom: '0.75rem', textAlign: 'center' }}>
-                  Select a Model
-                </Title>
-                <DropdownButton
-                  id="dropdown-item-button"
-                  title={
-                    selectedModel
-                      ? `Selected Model: ${modelOptions.find(opt => opt.value === selectedModel)?.label || selectedModel}`
-                      : "Select a model"
-                  }
-                  variant="dark"
-                  disabled={training || trainingComplete}
-                  style={{ marginBottom: 16 }}
-                >
-                  {modelOptions.map(option => (
-                    <Dropdown.Item
-                      as="button"
-                      key={option.value}
-                      onClick={() => setSelectedModel(option.value)}
+            {/* Right Side: Model Selection, Training Controls, and Results */}
+            <Col xs={24} lg={12}>
+              <Row gutter={[16, 8]}>
+                {/* Select a Model */}
+                <Col xs={24} sm={12}>
+                  <Card
+                    className="mb-4"
+                    style={{
+                      borderRadius: '16px',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                      textAlign: 'center'
+                    }}
+                  >
+                    <Title level={3} style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#1890ff', marginBottom: '0.75rem', textAlign: 'center' }}>
+                      Select a Model
+                    </Title>
+                    <DropdownButton
+                      id="dropdown-item-button"
+                      title={
+                        selectedModel
+                          ? `Selected Model: ${modelOptions.find(opt => opt.value === selectedModel)?.label || selectedModel}`
+                          : "Select a model"
+                      }
+                      variant="dark"
                       disabled={training || trainingComplete}
+                      style={{ marginBottom: 16 }}
                     >
-                      {option.label}
-                    </Dropdown.Item>
-                  ))}
-                </DropdownButton>
-                {selectedModel && (
-                  <Paragraph style={{ marginTop: 8, color: "#666" }}>
-                    {modelData[selectedModel]?.description}
-                  </Paragraph>
-                )}
-                {!selectedModel && (
-                  <Alert
-                    message="No Model Selected"
-                    description="Please select a model from the dropdown above to start training."
-                    type="warning"
-                    showIcon
-                    style={{ marginTop: 16 }}
-                  />
-                )}
-              </Card>
-            </Col>
+                      {modelOptions.map(option => (
+                        <Dropdown.Item
+                          as="button"
+                          key={option.value}
+                          onClick={() => setSelectedModel(option.value)}
+                          disabled={training || trainingComplete}
+                        >
+                          {option.label}
+                        </Dropdown.Item>
+                      ))}
+                    </DropdownButton>
+                    {selectedModel && (
+                      <Paragraph style={{ marginTop: 8, color: "#666" }}>
+                        {modelData[selectedModel]?.description}
+                      </Paragraph>
+                    )}
+                    {!selectedModel && (
+                      <Alert
+                        message="No Model Selected"
+                        description="Please select a model from the dropdown above to start training."
+                        type="warning"
+                        showIcon
+                        style={{ marginTop: 16 }}
+                      />
+                    )}
+                  </Card>
+                </Col>
 
-            {/* Training Controls (center-right) */}
-            <Col xs={24} sm={24} md={12} lg={6}>
+                {/* Training Controls */}
+                <Col xs={24} sm={12}>
               <Card className="mb-4" style={{ borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
                 <div className="text-center">
                   <Progress
@@ -1715,67 +1740,51 @@ const renderEducationalMetrics = (metrics) => {
                     
                   </div>
                 </div>
-              </Card>
-            </Col>
-            {/* Learning Center Page 2 (rightmost) */}
-            <Col xs={24} sm={24} md={12} lg={6}>
-              <Card
-                style={{
-                  borderRadius: '16px',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                  minHeight: 420,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between'
-                }}
-                title="Learning Center (Page 2)"
-                bodyStyle={{ minHeight: 320, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
-              >
-                <div style={{ flex: 1 }}>{renderLearningPage(1)}</div>
-              </Card>
+                  </Card>
+                </Col>
+
+                {/* Training Results - only show after training is complete */}
+                {(trainingComplete && metrics && !trainingError) && (
+                  <Col xs={24}>
+                    <Card
+                      style={{
+                        borderRadius: '16px',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                        minHeight: 200,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between'
+                      }}
+                      title="Training Results"
+                      bodyStyle={{ minHeight: 120, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+                    >
+                      <div style={{ flex: 1 }}>{renderResultsPage()}</div>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 16 }}>
+                        <Button
+                          onClick={() => setResultsPage((p) => Math.max(0, p - 1))}
+                          disabled={resultsPage === 0}
+                          size="small"
+                        >
+                          Previous
+                        </Button>
+                        <span style={{ alignSelf: "center", fontSize: '12px' }}>
+                          Page {resultsPage + 1} / {resultsPagesCount}
+                        </span>
+                        <Button
+                          onClick={() => setResultsPage((p) => Math.min(resultsPagesCount - 1, p + 1))}
+                          disabled={resultsPage === resultsPagesCount - 1}
+                          size="small"
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </Card>
+                  </Col>
+                )}
+              </Row>
             </Col>
           </Row>
 
-          {/* Results containers: only show after training is complete */}
-          {(trainingComplete && metrics && !trainingError) && (
-            <>
-              <Row gutter={[24, 24]} justify="center" style={{ marginTop: 0 }}>
-                <Col xs={24} md={12} style={{ marginBottom: isMobile ? 24 : 0 }}>
-                  <Card
-                    style={{
-                      borderRadius: '16px',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                      minHeight: 420,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between'
-                    }}
-                    title="Training Results"
-                    bodyStyle={{ minHeight: 320, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
-                  >
-                    <div style={{ flex: 1 }}>{renderResultsPage()}</div>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24 }}>
-                      <Button
-                        onClick={() => setResultsPage((p) => Math.max(0, p - 1))}
-                        disabled={resultsPage === 0}
-                      >
-                        Previous
-                      </Button>
-                      <span style={{ alignSelf: "center" }}>
-                        Page {resultsPage + 1} / {resultsPagesCount}
-                      </span>
-                      <Button
-                        onClick={() => setResultsPage((p) => Math.min(resultsPagesCount - 1, p + 1))}
-                        disabled={resultsPage === resultsPagesCount - 1}
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </Card>
-                </Col>
-              </Row>
-            </>
-          )}
 
           {/* Error message if training fails */}
           {trainingError && (
