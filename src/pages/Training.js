@@ -263,6 +263,7 @@ socket.on("training_progress", (data) => {
     setProgress(100);
     setTrainingComplete(true);
     setTraining(false);
+    console.log("Training marked as complete");
   }
 });
 
@@ -274,6 +275,7 @@ socket.on("training_progress", (data) => {
     
     // Handle chunked metrics to avoid message truncation
     socket.on("training_metrics", (data) => {
+      console.log("Received training_metrics:", data);
       setMetrics(prevMetrics => {
         // If no previous metrics, just use incoming
         if (!prevMetrics) return data;
@@ -983,6 +985,17 @@ const renderEducationalMetrics = (metrics) => {
     // eslint-disable-next-line
   }, []);
 
+  // Debug effect to track metrics changes
+  useEffect(() => {
+    console.log("Metrics updated:", metrics);
+    if (metrics) {
+      console.log("✅ Metrics received - results should show now");
+      console.log("Training complete:", trainingComplete);
+      console.log("Training active:", training);
+      console.log("Progress:", progress);
+    }
+  }, [metrics, trainingComplete, training, progress]);
+
   // When training completes, persist the result and mark that user has started training
   useEffect(() => {
     if (trainingComplete && metrics && evaluationResults) {
@@ -1030,9 +1043,16 @@ const renderEducationalMetrics = (metrics) => {
   };
 
   // Results display logic
-  // Only show results if training just completed (this session) or if there is a persistedResult AND user has started training before
-  const showResults = (trainingComplete && metrics && !(!trainingComplete && !training && !hasStartedTraining)) ||
-  (!training && hasStartedTraining && persistedResult && persistedResult.metrics);
+  // Show results if we have metrics (primary condition)
+  // Also show if training is complete and we have metrics
+  // Also show persisted results if available
+  const showResults = metrics || // Show as soon as metrics are available
+  (trainingComplete && metrics) || 
+  (!training && hasStartedTraining && persistedResult && persistedResult.metrics) ||
+  (!training && metrics && progress >= 90); // Fallback: show if we have metrics and high progress
+  
+  // Debug logging
+  console.log("Training state:", { trainingComplete, hasMetrics: !!metrics, showResults, training, hasStartedTraining, progress });
 
   // --- Results Container Pages ---
   const renderResultsPage = () => {
@@ -1046,11 +1066,13 @@ const renderEducationalMetrics = (metrics) => {
         />
       );
     }
-    // Only show after training is complete and metrics are available
-    if (!trainingComplete || !metrics) {
+    // Show results if we have metrics, even if training completion is delayed
+    if (!metrics) {
       return (
         <div style={{ textAlign: "center", padding: 32 }}>
-          <Text type="secondary">Results will appear here after training completes.</Text>
+          <Text type="secondary">
+            {progress >= 90 ? "Processing final results..." : "Results will appear here after training completes."}
+          </Text>
         </div>
       );
     }
@@ -1744,7 +1766,7 @@ const renderEducationalMetrics = (metrics) => {
                 </Col>
 
                 {/* Training Results - only show after training is complete */}
-                {(trainingComplete && metrics && !trainingError) && (
+                {showResults && !trainingError && (
                   <Col xs={24}>
                     <Card
                       style={{

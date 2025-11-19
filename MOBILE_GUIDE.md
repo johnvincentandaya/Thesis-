@@ -1,207 +1,90 @@
-# Mobile Accessibility Guide for KD-Pruning Simulator
+# Mobile Device Setup Guide
 
-## Overview
-This guide provides instructions on how to make the React + Flask KD-Pruning Simulator system mobile-friendly and accessible on mobile devices.
+## Problem
+The backend is not connected when using the app on mobile devices because mobile devices can't connect to `localhost`.
 
-## Implemented Mobile Features
+## Solution
+The app now automatically detects the correct IP address for mobile devices. Here's how to set it up:
 
-### 1. Responsive Design
-- **Viewport Meta Tag**: Added proper viewport configuration in `public/index.html`
-  ```html
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  ```
+### Step 1: Find Your Computer's IP Address
 
-- **CSS Media Queries**: Implemented responsive breakpoints in `src/App.css`
-  - Mobile (max-width: 768px)
-  - Small mobile (max-width: 576px)
+#### Windows:
+1. Open Command Prompt
+2. Type: `ipconfig`
+3. Look for "IPv4 Address" under your network adapter (usually starts with 192.168.x.x or 10.x.x.x)
 
-### 2. Mobile-Optimized Components
+#### Mac:
+1. Open Terminal
+2. Type: `ifconfig | grep "inet " | grep -v 127.0.0.1`
+3. Look for your local IP address (usually starts with 192.168.x.x or 10.x.x.x)
 
-#### Navigation
-- Collapsible navbar for mobile devices
-- Touch-friendly navigation links
-- Responsive brand logo sizing
+#### Linux:
+1. Open Terminal
+2. Type: `ip addr show` or `ifconfig`
+3. Look for your local IP address
 
-#### Cards and Layout
-- Responsive card layouts that stack on mobile
-- Optimized padding and margins for small screens
-- Touch-friendly button sizes (minimum 44px touch targets)
+### Step 2: Start the Backend Server
+Make sure the backend is running on your computer:
+```bash
+cd backend
+python app.py
+```
 
-#### Forms and Inputs
-- Full-width buttons on mobile
-- Optimized form control sizing
-- Touch-friendly dropdown menus
+The backend should show:
+```
+Server will be available at http://127.0.0.1:5001
+```
 
-#### Tables
-- Responsive table wrapper with horizontal scrolling
-- Optimized font sizes for mobile readability
+### Step 3: Start the Frontend with Mobile Access
+Instead of using `npm start`, use:
+```bash
+# Option 1: Start with your computer's IP
+npm start -- --host 0.0.0.0
 
-### 3. 3D Visualization Mobile Support
-- Responsive 3D canvas that adapts to container size
-- Touch controls for 3D interaction (rotate, zoom, pan)
-- Optimized control panel layout for mobile
-- Collapsible information panels
+# Option 2: Or set the host explicitly
+HOST=0.0.0.0 npm start
+```
 
-### 4. Training Interface Mobile Optimization
-- Full-width progress bars
-- Stacked button layouts
-- Mobile-friendly alert messages
-- Responsive evaluation results display
+### Step 4: Access from Mobile Device
+1. Make sure your mobile device is on the same WiFi network as your computer
+2. Open your mobile browser
+3. Navigate to: `http://YOUR_COMPUTER_IP:3000`
+   - Replace `YOUR_COMPUTER_IP` with the IP address you found in Step 1
+   - Example: `http://192.168.1.100:3000`
 
-## Testing on Mobile Devices
+### Step 5: Verify Connection
+The app will automatically:
+- Detect that you're accessing via IP (not localhost)
+- Connect to the backend using the same IP address
+- Show connection status in the browser console
 
-### 1. Browser Testing
-Test the application on various mobile browsers:
-- Chrome Mobile
-- Safari Mobile
-- Firefox Mobile
-- Samsung Internet
+## Troubleshooting
 
-### 2. Device Testing
-Test on different screen sizes:
-- iPhone SE (375px width)
-- iPhone 12/13 (390px width)
-- iPhone 12/13 Pro Max (428px width)
-- Samsung Galaxy S21 (360px width)
-- iPad (768px width)
+### If Still Not Connecting:
 
-### 3. Touch Interaction Testing
-- Verify all buttons are easily tappable
-- Test 3D visualization touch controls
-- Ensure navigation works with touch gestures
-- Test form inputs with mobile keyboards
+1. **Check Firewall**: Make sure your computer's firewall allows connections on ports 3000 and 5001
 
-## Performance Optimization
+2. **Check Network**: Ensure both devices are on the same WiFi network
 
-### 1. Image Optimization
-- Use WebP format for images when possible
-- Implement lazy loading for large images
-- Optimize image sizes for mobile screens
+3. **Try Different Ports**: If ports are blocked, you can change them:
+   - Backend: Edit `backend/app.py` line 1961, change `port=5001` to `port=5002`
+   - Frontend: Create `.env` file with `PORT=3001`
 
-### 2. Code Splitting
-- Implement React.lazy() for route-based code splitting
-- Use dynamic imports for heavy components
-- Minimize bundle size for mobile networks
+4. **Check Backend Logs**: Look at the backend console for connection attempts
 
-### 3. Caching Strategy
-- Implement service worker for offline functionality
-- Use browser caching for static assets
-- Cache API responses appropriately
+5. **Mobile Browser Console**: Open developer tools on mobile browser to see connection errors
 
-## Accessibility Features
+### Alternative: Use ngrok (Advanced)
+If you can't get local network access working:
 
-### 1. Keyboard Navigation
-- All interactive elements are keyboard accessible
-- Proper tab order throughout the application
-- Focus indicators for keyboard users
+1. Install ngrok: `npm install -g ngrok`
+2. Expose backend: `ngrok http 5001`
+3. Use the ngrok URL in your mobile browser
 
-### 2. Screen Reader Support
-- Semantic HTML structure
-- Proper ARIA labels and descriptions
-- Alt text for images and icons
+## Automatic Detection
+The app now automatically detects the correct URL:
+- Desktop (localhost): Uses `http://localhost:5001`
+- Mobile (IP access): Uses `http://YOUR_IP:5001`
+- Production: Uses the same host as the frontend
 
-### 3. Color and Contrast
-- WCAG AA compliant color contrast ratios
-- Color is not the only way to convey information
-- High contrast mode support
-
-## Mobile-Specific Features
-
-### 1. Touch Gestures
-- Swipe navigation between pages
-- Pinch-to-zoom for 3D visualization
-- Long-press for context menus
-
-### 2. Device Orientation
-- Support for both portrait and landscape modes
-- Responsive layout adjustments
-- 3D visualization adapts to orientation changes
-
-### 3. Mobile-Specific UI Patterns
-- Bottom navigation for primary actions
-- Pull-to-refresh functionality
-- Infinite scroll for long lists
-
-## Performance Monitoring
-
-### 1. Core Web Vitals
-Monitor these metrics on mobile:
-- Largest Contentful Paint (LCP)
-- First Input Delay (FID)
-- Cumulative Layout Shift (CLS)
-
-### 2. Mobile-Specific Metrics
-- Time to Interactive (TTI)
-- First Contentful Paint (FCP)
-- Mobile PageSpeed Insights score
-
-## Deployment Considerations
-
-### 1. HTTPS Requirement
-- Ensure HTTPS is enabled for PWA features
-- Use secure WebSocket connections (WSS)
-
-### 2. Progressive Web App (PWA)
-- Implement service worker
-- Add web app manifest
-- Enable offline functionality
-
-### 3. CDN and Caching
-- Use CDN for static assets
-- Implement proper caching headers
-- Optimize for mobile network conditions
-
-## Troubleshooting Common Mobile Issues
-
-### 1. Touch Events Not Working
-- Ensure proper touch event handling
-- Check for CSS pointer-events conflicts
-- Verify z-index stacking contexts
-
-### 2. 3D Visualization Performance
-- Reduce polygon count on mobile
-- Implement level-of-detail (LOD) system
-- Use lower resolution textures
-
-### 3. Layout Issues
-- Check for fixed widths that don't scale
-- Verify flexbox and grid compatibility
-- Test with different zoom levels
-
-## Best Practices
-
-### 1. Design Principles
-- Mobile-first design approach
-- Progressive enhancement
-- Graceful degradation
-
-### 2. User Experience
-- Minimize cognitive load
-- Provide clear feedback
-- Optimize for thumb navigation
-
-### 3. Performance
-- Minimize HTTP requests
-- Optimize images and assets
-- Use efficient algorithms
-
-## Future Enhancements
-
-### 1. Advanced Mobile Features
-- Haptic feedback for interactions
-- Device motion sensors for 3D control
-- Camera integration for AR features
-
-### 2. Offline Support
-- Complete offline functionality
-- Background sync capabilities
-- Local data storage
-
-### 3. Native App Features
-- Push notifications
-- Device-specific optimizations
-- Native performance improvements
-
-## Conclusion
-
-The KD-Pruning Simulator has been optimized for mobile devices with responsive design, touch-friendly interfaces, and performance optimizations. Regular testing and monitoring ensure the best possible mobile experience for users.
+No manual configuration needed!
