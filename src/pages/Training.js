@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Layout, Card, Button, Progress, message, Typography, Row, Col, Alert, Divider } from "antd";
-import { PlayCircleOutlined, ArrowRightOutlined, LoadingOutlined } from "@ant-design/icons";
+import { ArrowRightOutlined } from "@ant-design/icons";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { socket, SOCKET_URL, checkConnectionHealth, forceReconnect } from "../socket";
 import { Navbar, Nav, Container, DropdownButton, Dropdown } from "react-bootstrap";
@@ -52,6 +52,61 @@ const modelData = {
   "ResNet-18": {
     description: "ResNet-18 is a deep residual network with 18 layers, known for its ability to train very deep networks by using skip connections to avoid vanishing gradients.",
   },
+};
+
+const baselineReferenceMetrics = {
+  distillBert: {
+    label: "DistilBERT",
+    accuracy: 89.6,
+    f1: 88.7,
+    sizeMB: 178,
+    latencyMs: 48,
+    params: 67_000_000,
+  },
+  "T5-small": {
+    label: "T5-small",
+    accuracy: 84.7,
+    f1: 82.8,
+    sizeMB: 162,
+    latencyMs: 89,
+    params: 61_000_000,
+  },
+  MobileNetV2: {
+    label: "MobileNetV2",
+    accuracy: 89.1,
+    f1: 88.2,
+    sizeMB: 9.1,
+    latencyMs: 24,
+    params: 3_500_000,
+  },
+  "ResNet-18": {
+    label: "ResNet-18",
+    accuracy: 91.8,
+    f1: 90.8,
+    sizeMB: 31,
+    latencyMs: 27,
+    params: 11_700_000,
+  },
+};
+
+const formatPercentValue = (value) => {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "N/A";
+  }
+  return `${value.toFixed(2)}%`;
+};
+
+const formatParamValue = (value) => {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "N/A";
+  }
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}M params`;
+  }
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(1)}K params`;
+  }
+  return `${value} params`;
 };
 
 const Training = () => {
@@ -465,12 +520,25 @@ socket.on("training_progress", (data) => {
     setCurrentLoss(null);
   };
 
-  const startTraining = async () => {
+  const startTraining = async (options = {}) => {
+    const {
+      modelPath: overrideModelPath,
+      modelName: overrideModelName,
+      skipUploadValidation = false
+    } = options;
+
     if (!selectedModel) {
       message.error("Please select a model first.");
       return;
     }
-    if (!uploadedModelPath || uploadStatus !== "success") {
+    const effectiveModelPath = overrideModelPath || uploadedModelPath;
+    const effectiveModelName = overrideModelName || uploadedModelName;
+
+    if (!effectiveModelPath) {
+      message.error("Upload a valid custom model (.pt/.pth/.bin, max 500MB) before training.");
+      return;
+    }
+    if (!skipUploadValidation && uploadStatus !== "success") {
       message.error("Upload a valid custom model (.pt/.pth/.bin, max 500MB) before training.");
       return;
     }
@@ -541,8 +609,8 @@ socket.on("training_progress", (data) => {
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ 
           model_name: selectedModel,
-          uploaded_model_path: uploadedModelPath,
-          uploaded_model_name: uploadedModelName
+          uploaded_model_path: effectiveModelPath,
+          uploaded_model_name: effectiveModelName
         }),
         timeout: 5000
       });
@@ -565,6 +633,23 @@ socket.on("training_progress", (data) => {
         duration: 10 
       });
     }
+  };
+
+  const triggerAutoTrainingAfterUpload = (path, name) => {
+    if (!selectedModel) {
+      message.warning("Select a baseline model before training.");
+      return;
+    }
+    if (training) {
+      message.info("Training is already running.");
+      return;
+    }
+    message.info("Upload complete. Starting knowledge distillation + pruning...");
+    startTraining({
+      modelPath: path,
+      modelName: name,
+      skipUploadValidation: true
+    });
   };
 
   // Stop Training must terminate backend process too
@@ -1051,6 +1136,7 @@ const renderEducationalMetrics = (metrics) => {
     setUploadingFile(true);
     setUploadError(null);
     setUploadStatus("uploading");
+    let autoStartPayload = null;
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -1075,6 +1161,7 @@ const renderEducationalMetrics = (metrics) => {
       };
       localStorage.setItem("kd_uploaded_model_meta", JSON.stringify(meta));
       message.success(`Uploaded ${file.name} successfully.`);
+      autoStartPayload = { path: data.file_path, name: file.name };
     } catch (error) {
       console.error("Upload error:", error);
       const errorMsg = error.message || "Upload failed. Please try again.";
@@ -1086,6 +1173,9 @@ const renderEducationalMetrics = (metrics) => {
       setUploadingFile(false);
       if (inputEl) {
         inputEl.value = null;
+      }
+      if (autoStartPayload) {
+        triggerAutoTrainingAfterUpload(autoStartPayload.path, autoStartPayload.name);
       }
     }
   };
@@ -1608,63 +1698,6 @@ const renderEducationalMetrics = (metrics) => {
   // --- Results Navigation ---
   const resultsPagesCount = 4;
 
-  // --- Action Buttons ---
-  const actionButtons = (
-    <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", margin: "24px 0" }}>
-      <Button
-        type="primary"
-        size="large"
-        icon={training ? <LoadingOutlined style={{ marginRight: 8 }} /> : <PlayCircleOutlined style={{ marginRight: 8 }} />}
-        onClick={startTraining}
-        disabled={training || !selectedModel || trainingComplete}
-        loading={training}
-        style={{
-          opacity: training ? 0.6 : 1,
-          cursor: training ? 'not-allowed' : 'pointer'
-        }}
-        title={
-          training
-            ? "Training is already in progress. Please wait for completion."
-            : !selectedModel
-              ? "Please select a model first"
-              : trainingComplete
-                ? "Training already completed. Click 'Train Another Model' to start over."
-                : "Click to start training"
-        }
-      >
-        {training ? "Training in Progress..." : "Start Training"}
-      </Button>
-      <Button
-        type="success"
-        size="large"
-        onClick={proceedToVisualization}
-        disabled={progress < 100 || !trainingComplete}
-        style={{
-          backgroundColor: progress === 100 && trainingComplete ? '#52c41a' : undefined,
-          borderColor: progress === 100 && trainingComplete ? '#52c41a' : undefined,
-          fontWeight: progress === 100 && trainingComplete ? 'bold' : undefined
-        }}
-      >
-        <ArrowRightOutlined style={{ marginRight: 8 }} />
-        Proceed to Visualization
-      </Button>
-      <Button
-        type="primary"
-        size="large"
-        onClick={handleNewTrainingSession}
-        disabled={progress < 100 || !trainingComplete}
-        style={{
-          backgroundColor: progress === 100 && trainingComplete ? '#52c41a' : undefined,
-          borderColor: progress === 100 && trainingComplete ? '#52c41a' : undefined,
-          fontWeight: progress === 100 && trainingComplete ? 'bold' : undefined
-        }}
-      >
-        Train Another Model
-      </Button>
-      
-    </div>
-  );
-
   // --- Main Render ---
   return (
     <>
@@ -1883,60 +1916,32 @@ const renderEducationalMetrics = (metrics) => {
                           type="info"
                           showIcon
                           message="Ready to Train"
-                          description="Upload a valid model file above, then click 'Start Training' to begin."
+                          description="Select a baseline reference, upload your custom model, and the KD → pruning pipeline will start automatically."
                         />
                       )}
                     </div>
 
                     <Divider />
 
-                    {/* Start Training Button Section */}
+                    {/* Auto-training info / cancel */}
                     <div style={{ textAlign: 'center' }}>
-                      <Title level={4} style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#1890ff', marginBottom: 16 }}>
-                        Start Training
-                      </Title>
-                      <Button
-                        type="primary"
-                        size="large"
-                        icon={training ? <LoadingOutlined style={{ marginRight: 8 }} /> : <PlayCircleOutlined style={{ marginRight: 8 }} />}
-                        onClick={startTraining}
-                        disabled={training || !selectedModel || trainingComplete || !uploadedModelPath || uploadStatus !== "success"}
-                        loading={training}
-                        style={{
-                          opacity: training ? 0.6 : 1,
-                          cursor: training ? 'not-allowed' : 'pointer',
-                          minWidth: 200,
-                          height: 50,
-                          fontSize: '16px',
-                          marginBottom: 12
-                        }}
-                        title={
-                          training
-                            ? "Training is already in progress. Please wait for completion."
-                            : !selectedModel
-                              ? "Please select a baseline model first"
-                              : (!uploadedModelPath || uploadStatus !== "success")
-                                ? "Upload a valid custom model before training"
-                              : trainingComplete
-                                ? "Training already completed. Click 'Train Another Model' to start over."
-                                : "Click to start training"
-                        }
-                      >
-                        {training ? "Training in Progress..." : "Start Training"}
-                      </Button>
-                      {/* Cancel Training button (only show during training) */}
+                      <Alert
+                        type="success"
+                        showIcon
+                        message="Auto Training Enabled"
+                        description="As soon as a valid model uploads successfully, the backend kicks off Knowledge Distillation followed by pruning. Monitor the progress above."
+                        style={{ marginBottom: 16 }}
+                      />
                       {training && (
-                        <div>
-                          <Button
-                            type="default"
-                            size="large"
-                            onClick={cancelTraining}
-                            danger
-                            style={{ minWidth: 150 }}
-                          >
-                            Cancel Training
-                          </Button>
-                        </div>
+                        <Button
+                          type="default"
+                          size="large"
+                          onClick={cancelTraining}
+                          danger
+                          style={{ minWidth: 180 }}
+                        >
+                          Cancel Training
+                        </Button>
                       )}
                     </div>
                   </Card>
@@ -1953,73 +1958,97 @@ const renderEducationalMetrics = (metrics) => {
                         }}
                         title={
                           <Title level={3} style={{ margin: 0 }}>
-                            Comparison Metrics: {getSelectedModelLabel(selectedModel)} vs {uploadedModelName || "Your Model"}
+                            Comparison Metrics: {getSelectedModelLabel(selectedModel)} vs {uploadedModelName || "Uploaded Model"}
                           </Title>
                         }
                       >
-                        <Row gutter={[16, 16]}>
-                          {/* F1-Score */}
-                          <Col xs={24} sm={12} md={8}>
-                            <Card size="small" style={{ textAlign: 'center', background: '#f0f9ff' }}>
-                              <Title level={5} style={{ color: '#1890ff', marginBottom: 8 }}>F1-Score</Title>
-                              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1890ff', marginBottom: 4 }}>
-                                {metrics?.model_performance?.metrics?.f1_score || metrics?.evaluation_metrics?.effectiveness?.[3]?.after || 'N/A'}
+                        {(() => {
+                          const baselineMetricsData = baselineReferenceMetrics[selectedModel] || null;
+                          const studentPerformance = metrics?.model_performance?.metrics || {};
+                          const baselineLabel = baselineMetricsData?.label || getSelectedModelLabel(selectedModel);
+                          const studentAccuracy = studentPerformance?.accuracy || metrics?.evaluation_metrics?.effectiveness?.[0]?.after || 'N/A';
+                          const studentF1 = studentPerformance?.f1_score || metrics?.evaluation_metrics?.effectiveness?.[3]?.after || 'N/A';
+                          const studentLatency = studentPerformance?.latency_ms || metrics?.evaluation_metrics?.efficiency?.[0]?.after || 'N/A';
+                          const studentComplexity = studentPerformance?.num_params ? `${studentPerformance.num_params} params` : 'N/A';
+                          const studentSizeLabel = studentPerformance?.size_mb || 'N/A';
+                          const studentSizeValue = studentPerformance?.size_mb ? parseFloat(studentPerformance.size_mb) : null;
+                          const baselineSizeValue = baselineMetricsData?.sizeMB;
+                          const computedSizeReduction = (baselineSizeValue && studentSizeValue)
+                            ? ((baselineSizeValue - studentSizeValue) / baselineSizeValue) * 100
+                            : null;
+
+                          const comparisonRows = [
+                            {
+                              key: "accuracy",
+                              label: "Accuracy",
+                              baseline: baselineMetricsData ? formatPercentValue(baselineMetricsData.accuracy) : "N/A",
+                              uploaded: studentAccuracy,
+                              formula: "Accuracy = Correct Predictions / Total Samples"
+                            },
+                            {
+                              key: "f1_score",
+                              label: "F1-Score",
+                              baseline: baselineMetricsData ? formatPercentValue(baselineMetricsData.f1) : "N/A",
+                              uploaded: studentF1,
+                              formula: "F1 = 2 × (Precision · Recall) / (Precision + Recall)"
+                            },
+                            {
+                              key: "size_reduction",
+                              label: "Model Size Reduction",
+                              baseline: baselineMetricsData ? `${baselineMetricsData.sizeMB.toFixed(1)} MB` : "N/A",
+                              uploaded: studentSizeLabel === 'N/A'
+                                ? "N/A"
+                                : `${studentSizeLabel}${computedSizeReduction !== null ? ` (${computedSizeReduction.toFixed(2)}% ↓)` : ""}`,
+                              formula: "SizeReduction(%) = (Size_teacher − Size_student) / Size_teacher × 100"
+                            },
+                            {
+                              key: "latency",
+                              label: "Inference Latency",
+                              baseline: baselineMetricsData ? `${baselineMetricsData.latencyMs} ms` : "N/A",
+                              uploaded: studentLatency,
+                              formula: "Latency = Total Inference Time / Number of Samples"
+                            },
+                            {
+                              key: "complexity",
+                              label: "Model Complexity",
+                              baseline: baselineMetricsData ? formatParamValue(baselineMetricsData.params) : "N/A",
+                              uploaded: studentComplexity,
+                              formula: "Complexity = Count of trainable parameters"
+                            }
+                          ];
+
+                          return (
+                            <>
+                              <Paragraph style={{ color: '#94a3b8' }}>
+                                Baseline metrics for {baselineLabel} come from fixed KD + pruning runs. Your uploaded model is distilled, pruned,
+                                and then compared against that reference using the required evaluation formulas.
+                              </Paragraph>
+                              <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', color: '#e6f4ff' }}>
+                                  <thead>
+                                    <tr>
+                                      <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.12)' }}>Metric</th>
+                                      <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.12)' }}>{baselineLabel} (Reference)</th>
+                                      <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.12)' }}>{uploadedModelName || "Uploaded Model"}</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {comparisonRows.map((row) => (
+                                      <tr key={row.key}>
+                                        <td style={{ padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                          <strong>{row.label}</strong>
+                                          <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: 4 }}>{row.formula}</div>
+                                        </td>
+                                        <td style={{ padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>{row.baseline}</td>
+                                        <td style={{ padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>{row.uploaded}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
                               </div>
-                              <Text type="secondary" style={{ fontSize: '12px' }}>
-                                Baseline: {metrics?.teacher_vs_student?.comparison?.f1_score?.teacher || 'N/A'}
-                              </Text>
-                            </Card>
-                          </Col>
-                          {/* Accuracy */}
-                          <Col xs={24} sm={12} md={8}>
-                            <Card size="small" style={{ textAlign: 'center', background: '#f6ffed' }}>
-                              <Title level={5} style={{ color: '#52c41a', marginBottom: 8 }}>Accuracy</Title>
-                              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#52c41a', marginBottom: 4 }}>
-                                {metrics?.model_performance?.metrics?.accuracy || metrics?.evaluation_metrics?.effectiveness?.[0]?.after || 'N/A'}
-                              </div>
-                              <Text type="secondary" style={{ fontSize: '12px' }}>
-                                Baseline: {metrics?.teacher_vs_student?.comparison?.accuracy?.teacher || 'N/A'}
-                              </Text>
-                            </Card>
-                          </Col>
-                          {/* Model Size Reduction */}
-                          <Col xs={24} sm={12} md={8}>
-                            <Card size="small" style={{ textAlign: 'center', background: '#fff7e6' }}>
-                              <Title level={5} style={{ color: '#fa8c16', marginBottom: 8 }}>Size Reduction</Title>
-                              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fa8c16', marginBottom: 4 }}>
-                                {metrics?.efficiency_improvements?.improvements?.storage?.reduction || 
-                                 metrics?.pruning_analysis?.impact_analysis?.parameter_reduction || 'N/A'}
-                              </div>
-                              <Text type="secondary" style={{ fontSize: '12px' }}>
-                                {metrics?.model_performance?.metrics?.size_mb || 'N/A'} MB (after)
-                              </Text>
-                            </Card>
-                          </Col>
-                          {/* Inference Latency */}
-                          <Col xs={24} sm={12} md={8}>
-                            <Card size="small" style={{ textAlign: 'center', background: '#fff1f0' }}>
-                              <Title level={5} style={{ color: '#ff4d4f', marginBottom: 8 }}>Inference Latency</Title>
-                              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ff4d4f', marginBottom: 4 }}>
-                                {metrics?.model_performance?.metrics?.latency_ms || metrics?.evaluation_metrics?.efficiency?.[0]?.after || 'N/A'}
-                              </div>
-                              <Text type="secondary" style={{ fontSize: '12px' }}>
-                                Improvement: {metrics?.efficiency_improvements?.improvements?.speed?.improvement || 'N/A'}
-                              </Text>
-                            </Card>
-                          </Col>
-                          {/* Model Complexity */}
-                          <Col xs={24} sm={12} md={8}>
-                            <Card size="small" style={{ textAlign: 'center', background: '#f9f0ff' }}>
-                              <Title level={5} style={{ color: '#722ed1', marginBottom: 8 }}>Model Complexity</Title>
-                              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#722ed1', marginBottom: 4 }}>
-                                {metrics?.model_performance?.metrics?.num_params || 'N/A'}
-                              </div>
-                              <Text type="secondary" style={{ fontSize: '12px' }}>
-                                Parameters
-                              </Text>
-                            </Card>
-                          </Col>
-                        </Row>
+                            </>
+                          );
+                        })()}
                       </Card>
                     </Col>
 
@@ -2037,16 +2066,16 @@ const renderEducationalMetrics = (metrics) => {
                           <Col xs={24} md={12}>
                             <Title level={4} style={{ color: '#1890ff' }}>Knowledge Distillation Process</Title>
                             <Paragraph>
-                              <strong>Step 1:</strong> Your uploaded model (student) receives soft predictions from the baseline model (teacher) with temperature scaling (T=2.0).
+                              <strong>Step 1:</strong> Your uploaded checkpoint acts as the teacher. A lightweight student is generated automatically and receives softened targets with temperature scaling (T=2.0).
                             </Paragraph>
                             <Paragraph>
-                              <strong>Step 2:</strong> The student model learns to match the teacher's probability distribution using KL divergence loss over {metrics?.knowledge_distillation_analysis?.process?.training_steps || 50} training epochs.
+                              <strong>Step 2:</strong> The student minimizes a blended loss (α·CE + (1−α)·KD) across {metrics?.knowledge_distillation_analysis?.process?.training_steps || 50} epochs, matching the teacher's logits while respecting ground-truth labels.
                             </Paragraph>
                             <Paragraph>
-                              <strong>Step 3:</strong> This process transfers the teacher's knowledge, allowing the student to achieve similar performance with fewer parameters.
+                              <strong>Step 3:</strong> This transfer captures the teacher's decision boundaries, enabling a compact model with comparable accuracy.
                             </Paragraph>
                             <Paragraph>
-                              <strong>Result:</strong> The student model learns not just correct answers, but also the teacher's confidence levels and decision patterns.
+                              <strong>Result:</strong> The distilled student retains most of the teacher's performance while being smaller and faster; we then compare it against your chosen baseline reference.
                             </Paragraph>
                           </Col>
                           <Col xs={24} md={12}>

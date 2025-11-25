@@ -16,6 +16,7 @@ import numpy as np
 import json
 import time
 import warnings
+from types import SimpleNamespace
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -118,6 +119,12 @@ training_cancelled = False
 phase_order = ["model_loading", "knowledge_distillation", "pruning", "evaluation", "completed"]
 last_progress = 0
 last_phase_index = -1
+current_training_domain = None
+latest_model_structures = {
+    "teacher": None,
+    "student_kd": None,
+    "student_pruned": None
+}
 
 
 def calculate_compression_metrics(model_name, teacher_metrics, student_metrics):
@@ -254,6 +261,187 @@ def calculate_compression_metrics(model_name, teacher_metrics, student_metrics):
         "profile": profile
     }
 
+# ---------------------------------------------------------------------------
+# Student architecture generation for uploaded models
+# ---------------------------------------------------------------------------
+
+class TextStudentClassifier(torch.nn.Module):
+    """Lightweight text classifier used as the distilled student model."""
+    def __init__(self, vocab_size=30522, embedding_dim=256, hidden_dim=256, num_labels=2):
+        super().__init__()
+        self.embedding = torch.nn.Embedding(vocab_size, embedding_dim)
+        self.encoder = torch.nn.GRU(
+            embedding_dim,
+            hidden_dim,
+            num_layers=1,
+            batch_first=True,
+            bidirectional=True
+        )
+        self.dropout = torch.nn.Dropout(0.2)
+        self.classifier = torch.nn.Sequential(
+            torch.nn.Linear(hidden_dim * 2, hidden_dim),
+            torch.nn.ReLU(),
+            torch.nn.Linear(hidden_dim, num_labels)
+        )
+
+    def forward(self, input_ids, attention_mask=None, **kwargs):
+        if input_ids is None:
+            raise ValueError("input_ids tensor is required for TextStudentClassifier")
+        x = self.embedding(input_ids)
+        if attention_mask is not None:
+            attention = attention_mask.unsqueeze(-1).float()
+            x = x * attention
+        _, hidden = self.encoder(x)
+        if isinstance(hidden, tuple):
+            hidden = hidden[0]
+        # Concatenate forward and backward hidden states
+        forward_hidden = hidden[-2]
+        backward_hidden = hidden[-1]
+        pooled = torch.cat([forward_hidden, backward_hidden], dim=1)
+        pooled = self.dropout(pooled)
+        logits = self.classifier(pooled)
+        return SimpleNamespace(logits=logits)
+
+
+class VisionStudentClassifier(torch.nn.Module):
+    """Compact CNN used as the student model for vision uploads."""
+    def __init__(self, num_classes=1000):
+        super().__init__()
+        self.features = torch.nn.Sequential(
+            torch.nn.Conv2d(3, 16, kernel_size=3, stride=2, padding=1),
+            torch.nn.BatchNorm2d(16),
+            torch.nn.SiLU(),
+            torch.nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),
+            torch.nn.BatchNorm2d(32),
+            torch.nn.SiLU(),
+            torch.nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
+            torch.nn.BatchNorm2d(64),
+            torch.nn.SiLU(),
+            torch.nn.Conv2d(64, 96, kernel_size=3, stride=2, padding=1),
+            torch.nn.BatchNorm2d(96),
+            torch.nn.SiLU()
+        )
+        self.classifier = torch.nn.Sequential(
+            torch.nn.Linear(96, 128),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(0.2),
+            torch.nn.Linear(128, num_classes)
+        )
+
+    def forward(self, x):
+        if x.dim() != 4:
+            raise ValueError("VisionStudentClassifier expects input tensor of shape (B, C, H, W)")
+        features = self.features(x)
+        pooled = torch.nn.functional.adaptive_avg_pool2d(features, (1, 1))
+        pooled = torch.flatten(pooled, 1)
+        logits = self.classifier(pooled)
+        return SimpleNamespace(logits=logits)
+
+
+def detect_model_domain(model):
+    """Best-effort detection of uploaded model domain (NLP/Vision)."""
+    model_type = str(type(model)).lower()
+    if any(keyword in model_type for keyword in ["bert", "transformer", "t5", "gpt", "roberta", "xlm"]):
+        return "nlp"
+    if any(keyword in model_type for keyword in ["resnet", "mobilenet", "vision", "conv", "cnn", "efficientnet"]):
+        return "vision"
+    # Heuristic: presence of embedding attribute hints NLP
+    if hasattr(model, "embeddings") or hasattr(model, "encoder"):
+        return "nlp"
+    return "vision"  # Default to vision for tensors
+
+
+def infer_num_labels(model):
+    """Infer number of output labels from uploaded teacher."""
+    if hasattr(model, "config") and hasattr(model.config, "num_labels"):
+        return int(model.config.num_labels)
+    for attr in ["classifier", "fc", "heads"]:
+        module = getattr(model, attr, None)
+        if isinstance(module, torch.nn.Linear):
+            return int(module.out_features)
+        if isinstance(module, torch.nn.Sequential):
+            for layer in reversed(list(module)):
+                if isinstance(layer, torch.nn.Linear):
+                    return int(layer.out_features)
+    return 2
+
+
+def create_student_model_from_teacher(teacher_model):
+    """Create a lightweight student model tailored to the uploaded teacher."""
+    domain = detect_model_domain(teacher_model)
+    num_labels = infer_num_labels(teacher_model)
+    
+    if domain == "nlp":
+        vocab_size = 30522
+        if hasattr(teacher_model, "config") and hasattr(teacher_model.config, "vocab_size"):
+            vocab_size = int(teacher_model.config.vocab_size)
+        return TextStudentClassifier(vocab_size=vocab_size, num_labels=num_labels), domain
+    
+    if domain == "vision":
+        return VisionStudentClassifier(num_classes=num_labels), domain
+    
+    raise ValueError("Unsupported uploaded model architecture. Please upload an NLP or vision classifier.")
+
+
+def generate_training_batch(domain, batch_size=12):
+    """Generate synthetic-yet-structured training data for KD."""
+    if domain == "nlp":
+        samples = [
+            ("I absolutely loved this product, it works flawlessly every day.", 1),
+            ("The experience was terrible and I will not recommend it.", 0),
+            ("Performance is acceptable but there is room for improvement.", 1),
+            ("Customer support was unresponsive and frustrating.", 0),
+            ("Great value for money with consistent results.", 1),
+            ("The device overheats quickly and crashes often.", 0),
+            ("User interface is intuitive and easy to navigate.", 1),
+            ("Battery life is disappointing compared to expectations.", 0)
+        ]
+        texts, labels = zip(*samples)
+        # Repeat to reach batch size if necessary
+        repeated_texts = list(texts) * ((batch_size // len(texts)) + 1)
+        repeated_labels = list(labels) * ((batch_size // len(labels)) + 1)
+        batch_texts = repeated_texts[:batch_size]
+        batch_labels = torch.tensor(repeated_labels[:batch_size], dtype=torch.long)
+        
+        if tokenizer is not None:
+            encoded = tokenizer(
+                batch_texts,
+                padding=True,
+                truncation=True,
+                max_length=128,
+                return_tensors='pt'
+            )
+        else:
+            # Fallback: simple numeric tokens
+            encoded = {
+                "input_ids": torch.randint(low=1, high=30000, size=(batch_size, 64)),
+                "attention_mask": torch.ones(batch_size, 64)
+            }
+        return encoded, batch_labels
+    
+    # Vision data (structured noise + gradients for stability)
+    base_pattern = torch.linspace(0, 1, 224).unsqueeze(0).unsqueeze(0).repeat(3, 1, 1)
+    inputs = base_pattern.unsqueeze(0).repeat(batch_size, 1, 1, 1)
+    noise = torch.randn(batch_size, 3, 224, 224) * 0.1
+    images = torch.clamp(inputs + noise, 0, 1)
+    transform = transforms.Compose([
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+    images = transform(images)
+    labels = torch.randint(low=0, high=2, size=(batch_size,), dtype=torch.long)
+    return images, labels
+
+
+def extract_logits(outputs):
+    """Normalize model outputs into logits tensor."""
+    if hasattr(outputs, "logits"):
+        return outputs.logits
+    if isinstance(outputs, (list, tuple)) and len(outputs) > 0:
+        return outputs[0]
+    if torch.is_tensor(outputs):
+        return outputs
+    raise ValueError("Unable to extract logits from model output")
+
 # Model configurations
 def load_uploaded_model(file_path):
     """Load an uploaded model file (.pt, .pth, or .bin).
@@ -319,87 +507,46 @@ def load_uploaded_model(file_path):
         return None, f"Unexpected error loading uploaded model: {str(e)}"
 
 def initialize_models(model_name, num_labels=2, uploaded_model_path=None):
-    """Initialize teacher and student models for NLP or vision tasks.
+    """Initialize teacher (uploaded) and student models for KD + pruning.
     
     Args:
-        model_name: Name of the baseline model or 'uploaded' for custom models
-        num_labels: Number of output labels
-        uploaded_model_path: Path to uploaded model file (optional)
+        model_name: Name of the baseline selected in the UI (used for labeling only).
+        num_labels: Number of output labels (unused for uploaded models, but kept for compatibility).
+        uploaded_model_path: Path to uploaded model file (required).
     
     Returns:
-        str or None: Error message if initialization failed, None if successful
+        str or None: Error message if initialization failed, None if successful.
     """
-    global teacher_model, student_model, tokenizer
+    global teacher_model, student_model, tokenizer, current_training_domain
 
     try:
         print(f"Initializing models for {model_name}...")
         
-        # If uploaded model is provided, load it as teacher
-        if uploaded_model_path:
-            teacher_model, error = load_uploaded_model(uploaded_model_path)
-            if error:
-                return error
-            
-            # Create a student model with same architecture but smaller
-            # For now, we'll use the same architecture but will prune it later
-            student_model = type(teacher_model)(**{k: v for k, v in teacher_model.config.__dict__.items() 
-                                                    if k in ['num_labels', 'vocab_size', 'hidden_size']}) if hasattr(teacher_model, 'config') else None
-            
-            # If we can't create student from config, clone the teacher
-            if student_model is None:
-                # Deep copy the teacher and we'll prune it
-                import copy
-                student_model = copy.deepcopy(teacher_model)
-            
-            print("[SUCCESS] Uploaded model loaded as teacher, student initialized")
-            return None
+        if not uploaded_model_path:
+            return "A custom uploaded model (.pt/.pth/.bin) is required before training."
         
-        # Normalize model name to handle different naming conventions
-        model_name_lower = model_name.lower()
+        teacher_model, error = load_uploaded_model(uploaded_model_path)
+        if error:
+            return error
         
-        # Load transformers if needed
-        if not _load_transformers():
-            return "Transformers library not available"
-
-        if model_name_lower in ["distilbert", "distillbert"]:
-            from transformers import DistilBertForSequenceClassification, DistilBertTokenizer
-            teacher_model = DistilBertForSequenceClassification.from_pretrained(
-                "distilbert-base-uncased", num_labels=num_labels
-            )
-            student_model = DistilBertForSequenceClassification.from_pretrained(
-                "distilbert-base-uncased", num_labels=num_labels
-            )
-            tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
-
-        elif model_name_lower in ["t5-small", "t5_small", "t5small"]:
-            from transformers import T5ForConditionalGeneration, T5Tokenizer
-            teacher_model = T5ForConditionalGeneration.from_pretrained("t5-small")
-            student_model = T5ForConditionalGeneration.from_pretrained("t5-small")
-            tokenizer = T5Tokenizer.from_pretrained("t5-small")
-
-        elif model_name_lower in ["mobilenetv2", "mobilenet_v2", "mobilenet"]:
-            from torchvision import models
-            teacher_model = models.mobilenet_v2(weights="IMAGENET1K_V1")
-            student_model = models.mobilenet_v2(weights="IMAGENET1K_V1")
-            student_model.classifier[1] = torch.nn.Linear(student_model.classifier[1].in_features, 1000)
-            tokenizer = None
-
-        elif model_name_lower in ["resnet18", "resnet_18", "resnet", "resnet-18"]:
-            from torchvision import models
-            teacher_model = models.resnet18(weights="IMAGENET1K_V1")
-            student_model = models.resnet18(weights="IMAGENET1K_V1")
-            student_model.fc = torch.nn.Linear(student_model.fc.in_features, 1000)
-            tokenizer = None
-
+        student_model, domain = create_student_model_from_teacher(teacher_model)
+        current_training_domain = domain
+        
+        if current_training_domain == "nlp":
+            if _load_transformers():
+                try:
+                    from transformers import AutoTokenizer as TransformersAutoTokenizer
+                    tokenizer_name = getattr(getattr(teacher_model, "config", None), "name_or_path", "distilbert-base-uncased")
+                    tokenizer = TransformersAutoTokenizer.from_pretrained(tokenizer_name)
+                except Exception:
+                    tokenizer = None
+            else:
+                tokenizer = None
         else:
-            return f"Unknown model: {model_name}. Supported models: distilbert, t5-small, mobilenetv2, resnet18"
-
-        # Verify models were loaded successfully
-        if teacher_model is None or student_model is None:
-            return "Failed to initialize models - models are None"
-
-        print("[SUCCESS] Models initialized successfully")
-        return None  # Success - no error
+            tokenizer = None
+        
+        print("[SUCCESS] Uploaded model loaded as teacher, student initialized")
+        return None
 
     except ImportError as e:
         error_msg = f"Import error during model initialization: {str(e)}"
@@ -604,115 +751,62 @@ def count_effective_parameters(model, zero_threshold=1e-12):
     print(f"[EFFECTIVE PARAMS] {type(model).__name__} - {effective:,} non-zero parameters")
     return effective
 
-def apply_knowledge_distillation(teacher_model, student_model, optimizer, criterion, temperature=2.0):
-    """Apply knowledge distillation from teacher to student model with real data."""
-    print("[KD] Starting knowledge distillation step...")
+def apply_knowledge_distillation(
+    teacher_model,
+    student_model,
+    optimizer,
+    kd_criterion,
+    ce_criterion,
+    alpha=0.6,
+    temperature=2.0
+):
+    """Apply knowledge distillation using CE (ground truth) + KD (teacher)."""
+    global current_training_domain
     teacher_model.eval()
     student_model.train()
-    
-    # Softmax with temperature
-    softmax = torch.nn.Softmax(dim=1)
+    device = next(student_model.parameters()).device
+    domain = current_training_domain or detect_model_domain(teacher_model)
     
     try:
-        # Check if it's a transformer model by checking the model type string
-        model_type = str(type(teacher_model)).lower()
-        is_transformer = 'distilbert' in model_type or 't5' in model_type or 'bert' in model_type
-        
-        if is_transformer:
-            # For transformer models - use real tokenized data
-            if tokenizer is not None:
-                # Create realistic text samples for training
-                sample_texts = [
-                    "This is a positive review of the product.",
-                    "I really enjoyed using this service.",
-                    "The quality is excellent and I recommend it.",
-                    "This is a negative review of the product.",
-                    "I was disappointed with the service.",
-                    "The quality is poor and I don't recommend it.",
-                    "This is a neutral review of the product.",
-                    "The service was okay, nothing special.",
-                    "I have mixed feelings about this product.",
-                    "The quality is average and meets expectations."
-                ]
-                
-                # Tokenize the texts
-                encoded = tokenizer(
-                    sample_texts,
-                    padding=True,
-                    truncation=True,
-                    max_length=128,
-                    return_tensors='pt'
-                )
-                input_ids = encoded['input_ids']
-                attention_mask = encoded['attention_mask']
-            else:
-                # Use realistic text samples if no tokenizer available
-                sample_texts = [
-                    "This is a sample text for knowledge distillation.",
-                    "Another example sentence for training purposes.",
-                    "Sample data for model evaluation and testing."
-                ]
-                # Create simple tokenization without transformers
-                input_ids = torch.tensor([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10] * 13])  # 130 tokens, pad to 128
-                attention_mask = torch.ones_like(input_ids)
-            
-            model_inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
-            if 't5' in str(type(teacher_model)).lower():
-                # For T5, we need proper decoder inputs - use a shifted version of input_ids
-                decoder_input_ids = torch.cat([torch.zeros((input_ids.size(0), 1), dtype=input_ids.dtype, device=input_ids.device), input_ids[:, :-1]], dim=1)
-                model_inputs["decoder_input_ids"] = decoder_input_ids
-
-            # Get teacher's predictions
-            with torch.no_grad():
-                teacher_outputs = teacher_model(**model_inputs)
-                teacher_logits = teacher_outputs.logits
-            
-            # Get student's predictions
-            student_outputs = student_model(**model_inputs)
-            student_logits = student_outputs.logits
+        batch_inputs, labels = generate_training_batch(domain)
+        if domain == "nlp":
+            batch_inputs = {k: v.to(device) for k, v in batch_inputs.items()}
         else:
-            # For vision models - use real image data
-            # Create realistic image tensors with proper normalization
-            transform = transforms.Compose([
-                transforms.Resize((224, 224)),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-            ])
-            
-            # Use real image preprocessing with proper normalization
-            # Create more realistic image-like tensors with structured patterns
-            # Generate structured image data instead of pure random
-            base_pattern = torch.linspace(0, 1, 224).unsqueeze(0).unsqueeze(0).repeat(3, 1, 1)
-            inputs = base_pattern.unsqueeze(0).repeat(10, 1, 1, 1)  # 10 samples
-            # Add slight variation to make it more realistic
-            noise = torch.randn(10, 3, 224, 224) * 0.1
-            inputs = torch.clamp(inputs + noise, 0, 1)  # Ensure valid image range
-            inputs = transform(inputs)
-            
-            # Get teacher's predictions
-            with torch.no_grad():
-                teacher_logits = teacher_model(inputs)
-            # Get student's predictions
-            student_logits = student_model(inputs)
+            batch_inputs = batch_inputs.to(device)
+        labels = labels.to(device)
         
-        # Calculate distillation loss using KL divergence
-        teacher_probs = softmax(teacher_logits / temperature)
-        student_logits_scaled = student_logits / temperature
+        with torch.no_grad():
+            if domain == "nlp":
+                teacher_outputs = teacher_model(**batch_inputs)
+            else:
+                teacher_outputs = teacher_model(batch_inputs)
+        teacher_logits = extract_logits(teacher_outputs)
         
-        # Use KL divergence loss for better numerical stability
-        distillation_loss = criterion(
-            torch.log_softmax(student_logits_scaled, dim=1),
-            teacher_probs
-        ) * (temperature ** 2)
+        if domain == "nlp":
+            student_outputs = student_model(**batch_inputs)
+        else:
+            student_outputs = student_model(batch_inputs)
+        student_logits = extract_logits(student_outputs)
         
-        # Backpropagate and update
+        teacher_probs = torch.softmax(teacher_logits / temperature, dim=1)
+        student_log_probs = torch.log_softmax(student_logits / temperature, dim=1)
+        kd_loss = kd_criterion(student_log_probs, teacher_probs) * (temperature ** 2)
+        ce_loss = ce_criterion(student_logits, labels)
+        loss = alpha * ce_loss + (1 - alpha) * kd_loss
+        
         optimizer.zero_grad()
-        distillation_loss.backward()
+        loss.backward()
         optimizer.step()
-        print(f"[KD] Distillation loss: {distillation_loss.item()}")
-        return distillation_loss.item()
+        
+        print(f"[KD] Combined={loss.item():.4f} CE={ce_loss.item():.4f} KD={kd_loss.item():.4f}")
+        return loss.item(), {
+            "combined": float(loss.item()),
+            "ce": float(ce_loss.item()),
+            "kd": float(kd_loss.item())
+        }
     except Exception as e:
         print(f"[KD] Error during knowledge distillation: {e}")
-        return 0.0
+        raise
 
 def apply_pruning(model, amount=0.3):
     """Apply L1 unstructured pruning to the model and make it permanent."""
@@ -1137,8 +1231,12 @@ def training_task(model_name, uploaded_model_path=None, uploaded_model_name=None
     
     try:
         print(f"\n=== Starting background training for {model_name} ===")
-        if uploaded_model_path:
-            print(f"[TRAIN] Using uploaded model: {uploaded_model_name} from {uploaded_model_path}")
+        if not uploaded_model_path:
+            error_msg = "Uploaded model is required before training can begin."
+            print(f"[TRAIN] {error_msg}")
+            socketio.emit("training_error", {"error": error_msg})
+            return
+        print(f"[TRAIN] Using uploaded model: {uploaded_model_name} from {uploaded_model_path}")
         
         # Reset cancellation flag
         training_cancelled = False
@@ -1835,9 +1933,14 @@ def train_model():
         uploaded_model_path = data.get("uploaded_model_path")
         uploaded_model_name = data.get("uploaded_model_name")
         
+        if not uploaded_model_path:
+            return jsonify({
+                "success": False,
+                "error": "A custom uploaded model (.pt/.pth/.bin) is required before training."
+            }), 400
+        
         print(f"Queuing training for model: {model_name}")
-        if uploaded_model_path:
-            print(f"Using uploaded model: {uploaded_model_path}")
+        print(f"Using uploaded model: {uploaded_model_path}")
         
         # Start training in a background thread with uploaded model info
         socketio.start_background_task(
