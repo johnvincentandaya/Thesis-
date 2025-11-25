@@ -6,7 +6,7 @@
 .home-use-title {
   font-size: 1.6rem !important;
   font-weight: 700 !important;
-  color: #103f79;
+  color: #e6f4ff !important;
 }
 
 /* Remove accordion click highlight/focus */
@@ -124,12 +124,28 @@
 /* Full-bleed cards */
 .home-wide-card {
   width: 100%;
+  background: rgba(15, 23, 42, 0.6) !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 
 .home-wide-card .card-body {
   padding-left: clamp(16px, 6vw, 64px) !important;
   padding-right: clamp(16px, 6vw, 64px) !important;
   text-align: left !important;
+  color: #e6f4ff !important;
+}
+
+.home-wide-card .card-title {
+  color: #e6f4ff !important;
+}
+
+.home-wide-card .card-text {
+  color: #94a3b8 !important;
+}
+
+.home-wide-card strong {
+  color: #bae0ff !important;
 }
 
 /* CTA area */
@@ -144,6 +160,62 @@
 
 .home-cta-subtitle {
   color: #ffffff !important;
+}
+
+/* Cards styling for dark theme */
+.home-container .card,
+.home-container .card.shadow-sm {
+  background: rgba(15, 23, 42, 0.6) !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.home-container .card .card-body {
+  color: #e6f4ff !important;
+}
+
+.home-container .card .card-title {
+  color: #e6f4ff !important;
+}
+
+.home-container .text-muted {
+  color: #94a3b8 !important;
+}
+
+.home-container .card p {
+  color: #94a3b8 !important;
+}
+
+.home-container .card h6 {
+  color: #bae0ff !important;
+}
+
+/* Accordion styling for dark theme */
+.home-container .accordion-item {
+  background: rgba(15, 23, 42, 0.4) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.home-container .accordion-button {
+  background: rgba(15, 23, 42, 0.4) !important;
+  color: #e6f4ff !important;
+}
+
+.home-container .accordion-button:not(.collapsed) {
+  background: rgba(15, 23, 42, 0.6) !important;
+  color: #e6f4ff !important;
+}
+
+.home-container .accordion-body {
+  color: #94a3b8 !important;
+}
+
+.home-container .accordion-body p {
+  color: #94a3b8 !important;
+}
+
+.home-container .accordion-body h6 {
+  color: #bae0ff !important;
 }
 
 .home-get-started-btn {

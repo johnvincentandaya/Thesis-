@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Layout, Card, Button, Typography, Row, Col, Progress, Alert, Space, Divider, Select, Switch } from "antd";
+import { Layout, Card, Button, Typography, Row, Col, Progress, Alert, Space, Divider } from "antd";
 import { Navbar, Nav, Container } from "react-bootstrap";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -12,6 +12,53 @@ import Footer from "../components/Footer";
 
 const { Title, Paragraph, Text: AntText } = Typography;
 const { Content } = Layout;
+
+const baselineModelInfo = {
+  distillBert: {
+    label: "DistilBERT",
+    architecture: "6-layer Transformer (12 attention heads)",
+    layerStructure: "Tokenizer → Embedding → 6 Transformer blocks → classification head",
+    nodeSizes: "768 hidden units per block, attention heads highlight token interactions",
+    parameters: "≈67 million parameters",
+    effects: "KD preserves ~97% of BERT accuracy before pruning."
+  },
+  "T5-small": {
+    label: "T5 Small",
+    architecture: "Encoder-decoder Transformer (6 encoder + 6 decoder layers)",
+    layerStructure: "Shared text-to-text stack with attention bridges",
+    nodeSizes: "512 hidden size, multi-head attention across encoder & decoder",
+    parameters: "≈61 million parameters",
+    effects: "Unified text-to-text pipeline benefits from KD temperature scaling."
+  },
+  MobileNetV2: {
+    label: "MobileNetV2",
+    architecture: "Depthwise separable CNN with inverted residual blocks",
+    layerStructure: "Conv → Bottleneck blocks → Pointwise projections → classifier",
+    nodeSizes: "Channel sizes shrink via bottlenecks (1×1 + depthwise convs)",
+    parameters: "≈3.5 million parameters",
+    effects: "Pruning targets depthwise filters for fast edge deployment."
+  },
+  "ResNet-18": {
+    label: "ResNet-18",
+    architecture: "18-layer residual CNN",
+    layerStructure: "Conv1 → Residual blocks (×4) → Global pool → FC classifier",
+    nodeSizes: "64–512 channels; skip connections stabilize deep training",
+    parameters: "≈11.7 million parameters",
+    effects: "Pruning removes redundant residual filters while preserving skips."
+  },
+  default: {
+    label: "Baseline Model",
+    architecture: "High-capacity teacher network",
+    layerStructure: "Feature extractor → latent blocks → classifier",
+    nodeSizes: "Dense hidden units sized for accuracy first",
+    parameters: "Tens of millions of parameters",
+    effects: "Acts as the knowledge source for student compression."
+  }
+};
+
+const getBaselineInfo = (modelKey) => {
+  return baselineModelInfo[modelKey] || baselineModelInfo.default;
+};
 
 // Deterministic seeded randomness utilities for consistent visualization
 function stringHash(str) {
@@ -261,7 +308,7 @@ function DataFlow({ step, isActive, seedKey = 'dataflow' }) {
   );
 }
 
-function NeuralNetwork({ step, selectedModel, onNodeClick, metrics }) {
+function NeuralNetwork({ step, selectedModel, onNodeClick, metrics, displayName, stepTitle, modelStructure }) {
   const { camera, gl, controls } = useThree();
   const networkRef = useRef();
   
@@ -314,23 +361,55 @@ function NeuralNetwork({ step, selectedModel, onNodeClick, metrics }) {
       case "T5-small":
         return {
           layers: [7, 6, 4, 3], // Reduced from 10,8,6,4
-          colors: ["#ff7043", "#ff5722", "#e64a19", "#bf360c"],
+          colors: ["#722ed1", "#531dab", "#391085", "#22075e"], // Purple gradient for baseline
           spacing: 3.2, // Increased spacing
           layerNames: ["Encoder", "Decoder", "Attention", "Output"]
         };
       case "MobileNetV2":
         return {
           layers: [6, 5, 4, 3], // Reduced from 8,6,4,3
-          colors: ["#66bb6a", "#4caf50", "#388e3c", "#2e7d32"],
+          colors: ["#52c41a", "#389e0d", "#237804", "#135200"], // Green gradient for baseline
           spacing: 3.0, // Increased spacing
           layerNames: ["Conv", "Depthwise", "Pointwise", "Output"]
         };
       case "ResNet-18":
         return {
           layers: [5, 4, 3, 2], // Reduced from 6,5,4,3
-          colors: ["#ab47bc", "#8e24aa", "#7b1fa2", "#6a1b9a"],
+          colors: ["#fa8c16", "#d46b08", "#ad4e00", "#873800"], // Orange gradient for baseline
           spacing: 3.3, // Increased spacing
           layerNames: ["Conv1", "ResBlock", "ResBlock", "Output"]
+        };
+      case "uploaded_custom":
+        // Use real model structure if available
+        if (modelStructure && modelStructure.nodes && modelStructure.nodes.length > 0) {
+          const layerCount = modelStructure.layer_count || modelStructure.nodes.length;
+          const layerNames = modelStructure.nodes.map((node, idx) => 
+            node.label || node.layerType || `Layer ${idx + 1}`
+          );
+          const layers = Array(layerCount).fill(3); // Represent each layer with 3 nodes for visualization
+          return {
+            layers: layers,
+            colors: modelStructure.nodes.map(n => n.color || "#ff6b35"), // Orange/red for uploaded model
+            spacing: 3.2,
+            layerNames: layerNames,
+            useRealStructure: true
+          };
+        }
+        // Fallback to estimated structure - different colors for uploaded model
+        const ratio = Math.max(0.2, Math.min(0.7, getPruningRatio(metrics)));
+        const hiddenSize = Math.max(3, Math.round(6 - ratio * 4));
+        return {
+          layers: [6, hiddenSize, Math.max(3, hiddenSize - 1), 3],
+          colors: ["#ff6b35", "#ff8c42", "#ffa366", "#ffb88c"], // Orange gradient for uploaded model
+          spacing: 3.2,
+          layerNames: ["Input", "KD Core", "Pruned", "Output"]
+        };
+      case "uploaded_placeholder":
+        return {
+          layers: [4, 3, 2, 1],
+          colors: ["#cfd8dc", "#b0bec5", "#90a4ae", "#78909c"],
+          spacing: 2.8,
+          layerNames: ["Awaiting Upload", "—", "—", "Output"]
         };
       default:
         return {
@@ -346,6 +425,51 @@ function NeuralNetwork({ step, selectedModel, onNodeClick, metrics }) {
   const nodes = [];
   const connections = [];
   let nodeId = 0;
+  
+  // Use real model structure if available for uploaded models
+  if (selectedModel === "uploaded_custom" && modelStructure && config.useRealStructure) {
+    // Use real nodes from backend
+    modelStructure.nodes.forEach((node, idx) => {
+      nodes.push({
+        id: nodeId++,
+        position: [node.x || idx * config.spacing, node.y || 0, node.z || 0],
+        color: node.color || config.colors[idx % config.colors.length],
+        isActive: step >= Math.floor((idx / modelStructure.nodes.length) * 6) + 1,
+        isPruned: step >= 4 && (idx >= Math.floor(modelStructure.nodes.length * 0.7)),
+        size: node.size || 0.3,
+        label: node.label || `L${idx + 1}`,
+        layerIndex: node.layerIndex !== undefined ? node.layerIndex : idx,
+        nodeIndex: idx,
+        pruningReason: step >= 4 && (idx >= Math.floor(modelStructure.nodes.length * 0.7)) ? "Pruned by ratio" : ""
+      });
+    });
+    
+    // Use real connections from backend
+    if (modelStructure.connections && modelStructure.connections.length > 0) {
+      modelStructure.connections.forEach((conn) => {
+        connections.push({
+          start: new THREE.Vector3(conn.source.x, conn.source.y, conn.source.z),
+          end: new THREE.Vector3(conn.target.x, conn.target.y, conn.target.z),
+          isActive: step >= 2,
+          isPruned: step >= 4,
+          strength: conn.strength || 0.7,
+          pruningReason: step >= 4 ? "Connection pruned" : ""
+        });
+      });
+    } else {
+      // Generate connections between consecutive nodes
+      for (let i = 0; i < nodes.length - 1; i++) {
+        connections.push({
+          start: new THREE.Vector3(...nodes[i].position),
+          end: new THREE.Vector3(...nodes[i + 1].position),
+          isActive: step >= 2,
+          isPruned: step >= 4,
+          strength: 0.7,
+          pruningReason: step >= 4 ? "Connection pruned" : ""
+        });
+      }
+    }
+  } else {
   
   // Dynamic pruning calculation based on computational analysis
   const calculateNodeImportance = (layerIndex, nodeIndex, layerSize, modelType) => {
@@ -489,9 +613,11 @@ function NeuralNetwork({ step, selectedModel, onNodeClick, metrics }) {
       });
     }
   });
+  } // End of else block for default node generation
 
-  // Generate connections with pruning logic
-  for (let layerIndex = 0; layerIndex < config.layers.length - 1; layerIndex++) {
+  // Generate connections with pruning logic (only if not using real structure)
+  if (!(selectedModel === "uploaded_custom" && modelStructure && config.useRealStructure)) {
+    for (let layerIndex = 0; layerIndex < config.layers.length - 1; layerIndex++) {
     const currentLayerStart = config.layers.slice(0, layerIndex).reduce((sum, size) => sum + size, 0);
     const nextLayerStart = config.layers.slice(0, layerIndex + 1).reduce((sum, size) => sum + size, 0);
     
@@ -527,6 +653,7 @@ function NeuralNetwork({ step, selectedModel, onNodeClick, metrics }) {
       }
     }
   }
+  } // End of connection generation for default models (closing the if block)
 
   // Camera fit and animation (also respond to external reset tick)
   useEffect(() => {
@@ -707,7 +834,12 @@ const getStepInfo = (step, selectedModel) => {
 const Visualization = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { trainingComplete: stateTrainingComplete, selectedModel: stateSelectedModel, metrics: stateMetrics } = location.state || {};
+  const { 
+    trainingComplete: stateTrainingComplete, 
+    selectedModel: stateSelectedModel, 
+    metrics: stateMetrics,
+    uploadedModelMeta: stateUploadedModelMeta
+  } = location.state || {};
 
   // Load persisted evaluation results if not passed via state
   const [persistedResults, setPersistedResults] = useState(null);
@@ -726,10 +858,26 @@ const Visualization = () => {
     }
   }, [stateMetrics]);
 
+  useEffect(() => {
+    if (stateUploadedModelMeta) {
+      setUploadedModelMeta(stateUploadedModelMeta);
+      localStorage.setItem('kd_uploaded_model_meta', JSON.stringify(stateUploadedModelMeta));
+    }
+  }, [stateUploadedModelMeta]);
+
   // Use state values if available, otherwise use persisted values
   const trainingComplete = stateTrainingComplete || (persistedResults ? true : false);
-  const selectedModel = stateSelectedModel || (persistedResults ? persistedResults.selectedModel : null);
+  const selectedModel = stateSelectedModel || (persistedResults ? persistedResults.selectedModel : null) || "distillBert";
   const metrics = stateMetrics || persistedResults;
+  const [uploadedModelMeta, setUploadedModelMeta] = useState(() => {
+    if (stateUploadedModelMeta) return stateUploadedModelMeta;
+    try {
+      const cached = localStorage.getItem('kd_uploaded_model_meta');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
   const [started, setStarted] = useState(false);
   const [step, setStep] = useState(0);
   const [autoPlay, setAutoPlay] = useState(false);
@@ -744,6 +892,50 @@ const Visualization = () => {
   const [serverStatus, setServerStatus] = useState("checking");
   const [vizMetrics, setVizMetrics] = useState(metrics || null);
   const [selectedNode, setSelectedNode] = useState(null);
+  const [modelStructure, setModelStructure] = useState(null);
+  const metricsSource = vizMetrics || metrics || persistedResults;
+  const studentMetrics = metricsSource?.model_performance?.metrics || {};
+  const teacherComparison = metricsSource?.teacher_vs_student?.comparison || {};
+  const pruningImpact = metricsSource?.pruning_analysis?.impact_analysis || {};
+  const baselineSummary = getBaselineInfo(selectedModel);
+  
+  // Fetch model structure from backend
+  useEffect(() => {
+    const fetchModelStructure = async () => {
+      if (trainingComplete && uploadedModelMeta) {
+        try {
+          const response = await fetch(`${SOCKET_URL}/visualize`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          const data = await response.json();
+          if (data.success && data.data) {
+            setModelStructure(data.data);
+            console.log('Model structure fetched:', data.data);
+          }
+        } catch (error) {
+          console.error('Error fetching model structure:', error);
+        }
+      }
+    };
+    
+    fetchModelStructure();
+  }, [trainingComplete, uploadedModelMeta]);
+  const uploadedSummary = {
+    architecture: uploadedModelMeta
+      ? `Custom checkpoint (${uploadedModelMeta.name}) distilled from ${baselineSummary.label}`
+      : "Awaiting upload from Training Page",
+    layerStructure: `KD pipeline mirrors ${baselineSummary.label} layers before pruning.`,
+    nodeSizes: studentMetrics?.num_params
+      ? `${studentMetrics.num_params.toLocaleString?.() || studentMetrics.num_params} active parameters after pruning`
+      : "Student parameters reported after training",
+    parameters: studentMetrics?.size_mb
+      ? `${studentMetrics.size_mb} model size • ${studentMetrics.latency_ms || 'N/A'} ms latency`
+      : "Size and latency reported after KD",
+    effects: pruningImpact?.parameter_reduction
+      ? `Compression: ${pruningImpact.parameter_reduction} parameter reduction, ${pruningImpact.speed_improvement || 'N/A'} speed boost.`
+      : "Compression metrics will appear after training."
+  };
 
   // Robust socket connection to keep server alive and stream metrics
   useEffect(() => {
@@ -801,6 +993,14 @@ const Visualization = () => {
       });
     });
 
+    // Listen for model structure updates
+    socket.on("model_structure", (data) => {
+      console.log("Received model structure in Visualization:", data);
+      if (data.success && data.structure) {
+        setModelStructure(data.structure);
+      }
+    });
+
     const interval = setInterval(testServerConnection, 15000);
     return () => {
       clearInterval(interval);
@@ -808,6 +1008,8 @@ const Visualization = () => {
       socket.off("connect_error");
       socket.off("disconnect");
       socket.off("training_metrics");
+      socket.off("evaluation_metrics");
+      socket.off("model_structure");
       // Do not disconnect here; keep the singleton alive for free navigation
     };
   }, []);
@@ -937,6 +1139,49 @@ const Visualization = () => {
     };
   };
 
+  // Check if training is complete - restrict access if not
+  const isTrainingComplete = trainingComplete || (persistedResults && persistedResults.trainingComplete);
+  
+  if (!isTrainingComplete) {
+    return (
+      <>
+        <Navbar bg="black" variant="dark" expand="lg">
+          <Container>
+            <Navbar.Brand as={Link} to="/">KD-Pruning Simulator</Navbar.Brand>
+            <Navbar.Toggle aria-controls="basic-navbar-nav" />
+            <Navbar.Collapse id="basic-navbar-nav">
+              <Nav className="ms-auto">
+                <Nav.Link as={Link} to="/">Home</Nav.Link>
+                <Nav.Link as={Link} to="/instructions">Instructions</Nav.Link>
+                <Nav.Link as={Link} to="/models">Models</Nav.Link>
+                <Nav.Link as={Link} to="/training">Training</Nav.Link>
+                <Nav.Link as={Link} to="/visualization">Visualization</Nav.Link>
+                <Nav.Link as={Link} to="/assessment">Assessment</Nav.Link>
+              </Nav>
+            </Navbar.Collapse>
+          </Container>
+        </Navbar>
+        
+        <Layout style={{ minHeight: '100vh', background: '#f0f2f5' }}>
+          <Content style={{ padding: "20px", display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Card style={{ maxWidth: 600, textAlign: 'center', borderRadius: '16px' }}>
+              <Title level={2} style={{ color: '#ff4d4f', marginBottom: 16 }}>
+                Training Not Complete
+              </Title>
+              <Paragraph style={{ fontSize: '16px', marginBottom: 24 }}>
+                You must complete training on the Training page before accessing the Visualization page.
+              </Paragraph>
+              <Button type="primary" size="large" onClick={() => navigate('/training')}>
+                Go to Training Page
+              </Button>
+            </Card>
+          </Content>
+        </Layout>
+        <Footer />
+      </>
+    );
+  }
+
   return (
     <>
       <Navbar bg="black" variant="dark" expand="lg">
@@ -958,147 +1203,269 @@ const Visualization = () => {
       
       <Layout style={{ minHeight: '100vh', background: '#f0f2f5' }}>
         <Content style={{ padding: "20px" }}>
-          <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+          <div style={{ maxWidth: 1600, margin: '0 auto' }}>
             <Row gutter={[24, 24]}>
-              {/* 3D Visualization Panel */}
-              <Col xs={24} lg={16}>
-                <Card 
-                  className="visualization-container"
-                  style={{ 
-                    height: windowSize.width < 992 ? '50vh' : '70vh', 
-                    background: '#1a1a1a',
-                    border: 'none',
-                    borderRadius: '12px',
-                    overflow: 'hidden',
-                    padding: 0,
-                    position: 'relative'
-                  }}
-                >
-                  {!started ? (
-                    <div style={{ 
-                      height: '100%', 
-                      display: 'flex', 
-                      flexDirection: 'column',
-                      justifyContent: 'center', 
-                      alignItems: 'center',
-                      color: 'white',
-                      textAlign: 'center'
-                    }}>
-                      <div style={{ fontSize: '4rem', marginBottom: '20px', fontWeight: 'bold' }}>🧠 Neural Network</div>
-                      <Title level={1} className="page-hero-title" style={{ marginBottom: '16px' }}>
-                        3D Neural Network Demo
-                      </Title>
-                      <Paragraph className="page-hero-subtitle" style={{ color: '#ccc', fontSize: '1.2rem', marginBottom: '24px', fontWeight: '400' }}>
-                        Watch {selectedModel} compress in 3D
-                      </Paragraph>
-                      <Button 
-                        type="primary" 
-                        size="large" 
-                        onClick={startSimulation}
-                        style={{ 
-                          height: '48px', 
-                          fontSize: '16px',
-                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                          border: 'none'
-                        }}
-                      >
-                        Start Demo
-                      </Button>
-                    </div>
-                  ) : (
-                    <div style={{ 
-                      width: '100%', 
-                      height: '100%', 
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0
-                    }}>
-                      <Canvas
-                        camera={{ position: [8, 4, 8], fov: 60, near: 0.01, far: 10000 }}
-                        style={{ 
-                          background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+              {/* 3D Visualization Panel - Two simulations stacked (75% width) */}
+              <Col xs={24} lg={18}>
+                <Row gutter={[24, 24]}>
+                  {/* Top: Baseline Model */}
+                  <Col xs={24}>
+                    <Card 
+                      className="visualization-container"
+                      style={{ 
+                        height: '75vh', 
+                        background: '#faf8f3', // Cream background
+                        border: 'none',
+                        borderRadius: '12px',
+                        overflow: 'hidden',
+                        padding: 0,
+                        position: 'relative'
+                      }}
+                    >
+                      <div style={{ 
+                        position: 'absolute',
+                        top: 10,
+                        left: 10,
+                        zIndex: 10,
+                        background: 'rgba(255, 255, 255, 0.9)',
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        fontWeight: 'bold',
+                        color: '#1890ff'
+                      }}>
+                        Baseline Model: {baselineSummary.label}
+                      </div>
+                      {!started ? (
+                        <div style={{ 
+                          height: '100%', 
+                          display: 'flex', 
+                          flexDirection: 'column',
+                          justifyContent: 'center', 
+                          alignItems: 'center',
+                          color: '#333',
+                          textAlign: 'center',
+                          padding: '0 12px'
+                        }}>
+                          <div style={{ fontSize: '3rem', marginBottom: '12px', fontWeight: 'bold' }}>🧠</div>
+                          <Title level={2} className="page-hero-title" style={{ marginBottom: '12px', color: '#333' }}>
+                            Baseline Model View
+                          </Title>
+                          <Paragraph className="page-hero-subtitle" style={{ color: '#666', fontSize: '1.05rem', marginBottom: '20px', fontWeight: '400' }}>
+                            Visualize {baselineSummary.label} (system model) before compression.
+                          </Paragraph>
+                          <Button 
+                            type="primary" 
+                            size="large" 
+                            onClick={startSimulation}
+                            style={{ 
+                              height: '44px', 
+                              fontSize: '15px',
+                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              border: 'none'
+                            }}
+                          >
+                            Start Visualization
+                          </Button>
+                        </div>
+                      ) : (
+                        <div style={{ 
+                          width: '100%', 
+                          height: '100%', 
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0
+                        }}>
+                          <Canvas
+                            camera={{ position: [8, 4, 8], fov: 60, near: 0.01, far: 10000 }}
+                            style={{ 
+                              background: 'linear-gradient(135deg, #faf8f3 0%, #f5f1e8 50%, #f0ebe0 100%)', // Cream gradient
+                              width: '100%',
+                              height: '100%',
+                              display: 'block'
+                            }}
+                            gl={{ 
+                              antialias: true, 
+                              alpha: false,
+                              powerPreference: "high-performance"
+                            }}
+                            dpr={Math.min(window.devicePixelRatio, 2)}
+                          >
+                            <ambientLight intensity={0.4} />
+                            <pointLight position={[10, 10, 10]} intensity={1} />
+                            <pointLight position={[-10, -10, -10]} intensity={0.5} />
+                            
+                            <NeuralNetwork 
+                              step={step} 
+                              selectedModel={selectedModel} 
+                              displayName={baselineSummary.label}
+                              stepTitle={stepInfo.title}
+                              onNodeClick={handleNodeClick} 
+                              metrics={metricsSource}
+                              modelStructure={null}
+                            />
+                            
+                            <OrbitControls 
+                              makeDefault
+                              enablePan={true} 
+                              enableZoom={true} 
+                              enableRotate={true}
+                              maxDistance={2000}
+                              minDistance={0.5}
+                              dampingFactor={0.08}
+                              enableDamping={true}
+                              zoomSpeed={1.2}
+                              panSpeed={1.2}
+                              rotateSpeed={1.0}
+                              screenSpacePanning={true}
+                              minPolarAngle={0}
+                              maxPolarAngle={Math.PI}
+                            />
+                          </Canvas>
+                        </div>
+                      )}
+                    </Card>
+                  </Col>
+                  
+                  {/* Bottom: Uploaded Trained Model (75% width) */}
+                  <Col xs={24}>
+                    <Card
+                      className="visualization-container"
+                      style={{
+                        height: '75vh',
+                        background: '#faf8f3', // Cream background
+                        border: 'none',
+                        borderRadius: '12px',
+                        overflow: 'hidden',
+                        padding: 0,
+                        position: 'relative'
+                      }}
+                    >
+                      <div style={{ 
+                        position: 'absolute',
+                        top: 10,
+                        left: 10,
+                        zIndex: 10,
+                        background: 'rgba(255, 255, 255, 0.9)',
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        fontWeight: 'bold',
+                        color: '#ff6b35'
+                      }}>
+                        Trained Uploaded Model: {uploadedModelMeta?.name || "Your Model"}
+                      </div>
+                      {!uploadedModelMeta ? (
+                        <div style={{
+                          height: '100%',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          color: '#333',
+                          textAlign: 'center',
+                          padding: '0 16px',
+                        }}>
+                          <div style={{ fontSize: '3rem', marginBottom: '12px' }}>📤</div>
+                          <Title level={3} style={{ color: '#ff6b35', marginBottom: 12 }}>No Uploaded Model</Title>
+                          <Paragraph style={{ color: '#666' }}>
+                            Upload a custom model on the Training Page to see its visualization here.
+                          </Paragraph>
+                        </div>
+                      ) : !started ? (
+                        <div style={{
+                          height: '100%',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          color: '#333',
+                          textAlign: 'center',
+                          padding: '0 14px'
+                        }}>
+                          <div style={{ fontSize: '3rem', marginBottom: '12px', fontWeight: 'bold' }}>🧪</div>
+                          <Title level={4} style={{ color: '#ff6b35', marginBottom: 12 }}>{uploadedModelMeta?.name}</Title>
+                          <Paragraph style={{ color: '#666', marginBottom: 20 }}>
+                            Start the simulation to see the trained upload versus {baselineSummary.label}.
+                          </Paragraph>
+                          <Button
+                            type="primary"
+                            size="large"
+                            onClick={startSimulation}
+                            style={{
+                              height: '44px',
+                              fontSize: '15px',
+                              background: 'linear-gradient(135deg, #ff6b35 0%, #f7931e 100%)',
+                              border: 'none'
+                            }}
+                          >
+                            Start Visualization
+                          </Button>
+                        </div>
+                      ) : (
+                        <div style={{
                           width: '100%',
                           height: '100%',
-                          display: 'block'
-                        }}
-                        gl={{ 
-                          antialias: true, 
-                          alpha: false,
-                          powerPreference: "high-performance"
-                        }}
-                        dpr={Math.min(window.devicePixelRatio, 2)}
-                      >
-                        <ambientLight intensity={0.4} />
-                        <pointLight position={[10, 10, 10]} intensity={1} />
-                        <pointLight position={[-10, -10, -10]} intensity={0.5} />
-                        
-                        <NeuralNetwork step={step} selectedModel={selectedModel} onNodeClick={handleNodeClick} metrics={vizMetrics || metrics || persistedResults} />
-                        
-                        <OrbitControls 
-                          makeDefault
-                          enablePan={true} 
-                          enableZoom={true} 
-                          enableRotate={true}
-                          maxDistance={2000}
-                          minDistance={0.5}
-                          dampingFactor={0.08}
-                          enableDamping={true}
-                          zoomSpeed={1.2}
-                          panSpeed={1.2}
-                          rotateSpeed={1.0}
-                          screenSpacePanning={true}
-                          minPolarAngle={0}
-                          maxPolarAngle={Math.PI}
-                        />
-                        
-                                                 {/* Model Label */}
-                         <Html position={[-4, 5, 0]} center>
-                           <div style={{
-                             background: 'rgba(0,0,0,0.9)',
-                             color: 'white',
-                             padding: '10px 20px',
-                             borderRadius: '25px',
-                             fontSize: '16px',
-                             fontWeight: 'bold',
-                             whiteSpace: 'nowrap',
-                             border: '2px solid #1890ff',
-                             boxShadow: '0 0 15px #1890ff',
-                             pointerEvents: 'none'
-                           }}>
-                             🧠 {selectedModel}
-                           </div>
-                         </Html>
-                         
-                         {/* Step indicator */}
-                         <Html position={[0, 5, 0]} center>
-                           <div style={{
-                             background: 'rgba(0,0,0,0.9)',
-                             color: 'white',
-                             padding: '10px 20px',
-                             borderRadius: '25px',
-                             fontSize: '15px',
-                             fontWeight: 'bold',
-                             whiteSpace: 'nowrap',
-                             border: '2px solid #fff',
-                             boxShadow: '0 0 15px rgba(0,0,0,0.5)',
-                             minWidth: '200px',
-                             textAlign: 'center',
-                             pointerEvents: 'none'
-                           }}>
-                             Step {step + 1}/7: {stepInfo.title}
-                           </div>
-                         </Html>
-                      </Canvas>
-                    </div>
-                  )}
-                </Card>
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0
+                        }}>
+                          <Canvas
+                            camera={{ position: [8, 4, 8], fov: 60, near: 0.01, far: 10000 }}
+                            style={{
+                              background: 'linear-gradient(135deg, #faf8f3 0%, #f5f1e8 50%, #f0ebe0 100%)', // Cream gradient
+                              width: '100%',
+                              height: '100%',
+                              display: 'block'
+                            }}
+                            gl={{
+                              antialias: true,
+                              alpha: false,
+                              powerPreference: "high-performance"
+                            }}
+                            dpr={Math.min(window.devicePixelRatio, 2)}
+                          >
+                            <ambientLight intensity={0.4} />
+                            <pointLight position={[10, 10, 10]} intensity={1} />
+                            <pointLight position={[-10, -10, -10]} intensity={0.5} />
+                            <NeuralNetwork
+                              step={step}
+                              selectedModel={uploadedModelMeta ? "uploaded_custom" : "uploaded_placeholder"}
+                              displayName={uploadedModelMeta?.name || "Custom Upload"}
+                              stepTitle={stepInfo.title}
+                              onNodeClick={handleNodeClick}
+                              metrics={metricsSource}
+                              modelStructure={modelStructure}
+                            />
+                            <OrbitControls
+                              makeDefault
+                              enablePan={true}
+                              enableZoom={true}
+                              enableRotate={true}
+                              maxDistance={2000}
+                              minDistance={0.5}
+                              dampingFactor={0.08}
+                              enableDamping={true}
+                              zoomSpeed={1.2}
+                              panSpeed={1.2}
+                              rotateSpeed={1.0}
+                              screenSpacePanning={true}
+                              minPolarAngle={0}
+                              maxPolarAngle={Math.PI}
+                            />
+                          </Canvas>
+                        </div>
+                      )}
+                    </Card>
+                  </Col>
+                </Row>
               </Col>
 
-              {/* Control Panel */}
-              <Col xs={24} lg={8}>
-                <div style={{ height: windowSize.width < 992 ? '50vh' : '70vh', overflowY: 'auto' }}>
+              {/* Control Panel (25% width) */}
+              <Col xs={24} lg={6}>
+                <div style={{ height: '150vh', overflowY: 'auto' }}>
                                      {started ? (
                      <>
                                                {/* Model Header */}

@@ -1,9 +1,19 @@
-import { Navbar, Nav, Container, Row, Col, Card, Button, Accordion } from 'react-bootstrap';
+import { Navbar, Nav, Container, Row, Col, Button, Accordion, Card as BootstrapCard } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import { Typography, Tag } from 'antd';
+import { 
+  RocketOutlined,
+  ThunderboltOutlined,
+  LineChartOutlined,
+  EyeOutlined
+} from '@ant-design/icons';
 import './Home.css';
+import './Instructions.css';
 import Footer from '../components/Footer';
+
+const { Title, Paragraph, Text } = Typography;
 
 function Home() {
   const [visualizationUnlocked, setVisualizationUnlocked] = useState(() => {
@@ -36,66 +46,85 @@ function Home() {
         </Container>
       </Navbar>
       
-      <Container fluid className="home-container">
-        <div className="home-hero text-center mb-5">
-          <h1 className="home-hero-title page-hero-title">
-            Welcome to KD & Pruning Simulator
-          </h1>
-          <p className="home-hero-subtitle page-hero-subtitle">
-            An interactive educational tool to understand <strong className="hero-accent-primary">Knowledge Distillation</strong> and <strong className="hero-accent-success">Model Pruning</strong> techniques for neural network compression.
-          </p>
+      {/* Hero Section */}
+      <div className="instructions-hero">
+        <div className="instructions-hero-content">
+          <div className="hero-icon-wrapper">
+            <RocketOutlined className="hero-icon" />
+          </div>
+          <Title level={1} className="hero-title">
+            Welcome to Knowledge Distillation & Pruning Simulator
+          </Title>
+          <Paragraph className="hero-subtitle">
+            Transform your neural network models through <Text strong style={{ fontSize: '1.5rem', color: '#bae0ff' }}>Knowledge Distillation</Text> and <Text strong style={{ fontSize: '1.5rem', color: '#91caff' }}>Model Pruning</Text>. 
+            Create smaller, faster, and more efficient models in just a few simple steps.
+          </Paragraph>
+          <div className="hero-badges">
+            <Tag color="blue" className="hero-badge">
+              <ThunderboltOutlined /> Fast Training
+            </Tag>
+            <Tag color="green" className="hero-badge">
+              <LineChartOutlined /> Real Metrics
+            </Tag>
+            <Tag color="purple" className="hero-badge">
+              <EyeOutlined /> 3D Visualization
+            </Tag>
+          </div>
         </div>
+      </div>
 
+      <Container fluid className="home-container">
+        
         {/* Main Concepts Section */}
         <Row className="mb-5">
           <Col lg={6} className="mb-4">
-            <Card className="h-100 shadow-sm home-wide-card">
-              <Card.Body className="p-4">
-                <Card.Title className="h4 text-primary mb-3 home-card-title">
+            <BootstrapCard className="h-100 shadow-sm home-wide-card">
+              <BootstrapCard.Body className="p-4">
+                <BootstrapCard.Title className="h4 text-primary mb-3 home-card-title">
                   <i className="fas fa-graduation-cap me-2"></i>
                   Knowledge Distillation (KD)
-                </Card.Title>
-                <Card.Text className="mb-3">
+                </BootstrapCard.Title>
+                <BootstrapCard.Text className="mb-3">
                   <strong>Knowledge Distillation</strong> is a model compression technique where a large, complex model (called the "teacher") transfers its learned knowledge to a smaller, more efficient model (called the "student").
-                </Card.Text>
-                <Card.Text className="mb-3">
+                </BootstrapCard.Text>
+                <BootstrapCard.Text className="mb-3">
                   <strong>How it works:</strong> The student model learns not only from the ground truth labels but also from the "soft" outputs (probabilities) of the teacher model, which contain richer information than hard labels.
-                </Card.Text>
-                <Card.Text>
+                </BootstrapCard.Text>
+                <BootstrapCard.Text>
                   <strong>Benefits:</strong> The student model can achieve similar or even better performance than the teacher while being much smaller and faster.
-                </Card.Text>
-              </Card.Body>
-            </Card>
+                </BootstrapCard.Text>
+              </BootstrapCard.Body>
+            </BootstrapCard>
           </Col>
           
           <Col lg={6} className="mb-4">
-            <Card className="h-100 shadow-sm home-wide-card">
-              <Card.Body className="p-4">
-                <Card.Title className="h4 text-success mb-3 home-card-title">
+            <BootstrapCard className="h-100 shadow-sm home-wide-card">
+              <BootstrapCard.Body className="p-4">
+                <BootstrapCard.Title className="h4 text-success mb-3 home-card-title">
                   <i className="fas fa-cut me-2"></i>
                   Model Pruning
-                </Card.Title>
-                <Card.Text className="mb-3">
+                </BootstrapCard.Title>
+                <BootstrapCard.Text className="mb-3">
                   <strong>Model Pruning</strong> is a technique that removes less important connections (weights) from a neural network, effectively making it sparser while maintaining most of its accuracy.
-                </Card.Text>
-                <Card.Text className="mb-3">
+                </BootstrapCard.Text>
+                <BootstrapCard.Text className="mb-3">
                   <strong>How it works:</strong> The algorithm identifies and removes weights that contribute little to the model's performance, often setting them to zero or completely removing them.
-                </Card.Text>
-                <Card.Text>
+                </BootstrapCard.Text>
+                <BootstrapCard.Text>
                   <strong>Benefits:</strong> Reduces model size, speeds up inference, and can even improve generalization by reducing overfitting.
-                </Card.Text>
-              </Card.Body>
-            </Card>
+                </BootstrapCard.Text>
+              </BootstrapCard.Body>
+            </BootstrapCard>
           </Col>
         </Row>
 
         {/* Uses and Applications Section */}
-        <Card className="mb-5 shadow-sm">
-          <Card.Body className="p-4">
-            <Card.Title className="h3 text-center mb-4 home-section-title">
+        <BootstrapCard className="mb-5 shadow-sm">
+          <BootstrapCard.Body className="p-4">
+            <BootstrapCard.Title className="h3 text-center mb-4 home-section-title">
               <i className="fas fa-rocket me-2"></i>
               Uses of Model Compression
-            </Card.Title>
+            </BootstrapCard.Title>
             <Row>
               <Col md={4} className="mb-3">
                 <div className="text-center">
@@ -119,16 +148,16 @@ function Home() {
                 </div>
               </Col>
             </Row>
-          </Card.Body>
-        </Card>
+          </BootstrapCard.Body>
+        </BootstrapCard>
 
         {/* Detailed Explanations Accordion */}
-        <Card className="mb-5 shadow-sm">
-          <Card.Body className="p-4">
-            <Card.Title className="h3 text-center mb-4 home-section-title">
+        <BootstrapCard className="mb-5 shadow-sm">
+          <BootstrapCard.Body className="p-4">
+            <BootstrapCard.Title className="h3 text-center mb-4 home-section-title">
               <i className="fas fa-info-circle me-2"></i>
               Learn More About These Techniques
-            </Card.Title>
+            </BootstrapCard.Title>
             <Accordion>
               <Accordion.Item eventKey="0">
                 <Accordion.Header>
@@ -204,13 +233,13 @@ function Home() {
                 </Accordion.Body>
               </Accordion.Item>
             </Accordion>
-          </Card.Body>
-        </Card>
+          </BootstrapCard.Body>
+        </BootstrapCard>
 
         {/* Get Started Section */}
         <div className="text-center">
-          <Card className="shadow-sm home-cta-card">
-            <Card.Body className="p-5">
+          <BootstrapCard className="shadow-sm home-cta-card">
+            <BootstrapCard.Body className="p-5">
               <h2 className="mb-3 home-cta-title">Ready to Explore?</h2>
               <p className="lead mb-4 home-cta-subtitle">
                 Start your journey by learning about the available models and then experience the compression process through interactive training and visualization.
@@ -225,8 +254,8 @@ function Home() {
                   Get Started
                 </Button>
               </div>
-            </Card.Body>
-          </Card>
+            </BootstrapCard.Body>
+          </BootstrapCard>
         </div>
       </Container>
       <Footer />
