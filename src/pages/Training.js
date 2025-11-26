@@ -341,6 +341,7 @@ socket.on("training_progress", (data) => {
     setProgress(100);
     setTrainingComplete(true);
     setTraining(false);
+    console.log("Training marked as complete");
   }
 });
 
@@ -352,6 +353,7 @@ socket.on("training_progress", (data) => {
     
     // Handle chunked metrics to avoid message truncation
     socket.on("training_metrics", (data) => {
+      console.log("Received training_metrics:", data);
       setMetrics(prevMetrics => {
         // If no previous metrics, just use incoming
         if (!prevMetrics) return data;
@@ -1216,6 +1218,17 @@ const renderEducationalMetrics = (metrics) => {
     // eslint-disable-next-line
   }, []);
 
+  // Debug effect to track metrics changes
+  useEffect(() => {
+    console.log("Metrics updated:", metrics);
+    if (metrics) {
+      console.log("✅ Metrics received - results should show now");
+      console.log("Training complete:", trainingComplete);
+      console.log("Training active:", training);
+      console.log("Progress:", progress);
+    }
+  }, [metrics, trainingComplete, training, progress]);
+
   // When training completes, persist the result and mark that user has started training
   useEffect(() => {
     if (trainingComplete && metrics && evaluationResults) {
@@ -1263,9 +1276,16 @@ const renderEducationalMetrics = (metrics) => {
   };
 
   // Results display logic
-  // Only show results if training just completed (this session) or if there is a persistedResult AND user has started training before
-  const showResults = (trainingComplete && metrics && !(!trainingComplete && !training && !hasStartedTraining)) ||
-  (!training && hasStartedTraining && persistedResult && persistedResult.metrics);
+  // Show results if we have metrics (primary condition)
+  // Also show if training is complete and we have metrics
+  // Also show persisted results if available
+  const showResults = metrics || // Show as soon as metrics are available
+  (trainingComplete && metrics) || 
+  (!training && hasStartedTraining && persistedResult && persistedResult.metrics) ||
+  (!training && metrics && progress >= 90); // Fallback: show if we have metrics and high progress
+  
+  // Debug logging
+  console.log("Training state:", { trainingComplete, hasMetrics: !!metrics, showResults, training, hasStartedTraining, progress });
 
   // --- Results Container Pages ---
   const renderResultsPage = () => {
@@ -1279,11 +1299,13 @@ const renderEducationalMetrics = (metrics) => {
         />
       );
     }
-    // Only show after training is complete and metrics are available
-    if (!trainingComplete || !metrics) {
+    // Show results if we have metrics, even if training completion is delayed
+    if (!metrics) {
       return (
         <div style={{ textAlign: "center", padding: 32 }}>
-          <Text type="secondary">Results will appear here after training completes.</Text>
+          <Text type="secondary">
+            {progress >= 90 ? "Processing final results..." : "Results will appear here after training completes."}
+          </Text>
         </div>
       );
     }
@@ -2117,78 +2139,43 @@ const renderEducationalMetrics = (metrics) => {
                       </Card>
                     </Col>
 
-                    {/* Training Results - Detailed */}
-                    <Col xs={24}>
-                      <Card
-                        style={{
-                          borderRadius: '16px',
-                          boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                          minHeight: 200,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'space-between'
-                        }}
-                        title="Detailed Training Results"
-                        bodyStyle={{ minHeight: 120, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
-                      >
-                        <div style={{ flex: 1 }}>{renderResultsPage()}</div>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 16 }}>
-                          <Button
-                            onClick={() => setResultsPage((p) => Math.max(0, p - 1))}
-                            disabled={resultsPage === 0}
-                            size="small"
-                          >
-                            Previous
-                          </Button>
-                          <span style={{ alignSelf: "center", fontSize: '12px' }}>
-                            Page {resultsPage + 1} / {resultsPagesCount}
-                          </span>
-                          <Button
-                            onClick={() => setResultsPage((p) => Math.min(resultsPagesCount - 1, p + 1))}
-                            disabled={resultsPage === resultsPagesCount - 1}
-                            size="small"
-                          >
-                            Next
-                          </Button>
-                        </div>
-                      </Card>
-                    </Col>
-
-                    {/* Action Buttons */}
-                    <Col xs={24}>
-                      <Card style={{ borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', marginTop: 16 }}>
-                        <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-                          <Button
-                            type="success"
-                            size="large"
-                            onClick={proceedToVisualization}
-                            disabled={progress < 100 || !trainingComplete}
-                            style={{
-                              backgroundColor: progress === 100 && trainingComplete ? '#52c41a' : undefined,
-                              borderColor: progress === 100 && trainingComplete ? '#52c41a' : undefined,
-                              fontWeight: progress === 100 && trainingComplete ? 'bold' : undefined
-                            }}
-                          >
-                            <ArrowRightOutlined style={{ marginRight: 8 }} />
-                            Proceed to Visualization
-                          </Button>
-                          <Button
-                            type="primary"
-                            size="large"
-                            onClick={handleNewTrainingSession}
-                            disabled={progress < 100 || !trainingComplete}
-                            style={{
-                              backgroundColor: progress === 100 && trainingComplete ? '#52c41a' : undefined,
-                              borderColor: progress === 100 && trainingComplete ? '#52c41a' : undefined,
-                              fontWeight: progress === 100 && trainingComplete ? 'bold' : undefined
-                            }}
-                          >
-                            Train Another Model
-                          </Button>
-                        </div>
-                      </Card>
-                    </Col>
-                  </>
+                {/* Training Results - only show after training is complete */}
+                {(trainingComplete && metrics && !trainingError) && (
+                  <Col xs={24}>
+                    <Card
+                      style={{
+                        borderRadius: '16px',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                        minHeight: 200,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between'
+                      }}
+                      title="Training Results"
+                      bodyStyle={{ minHeight: 120, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+                    >
+                      <div style={{ flex: 1 }}>{renderResultsPage()}</div>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 16 }}>
+                        <Button
+                          onClick={() => setResultsPage((p) => Math.max(0, p - 1))}
+                          disabled={resultsPage === 0}
+                          size="small"
+                        >
+                          Previous
+                        </Button>
+                        <span style={{ alignSelf: "center", fontSize: '12px' }}>
+                          Page {resultsPage + 1} / {resultsPagesCount}
+                        </span>
+                        <Button
+                          onClick={() => setResultsPage((p) => Math.min(resultsPagesCount - 1, p + 1))}
+                          disabled={resultsPage === resultsPagesCount - 1}
+                          size="small"
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </Card>
+                  </Col>
                 )}
               </Row>
             </Col>

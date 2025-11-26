@@ -1,13 +1,13 @@
 {
     "model_name": "distillBert",
-    "timestamp": "20251013_161751",
+    "timestamp": "20251017_185104",
     "training_completed": true,
     "student_metrics": {
         "size_mb": 178.78916549682617,
         "size_mb_effective": 125.15241584777831,
-        "latency_ms": 26.247191429138184,
+        "latency_ms": 26.729416847229004,
         "num_params": 66955010,
-        "effective_params": 54037386,
+        "effective_params": 54037404,
         "sparsity": 30.0,
         "accuracy": 42.0,
         "precision": 78.96703296703296,
@@ -16,27 +16,27 @@
     },
     "teacher_metrics": {
         "size_mb": 255.41309356689453,
-        "latency_ms": 49.58393573760986,
+        "latency_ms": 41.58432483673096,
         "num_params": 66955010,
         "effective_params": 66954240,
         "sparsity": 30.0,
-        "accuracy": 64.0,
-        "precision": 51.031578947368416,
-        "recall": 64.0,
-        "f1": 53.847953216374265
+        "accuracy": 36.0,
+        "precision": 64.71578947368421,
+        "recall": 36.0,
+        "f1": 23.944444444444443
     },
     "compression_results": {
         "size_reduction_percent": 30.0,
-        "latency_improvement_percent": 47.06513099719623,
+        "latency_improvement_percent": 35.72237387002322,
         "params_reduction_percent": 20.0,
-        "accuracy_impact": -22.0,
+        "accuracy_impact": 6.0,
         "sparsity_gained": 30.0
     },
     "algorithm_details": {
         "knowledge_distillation": {
             "temperature": 2.0,
             "training_steps": 30,
-            "final_loss": 0.00042300223140046
+            "final_loss": 0.0016720652347430587
         },
         "pruning": {
             "pruning_ratio": 0.3,
