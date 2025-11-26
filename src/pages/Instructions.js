@@ -239,27 +239,29 @@ function Instructions() {
               <div className="card-header-success">
                 <CheckCircleOutlined className="card-header-icon" />
                 <Title level={3} className="card-title">Accepted Files</Title>
+                
+
               </div>
               <Divider className="card-divider" />
               <div className="requirements-list">
                 <div className="requirement-item success">
                   <CheckCircleOutlined className="requirement-icon" />
                   <div>
-                    <Text strong>File Types:</Text>
+                    <Text style={{ color: "#7dd3fc" }}>File Types:</Text>
                     <Text className="requirement-detail"> <code>.pt</code>, <code>.pth</code>, or <code>.bin</code></Text>
                   </div>
                 </div>
                 <div className="requirement-item success">
                   <CheckCircleOutlined className="requirement-icon" />
                   <div>
-                    <Text strong>Maximum Size:</Text>
+                    <Text style={{ color: "#7dd3fc" }}>Maximum Size:</Text>
                     <Text className="requirement-detail"> 500MB</Text>
                   </div>
                 </div>
                 <div className="requirement-item success">
                   <CheckCircleOutlined className="requirement-icon" />
                   <div>
-                    <Text strong>Custom Models:</Text>
+                    <Text style={{ color: "#7dd3fc" }}>Custom Models:</Text>
                     <Text className="requirement-detail"> Your own trained PyTorch models</Text>
                   </div>
                 </div>
@@ -278,21 +280,22 @@ function Instructions() {
                 <div className="requirement-item error">
                   <CloseCircleOutlined className="requirement-icon" />
                   <div>
-                    <Text strong>Baseline Models:</Text>
+                        <Text style={{ color: "#7dd3fc" }}>Baseline Models:</Text>
+
                     <Text className="requirement-detail"> DistilBERT, ResNet-18, MobileNetV2, T5 Small</Text>
                   </div>
                 </div>
                 <div className="requirement-item error">
                   <CloseCircleOutlined className="requirement-icon" />
                   <div>
-                    <Text strong>Wrong File Types:</Text>
+                    <Text style={{ color: "#7dd3fc" }}>Wrong File Types:</Text>
                     <Text className="requirement-detail"> Images, spreadsheets, datasets, etc.</Text>
                   </div>
                 </div>
                 <div className="requirement-item error">
                   <CloseCircleOutlined className="requirement-icon" />
                   <div>
-                    <Text strong>Oversized Files:</Text>
+                    <Text style={{ color: "#7dd3fc" }}>Oversized Files:</Text>
                     <Text className="requirement-detail"> Files larger than 500MB</Text>
                   </div>
                 </div>

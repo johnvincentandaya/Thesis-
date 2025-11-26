@@ -49,10 +49,11 @@
 .home-step-title {
   font-weight: 700;
   margin-bottom: 6px;
+  color: #e0e7ff;
 }
 
 .home-step-desc {
-  color: #103f79;
+  color: #cfe8ff;
 }
 .home-container {
   padding: 72px 24px;

@@ -7,6 +7,8 @@ import { Navbar, Nav, Container, DropdownButton, Dropdown } from "react-bootstra
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./Training.css";
 import Footer from "../components/Footer";
+import TrainingComparison from "../components/TrainingComparison";
+import "../styles/TrainingComparison.css";
 
 const { Title, Text, Paragraph } = Typography;
 const { Content } = Layout;
@@ -23,7 +25,7 @@ const metricExplanations = {
   parameters: "Total number of trainable parameters in the model.",
 };
 
-const ALLOWED_UPLOAD_EXTENSIONS = [".pt", ".pth", ".bin"];
+const ALLOWED_UPLOAD_EXTENSIONS = [".pt", ".pth", ".bin", ".json", ".config", ".ckpt"];
 const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;  // 500MB
 const DEFAULT_MODEL_NAMES = ["distilbert", "resnet18", "resnet-18", "mobilenetv2", "mobilenet-v2", "t5small", "t5-small", "t5_small", "t5 small"];
 
@@ -159,6 +161,7 @@ const Training = () => {
   const [visualizationUnlocked, setVisualizationUnlocked] = useState(() => {
     return localStorage.getItem('visualization_unlocked') === 'true';
   });
+  const [computationDetails, setComputationDetails] = useState(null);
 
   // --- Pagination State ---
   // Results container: 4 pages
@@ -429,6 +432,13 @@ socket.on("training_progress", (data) => {
         return merged;
       });
     });
+
+    // Listen for training computation details (side-by-side comparison)
+    socket.on("training_computation_details", (data) => {
+      console.log("Received training_computation_details:", data);
+      setComputationDetails(data);
+    });
+
     socket.on("training_error", (data) => {
       setTraining(false);
       setProgress(0);
@@ -458,6 +468,8 @@ socket.on("training_progress", (data) => {
       socket.off("training_progress");
       socket.off("training_status");
       socket.off("training_metrics");
+      socket.off("evaluation_metrics");
+      socket.off("training_computation_details");
       socket.off("training_error");
       socket.off("training_cancelled");
       // Do not disconnect the shared socket here to allow free navigation
@@ -635,23 +647,6 @@ socket.on("training_progress", (data) => {
         duration: 10 
       });
     }
-  };
-
-  const triggerAutoTrainingAfterUpload = (path, name) => {
-    if (!selectedModel) {
-      message.warning("Select a baseline model before training.");
-      return;
-    }
-    if (training) {
-      message.info("Training is already running.");
-      return;
-    }
-    message.info("Upload complete. Starting knowledge distillation + pruning...");
-    startTraining({
-      modelPath: path,
-      modelName: name,
-      skipUploadValidation: true
-    });
   };
 
   // Stop Training must terminate backend process too
@@ -1109,7 +1104,7 @@ const renderEducationalMetrics = (metrics) => {
 
     const extension = `.${file.name.split(".").pop().toLowerCase()}`;
     if (!ALLOWED_UPLOAD_EXTENSIONS.includes(extension)) {
-      const errorMsg = "Only .pt, .pth, or .bin files are accepted.";
+      const errorMsg = "Invalid file type. Allowed: .pt, .pth, .bin (primary); optionally .json, .config, .ckpt.";
       setUploadError(errorMsg);
       setUploadStatus("error");
       setUploadedModelPath(null);
@@ -1138,7 +1133,6 @@ const renderEducationalMetrics = (metrics) => {
     setUploadingFile(true);
     setUploadError(null);
     setUploadStatus("uploading");
-    let autoStartPayload = null;
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -1163,7 +1157,6 @@ const renderEducationalMetrics = (metrics) => {
       };
       localStorage.setItem("kd_uploaded_model_meta", JSON.stringify(meta));
       message.success(`Uploaded ${file.name} successfully.`);
-      autoStartPayload = { path: data.file_path, name: file.name };
     } catch (error) {
       console.error("Upload error:", error);
       const errorMsg = error.message || "Upload failed. Please try again.";
@@ -1175,9 +1168,6 @@ const renderEducationalMetrics = (metrics) => {
       setUploadingFile(false);
       if (inputEl) {
         inputEl.value = null;
-      }
-      if (autoStartPayload) {
-        triggerAutoTrainingAfterUpload(autoStartPayload.path, autoStartPayload.name);
       }
     }
   };
@@ -1830,11 +1820,11 @@ const renderEducationalMetrics = (metrics) => {
                         Upload Custom Model
                       </Title>
                       <Paragraph style={{ marginBottom: 8, color: '#666' }}>
-                        Upload your custom model file. Accepts <code>.pt</code>, <code>.pth</code>, <code>.bin</code> up to 500&nbsp;MB.
+                        Upload your custom model file. Accepts <code>.pt</code>, <code>.pth</code>, <code>.bin</code> (primary). Optionally accepts <code>.json</code>, <code>.config</code>, <code>.ckpt</code> for metadata/checkpoints. Max 500&nbsp;MB.
                       </Paragraph>
                       <input
                         type="file"
-                        accept=".pt,.pth,.bin"
+                        accept=".pt,.pth,.bin,.json,.config,.ckpt"
                         onChange={handleCustomModelUpload}
                         disabled={uploadingFile || training || !selectedModel}
                         style={{ width: '100%', margin: '8px 0', padding: '8px', border: '1px solid #d9d9d9', borderRadius: '4px' }}
@@ -1887,6 +1877,19 @@ const renderEducationalMetrics = (metrics) => {
                         <div style={{ marginTop: 12 }}>
                           <Button size="small" danger onClick={clearUploadedModel} disabled={training}>
                             Remove Uploaded Model
+                          </Button>
+                        </div>
+                      )}
+                      {uploadStatus === "success" && uploadedModelPath && !training && (
+                        <div style={{ marginTop: 16, display: 'flex', gap: 12 }}>
+                          <Button
+                            type="primary"
+                            size="large"
+                            onClick={() => startTraining()}
+                            disabled={!selectedModel || !uploadedModelPath}
+                            style={{ flex: 1 }}
+                          >
+                            Start Training
                           </Button>
                         </div>
                       )}
@@ -1945,13 +1948,13 @@ const renderEducationalMetrics = (metrics) => {
 
                     <Divider />
 
-                    {/* Auto-training info / cancel */}
+                    {/* Manual training info / cancel */}
                     <div style={{ textAlign: 'center' }}>
                       <Alert
-                        type="success"
+                        type="info"
                         showIcon
-                        message="Auto Training Enabled"
-                        description="As soon as a valid model uploads successfully, the backend kicks off Knowledge Distillation followed by pruning. Monitor the progress above."
+                        message="Manual Training"
+                        description="Click the 'Start Training' button above to begin Knowledge Distillation followed by pruning. Monitor progress and metrics here."
                         style={{ marginBottom: 16 }}
                       />
                       {training && (
@@ -1972,6 +1975,16 @@ const renderEducationalMetrics = (metrics) => {
                 {/* Comparison Metrics - only show after training is complete */}
                 {(trainingComplete && metrics && !trainingError) && (
                   <>
+                    {/* TrainingComparison Component - displays socket-emitted computation details */}
+                    {computationDetails && (
+                      <Col xs={24}>
+                        <TrainingComparison 
+                          computationDetails={computationDetails} 
+                          socket={socket}
+                        />
+                      </Col>
+                    )}
+
                     <Col xs={24}>
                       <Card
                         style={{
@@ -2138,6 +2151,8 @@ const renderEducationalMetrics = (metrics) => {
                         />
                       </Card>
                     </Col>
+                  </>
+                )}
 
                 {/* Training Results - only show after training is complete */}
                 {(trainingComplete && metrics && !trainingError) && (
@@ -2181,6 +2196,14 @@ const renderEducationalMetrics = (metrics) => {
             </Col>
           </Row>
 
+          {/* Training Computation Comparison */}
+          {computationDetails && (
+            <Row justify="center">
+              <Col xs={24} lg={16}>
+                <TrainingComparison computationDetails={computationDetails} socket={socket} />
+              </Col>
+            </Row>
+          )}
 
           {/* Error message if training fails */}
           {trainingError && (

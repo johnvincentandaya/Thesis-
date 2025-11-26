@@ -46,11 +46,20 @@
 
 .card-text {
     font-size: 0.95rem;
-    color: #4b5563;
+    color: #e0e7ff;
 }
 
 .card-body {
     flex-grow: 1; /* Ensure content inside the card is evenly spaced */
+    color: #e0e7ff;
+}
+
+.card-body strong {
+    color: #ffffff;
+}
+
+.card-body div {
+    color: #e0e7ff;
 }
 
 .row > .col {
@@ -84,6 +93,15 @@ h1 {
     flex-wrap: wrap;
     gap: 12px;
     margin-bottom: 1rem;
+    color: #e0e7ff;
+}
+
+.metrics-columns small {
+    color: #cfe8ff;
+}
+
+.metrics-columns .fw-bold {
+    color: #e0e7ff;
 }
 
 .metrics-matrix {
@@ -101,8 +119,9 @@ h1 {
 }
 
 .metrics-matrix-header {
-    background: #f8fafc;
+    background: #1a1a2e;
     font-weight: 600;
+    color: #e0e7ff;
 }
 
 .metrics-matrix-row:nth-child(even) {

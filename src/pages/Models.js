@@ -8,6 +8,33 @@ import Footer from "../components/Footer";
 const Models = () => {
     const [selectedModel, setSelectedModel] = useState(null);
     const [showModal, setShowModal] = useState(false);
+    const [modelsData, setModelsData] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    // Fetch builtin models info from backend on mount
+    useEffect(() => {
+        const fetchModelsInfo = async () => {
+            try {
+                const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || "http://localhost:5000";
+                const response = await fetch(`${SOCKET_URL}/model_info`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.data) {
+                        setModelsData(data.data);
+                        console.log("Successfully fetched builtin models info from backend");
+                    }
+                } else {
+                    console.warn("Failed to fetch models info from backend, using fallback");
+                }
+            } catch (error) {
+                console.warn("Error fetching models info:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        
+        fetchModelsInfo();
+    }, []);
 
     // Accurate metrics for each model (these would be computed by the backend)
     const models = [

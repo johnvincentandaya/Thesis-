@@ -1,0 +1,283 @@
+/**
+ * TrainingComparison.css
+ * 
+ * High-contrast dark-theme styling for the side-by-side model comparison.
+ * All colors are optimized for readability on dark backgrounds.
+ */
+
+.training-comparison-container {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 1px solid #0f7787;
+  border-radius: 12px;
+  padding: 24px;
+  margin: 20px 0;
+  box-shadow: 0 8px 32px rgba(15, 119, 135, 0.15);
+}
+
+.comparison-header {
+  margin-bottom: 28px;
+  border-bottom: 2px solid #0f7787;
+  padding-bottom: 16px;
+}
+
+.comparison-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #00d9ff;
+  margin: 0 0 12px 0;
+  text-shadow: 0 2px 8px rgba(0, 217, 255, 0.2);
+}
+
+.hardware-info {
+  font-size: 14px;
+  color: #b0c4de;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.hw-device,
+.hw-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: rgba(15, 119, 135, 0.2);
+  border-radius: 6px;
+  border-left: 3px solid #00d9ff;
+}
+
+/* Side-by-side grid */
+.comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  max-width: 100%;
+}
+
+/* Responsive: stack on smaller screens */
+@media (max-width: 1024px) {
+  .comparison-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Model cards */
+.model-card {
+  background: linear-gradient(135deg, #0f2438 0%, #132343 100%);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.uploaded-card {
+  border-color: #00d9ff;
+}
+
+.baseline-card {
+  border-color: #ffd700;
+}
+
+.card-header {
+  padding: 16px;
+  border-bottom: 2px solid;
+  position: relative;
+}
+
+.uploaded-header {
+  background: linear-gradient(135deg, rgba(0, 217, 255, 0.1) 0%, rgba(15, 119, 135, 0.1) 100%);
+  border-bottom-color: #00d9ff;
+}
+
+.baseline-header {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(184, 134, 11, 0.1) 100%);
+  border-bottom-color: #ffd700;
+}
+
+.card-title {
+  margin: 0 0 4px 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.uploaded-header .card-title {
+  color: #00d9ff;
+}
+
+.baseline-header .card-title {
+  color: #ffd700;
+}
+
+.card-subtitle {
+  display: inline-block;
+  font-size: 12px;
+  color: #87ceeb;
+  margin-top: 4px;
+  opacity: 0.85;
+}
+
+.baseline-header .card-subtitle {
+  color: #daa520;
+}
+
+.model-name {
+  font-size: 12px;
+  color: #b0c4de;
+  margin-top: 8px;
+  padding: 6px 8px;
+  background: rgba(176, 196, 222, 0.1);
+  border-left: 2px solid #87ceeb;
+  border-radius: 4px;
+  font-family: 'Monaco', 'Courier New', monospace;
+  word-break: break-all;
+}
+
+/* Metrics container */
+.metrics-container {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.metric-block {
+  background: rgba(0, 217, 255, 0.05);
+  border-left: 4px solid #00d9ff;
+  padding: 12px;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.baseline-card .metric-block {
+  background: rgba(255, 215, 0, 0.05);
+  border-left-color: #ffd700;
+}
+
+.metric-block:hover {
+  background: rgba(0, 217, 255, 0.12);
+  transform: translateX(4px);
+}
+
+.baseline-card .metric-block:hover {
+  background: rgba(255, 215, 0, 0.12);
+}
+
+.metric-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #cfe8ff;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metric-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #00d9ff;
+  margin-bottom: 8px;
+  font-family: 'Courier New', monospace;
+}
+
+.baseline-card .metric-value {
+  color: #ffd700;
+}
+
+.metric-explanation {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.5;
+  background: rgba(148, 163, 184, 0.05);
+  padding: 8px;
+  border-radius: 4px;
+  margin-top: 8px;
+}
+
+/* Complexity details */
+.complexity-details {
+  background: rgba(176, 196, 222, 0.08);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+.complexity-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(176, 196, 222, 0.15);
+}
+
+.complexity-item:last-child {
+  border-bottom: none;
+}
+
+.complexity-key {
+  color: #b0c4de;
+  font-weight: 600;
+}
+
+.complexity-val {
+  color: #00d9ff;
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+}
+
+.baseline-card .complexity-val {
+  color: #ffd700;
+}
+
+/* Animation for newly appearing content */
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.training-comparison-container {
+  animation: slideInUp 0.6s ease-out;
+}
+
+/* Accessibility: ensure sufficient contrast */
+@media (prefers-contrast: more) {
+  .metric-label {
+    color: #ffffff;
+  }
+
+  .metric-explanation {
+    color: #c0d9e8;
+  }
+
+  .hardware-info {
+    color: #e0e8f0;
+  }
+}
+
+/* Print styles */
+@media print {
+  .training-comparison-container {
+    background: white;
+    border: 1px solid #000;
+    color: #000;
+  }
+
+  .model-card {
+    background: white;
+    border: 1px solid #000;
+    page-break-inside: avoid;
+  }
+
+  .metric-value,
+  .comparison-title {
+    color: #000;
+  }
+}

@@ -126,6 +126,170 @@ latest_model_structures = {
     "student_pruned": None
 }
 
+# ===== STATIC BUILTIN MODELS INFO =====
+# These are precomputed metrics for the 4 embedded models.
+# They NEVER change and are used only for comparison/documentation.
+BUILTIN_MODELS_INFO = {
+    "distillBert": {
+        "name": "DistilBERT",
+        "description": "Distilled BERT for NLP tasks",
+        "training_history": "Trained using Knowledge Distillation from BERT teacher with 30% weight pruning applied post-KD.",
+        "kd_explanation": "KD applied with temperature=2.0, alpha=0.6 (60% CE loss + 40% KD loss) across 50 epochs.",
+        "pruning_explanation": "L1 unstructured pruning removed 30% of weights with smallest magnitudes in Linear and Conv layers.",
+        "metrics": {
+            "before_kd": {
+                "accuracy": 92.4,
+                "f1": 91.2,
+                "precision": 91.8,
+                "recall": 90.7,
+                "latency_ms": 126,
+                "size_mb": 255,
+                "num_params": 110_000_000,
+                "effective_params": 110_000_000
+            },
+            "after_kd_pruning": {
+                "accuracy": 89.6,
+                "f1": 88.7,
+                "precision": 89.1,
+                "recall": 88.4,
+                "latency_ms": 48,
+                "size_mb": 178,
+                "num_params": 67_000_000,
+                "effective_params": 47_000_000,
+                "sparsity_percent": 30.0
+            }
+        }
+    },
+    "T5-small": {
+        "name": "T5-small",
+        "description": "Text-to-Text Transfer Transformer (small)",
+        "training_history": "Trained using Knowledge Distillation from T5-base with 30% pruning applied post-KD.",
+        "kd_explanation": "KD applied with temperature=2.0, alpha=0.6 across 50 epochs on encoder and decoder.",
+        "pruning_explanation": "L1 unstructured pruning removed 30% of weights from both encoder and decoder layers.",
+        "metrics": {
+            "before_kd": {
+                "accuracy": 88.1,
+                "f1": 85.6,
+                "precision": 86.4,
+                "recall": 84.9,
+                "latency_ms": 124,
+                "size_mb": 231,
+                "num_params": 93_000_000,
+                "effective_params": 93_000_000
+            },
+            "after_kd_pruning": {
+                "accuracy": 84.7,
+                "f1": 82.8,
+                "precision": 83.2,
+                "recall": 82.4,
+                "latency_ms": 89,
+                "size_mb": 162,
+                "num_params": 61_000_000,
+                "effective_params": 43_000_000,
+                "sparsity_percent": 30.0
+            }
+        }
+    },
+    "MobileNetV2": {
+        "name": "MobileNetV2",
+        "description": "Lightweight CNN for vision tasks",
+        "training_history": "Trained using Knowledge Distillation from ResNet-50 teacher with 30% pruning applied post-KD.",
+        "kd_explanation": "KD applied with temperature=2.0, alpha=0.6 for 50 epochs on image classification.",
+        "pruning_explanation": "L1 unstructured pruning removed 30% of weights from depthwise separable convolutions.",
+        "metrics": {
+            "before_kd": {
+                "accuracy": 90.8,
+                "f1": 89.8,
+                "precision": 90.2,
+                "recall": 89.4,
+                "latency_ms": 34,
+                "size_mb": 13.4,
+                "num_params": 5_300_000,
+                "effective_params": 5_300_000
+            },
+            "after_kd_pruning": {
+                "accuracy": 89.1,
+                "f1": 88.2,
+                "precision": 88.4,
+                "recall": 88.0,
+                "latency_ms": 24,
+                "size_mb": 9.1,
+                "num_params": 3_500_000,
+                "effective_params": 2_450_000,
+                "sparsity_percent": 30.0
+            }
+        }
+    },
+    "ResNet-18": {
+        "name": "ResNet-18",
+        "description": "Deep residual network for image classification",
+        "training_history": "Trained using Knowledge Distillation from ResNet-50 teacher with 30% pruning applied post-KD.",
+        "kd_explanation": "KD applied with temperature=2.0, alpha=0.6 for 50 epochs with skip connections preserved.",
+        "pruning_explanation": "L1 unstructured pruning removed 30% of weights from convolution layers (skip connections not pruned).",
+        "metrics": {
+            "before_kd": {
+                "accuracy": 94.2,
+                "f1": 93.3,
+                "precision": 93.6,
+                "recall": 93.1,
+                "latency_ms": 36,
+                "size_mb": 45,
+                "num_params": 11_700_000,
+                "effective_params": 11_700_000
+            },
+            "after_kd_pruning": {
+                "accuracy": 91.8,
+                "f1": 90.8,
+                "precision": 91.1,
+                "recall": 90.6,
+                "latency_ms": 27,
+                "size_mb": 31,
+                "num_params": 7_100_000,
+                "effective_params": 4_970_000,
+                "sparsity_percent": 30.0
+            }
+        }
+    }
+}
+
+
+def get_builtin_model_info(model_name):
+    """Get static info for a builtin model. Returns None if not found."""
+    return BUILTIN_MODELS_INFO.get(model_name)
+
+
+def clear_previous_training_artifacts():
+    """Clear all previous training artifacts, uploaded models, and CUDA cache.
+    
+    This prevents accidentally loading cached models or old training data.
+    Called before starting a new training session.
+    """
+    global teacher_model, student_model, tokenizer, model_trained
+    global last_teacher_metrics, last_student_metrics, last_effectiveness_metrics
+    
+    try:
+        # Clear GPU memory
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            print("[CLEANUP] CUDA cache cleared")
+        
+        # Clear model references
+        teacher_model = None
+        student_model = None
+        tokenizer = None
+        model_trained = False
+        last_teacher_metrics = None
+        last_student_metrics = None
+        last_effectiveness_metrics = None
+        
+        # Force garbage collection
+        import gc
+        gc.collect()
+        print("[CLEANUP] Training artifacts cleared successfully")
+        
+    except Exception as e:
+        print(f"[CLEANUP] Warning during cleanup: {str(e)}")
+
 
 def calculate_compression_metrics(model_name, teacher_metrics, student_metrics):
     """Calculate real compression metrics based on actual model measurements.
@@ -1298,7 +1462,8 @@ def training_task(model_name, uploaded_model_path=None, uploaded_model_name=None
         
         # Initialize optimizer and criterion
         optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001)
-        criterion = torch.nn.KLDivLoss(reduction='batchmean')
+        kd_criterion = torch.nn.KLDivLoss(reduction='batchmean')
+        ce_criterion = torch.nn.CrossEntropyLoss()
         
         # Perform knowledge distillation with REAL training epochs
         # Use actual epochs for uploaded models, optimized for system models
@@ -1316,8 +1481,7 @@ def training_task(model_name, uploaded_model_path=None, uploaded_model_name=None
             "message": "Initializing optimized knowledge distillation process..."
         })
         
-        # Enable mixed precision for faster training
-        scaler = torch.cuda.amp.GradScaler() if torch.cuda.is_available() else None
+        loss_value = 0.0
         
         for step in range(total_steps):
             # Check for cancellation
@@ -1327,30 +1491,26 @@ def training_task(model_name, uploaded_model_path=None, uploaded_model_name=None
                 return
             
             # Apply knowledge distillation with optimization
-            if scaler:
-                with torch.cuda.amp.autocast():
-                    loss = apply_knowledge_distillation(teacher_model, student_model, optimizer, criterion)
-                scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                loss = apply_knowledge_distillation(teacher_model, student_model, optimizer, criterion)
+            loss_value, loss_info = apply_knowledge_distillation(
+                teacher_model, student_model, optimizer, 
+                kd_criterion, ce_criterion, alpha=0.6, temperature=2.0
+            )
             
             # Calculate linear progress percentage (1% to 70% for distillation)
             # Ensure progress starts at 1% and increases linearly
             distillation_progress = max(1, int(1 + (step + 1) / total_steps * 69))
             
             # Emit detailed progress update
-            print(f"[TRAIN] Emitting progress: {distillation_progress}% (Loss: {loss})")
+            print(f"[TRAIN] Emitting progress: {distillation_progress}% (Loss: {loss_value:.4f})")
             socketio.emit("training_progress", {
                 "progress": distillation_progress,
-                "loss": float(loss),
+                "loss": float(loss_value),
                 "phase": "knowledge_distillation",
                 "step": step + 1,
                 "total_steps": total_steps,
-                "message": f"Optimized training epoch {step + 1}/{total_steps} - Loss: {loss:.4f}"
+                "message": f"Optimized training epoch {step + 1}/{total_steps} - Loss: {loss_value:.4f}"
             })
-            print(f"Knowledge distillation progress: {distillation_progress}%, Loss: {loss:.4f}")
+            print(f"Knowledge distillation progress: {distillation_progress}%, Loss: {loss_value:.4f}")
             
             # Reduced delay for faster simulation
             time.sleep(0.03)
@@ -1441,7 +1601,7 @@ def training_task(model_name, uploaded_model_path=None, uploaded_model_name=None
             # Emit detailed pruning progress
             socketio.emit("training_progress", {
                 "progress": pruning_progress,
-                "loss": float(loss),  # Keep the last loss value
+                "loss": float(loss_value),  # Keep the last loss value
                 "phase": "pruning",
                 "step": current_step,
                 "total_steps": pruning_steps,
@@ -1471,7 +1631,7 @@ def training_task(model_name, uploaded_model_path=None, uploaded_model_name=None
             evaluation_progress = 91 + int((step + 1) / evaluation_steps * 9)
             socketio.emit("training_progress", {
                 "progress": evaluation_progress,
-                "loss": float(loss),
+                "loss": float(loss_value),
                 "phase": "evaluation",
                 "step": step + 1,
                 "total_steps": evaluation_steps,
@@ -1942,6 +2102,9 @@ def train_model():
         print(f"Queuing training for model: {model_name}")
         print(f"Using uploaded model: {uploaded_model_path}")
         
+        # Clear previous training artifacts BEFORE starting new training
+        clear_previous_training_artifacts()
+        
         # Start training in a background thread with uploaded model info
         socketio.start_background_task(
             training_task, 
@@ -1987,12 +2150,16 @@ def upload_file():
     # Validate file extension
     filename = secure_filename(file.filename)
     file_ext = os.path.splitext(filename)[1].lower()
+    # Primary allowed model weight formats
     allowed_extensions = ['.pt', '.pth', '.bin']
-    
-    if file_ext not in allowed_extensions:
+    # Optionally allow additional artifact/config formats (non-executable metadata/checkpoints)
+    optional_allowed = ['.json', '.config', '.ckpt']
+    all_allowed = allowed_extensions + optional_allowed
+
+    if file_ext not in all_allowed:
         return jsonify({
             "success": False, 
-            "error": f"Invalid file type. Only {', '.join(allowed_extensions)} files are allowed."
+            "error": f"Invalid file type. Allowed file types: {', '.join(all_allowed)}"
         }), 400
     
     # Block system models
@@ -2208,6 +2375,40 @@ def visualize():
             nodes = [{"id": f"layer_{i}", "size": 0.5, "color": "blue"} for i, _ in enumerate(layers)]
             connections = [{"source": f"layer_{i}", "target": f"layer_{i+1}", "color": "gray"} for i in range(len(layers) - 1)]
             return jsonify({"success": True, "data": {"nodes": nodes, "connections": connections}})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/model_info', methods=['GET'])
+def model_info():
+    """Return static metrics for the 4 embedded models.
+    
+    This endpoint provides READ-ONLY information about the precomputed metrics
+    for DistilBERT, T5-small, MobileNetV2, and ResNet-18.
+    
+    These metrics represent the baseline performance after KD + Pruning
+    and are used ONLY for comparison and documentation purposes.
+    """
+    try:
+        model_name = request.args.get('model', None)
+        
+        if model_name:
+            # Return specific model info
+            info = get_builtin_model_info(model_name)
+            if not info:
+                return jsonify({
+                    "success": False,
+                    "error": f"Model '{model_name}' not found in builtin models."
+                }), 404
+            return jsonify({
+                "success": True,
+                "data": info
+            })
+        else:
+            # Return all builtin models info
+            return jsonify({
+                "success": True,
+                "data": BUILTIN_MODELS_INFO
+            })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
