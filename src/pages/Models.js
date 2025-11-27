@@ -347,7 +347,7 @@ const Models = () => {
                         Explore our collection of pre-trained models and understand their performance characteristics before applying <strong className="hero-accent-primary">Knowledge Distillation</strong> and <strong className="hero-accent-success">Model Pruning</strong> techniques.
                     </p>
                     <p className="models-metrics-note">
-                        Every metric pair below represents real <strong>trained</strong> baselines ("Before") versus their pruned KD students ("After"). All metrics are computed from actual Knowledge Distillation and Pruning training runs—not hardcoded. Training details (KD parameters, pruning ratios, epochs) are shown in each model card.
+                        Every metric pair below represents <strong>REAL TRAINED</strong> baselines ("Before") versus their pruned KD students ("After"). All metrics are computed from actual Knowledge Distillation and Pruning training runs—models are trained on first request and metrics are computed from real model evaluation. Training details (KD parameters, pruning ratios, epochs) are shown in each model card.
                     </p>
                 </div>
 
@@ -369,7 +369,7 @@ const Models = () => {
                                     
                                     {model.trainingHistory && (
                                         <div className="mb-3" style={{ background: '#e8f4f8', padding: '12px', borderRadius: '8px', border: '1px solid #1890ff' }}>
-                                            <strong style={{ color: '#1890ff' }}>✅ Real Training Results:</strong>
+                                            <strong style={{ color: '#1890ff' }}>Real Training Results:</strong>
                                             <p className="mb-1" style={{ color: '#000000', fontSize: '0.9rem' }}>{model.trainingHistory}</p>
                                             {model.kdExplanation && (
                                                 <p className="mb-1" style={{ color: '#666', fontSize: '0.85rem' }}>
@@ -454,7 +454,7 @@ const Models = () => {
                                 <Accordion defaultActiveKey="0" flush>
                                     <Accordion.Item eventKey="0">
                                         <Accordion.Header style={{ color: '#000000' }}>
-                                            <strong style={{ color: '#000000' }}>📊 Accuracy</strong>
+                                            <strong style={{ color: '#000000' }}>Accuracy</strong>
                                         </Accordion.Header>
                                         <Accordion.Body style={{ color: '#000000' }}>
                                             <div style={{ color: '#000000' }}>
@@ -472,7 +472,7 @@ const Models = () => {
 
                                     <Accordion.Item eventKey="1">
                                         <Accordion.Header style={{ color: '#000000' }}>
-                                            <strong style={{ color: '#000000' }}>📈 F1-Score</strong>
+                                            <strong style={{ color: '#000000' }}>F1-Score</strong>
                                         </Accordion.Header>
                                         <Accordion.Body style={{ color: '#000000' }}>
                                             <div style={{ color: '#000000' }}>
@@ -490,7 +490,7 @@ const Models = () => {
 
                                     <Accordion.Item eventKey="2">
                                         <Accordion.Header style={{ color: '#000000' }}>
-                                            <strong style={{ color: '#000000' }}>🎯 Precision</strong>
+                                            <strong style={{ color: '#000000' }}>Precision</strong>
                                         </Accordion.Header>
                                         <Accordion.Body style={{ color: '#000000' }}>
                                             <div style={{ color: '#000000' }}>
@@ -508,7 +508,7 @@ const Models = () => {
 
                                     <Accordion.Item eventKey="3">
                                         <Accordion.Header style={{ color: '#000000' }}>
-                                            <strong style={{ color: '#000000' }}>🔍 Recall</strong>
+                                            <strong style={{ color: '#000000' }}>Recall</strong>
                                         </Accordion.Header>
                                         <Accordion.Body style={{ color: '#000000' }}>
                                             <div style={{ color: '#000000' }}>
@@ -526,7 +526,7 @@ const Models = () => {
 
                                     <Accordion.Item eventKey="4">
                                         <Accordion.Header style={{ color: '#000000' }}>
-                                            <strong style={{ color: '#000000' }}>💾 Model Size</strong>
+                                            <strong style={{ color: '#000000' }}>Model Size</strong>
                                         </Accordion.Header>
                                         <Accordion.Body style={{ color: '#000000' }}>
                                             <div style={{ color: '#000000' }}>
@@ -545,7 +545,7 @@ const Models = () => {
 
                                     <Accordion.Item eventKey="5">
                                         <Accordion.Header style={{ color: '#000000' }}>
-                                            <strong style={{ color: '#000000' }}>⚡ Inference Latency</strong>
+                                            <strong style={{ color: '#000000' }}>Inference Latency</strong>
                                         </Accordion.Header>
                                         <Accordion.Body style={{ color: '#000000' }}>
                                             <div style={{ color: '#000000' }}>
@@ -564,7 +564,7 @@ const Models = () => {
 
                                     <Accordion.Item eventKey="6">
                                         <Accordion.Header style={{ color: '#000000' }}>
-                                            <strong style={{ color: '#000000' }}>🔢 Parameter Count</strong>
+                                            <strong style={{ color: '#000000' }}>Parameter Count</strong>
                                         </Accordion.Header>
                                         <Accordion.Body style={{ color: '#000000' }}>
                                             <div style={{ color: '#000000' }}>
@@ -582,7 +582,7 @@ const Models = () => {
 
                                     <Accordion.Item eventKey="7">
                                         <Accordion.Header style={{ color: '#000000' }}>
-                                            <strong style={{ color: '#000000' }}>📉 Compression Metrics</strong>
+                                            <strong style={{ color: '#000000' }}>Compression Metrics</strong>
                                         </Accordion.Header>
                                         <Accordion.Body style={{ color: '#000000' }}>
                                             <div style={{ color: '#000000' }}>

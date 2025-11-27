@@ -146,11 +146,11 @@ function NeuralNode({ position, color = "#4fc3f7", size = 0.3, isActive = false,
     <group position={position}>
       <Sphere ref={meshRef} args={[size, 16, 16]} onClick={handleClick} style={{ cursor: 'pointer' }}>
         <meshStandardMaterial 
-          color={isPruned ? "#ff4444" : color} 
-          opacity={isPruned ? 0.6 : effectiveOpacity}
+          color={isPruned ? "#ff0000" : color} 
+          opacity={isPruned ? 0.9 : effectiveOpacity}
           transparent
           emissive={isPruned ? "#ff0000" : (isActive ? color : "#000")}
-          emissiveIntensity={isPruned ? 0.5 : (isActive ? 0.3 : 0)}
+          emissiveIntensity={isPruned ? 0.8 : (isActive ? 0.3 : 0)}
         />
       </Sphere>
 
@@ -732,6 +732,7 @@ function createModelLayout(modelStructure, step, metrics) {
       const nodeZ = (nodeIdx % 2 === 0 ? 0.5 : -0.5) * 0.3; // Slight depth variation
       
       // Determine pruning state based on current step
+      // Once pruning happens (step >= 4), mark nodes as pruned and keep them pruned
       const pruningRatio = metrics?.pruning_analysis?.pruning_details?.pruning_ratio || 30;
       const isPruned = step >= 4 && (nodeIdx >= Math.floor(nodeCount * (1 - pruningRatio / 100)));
       
@@ -739,12 +740,13 @@ function createModelLayout(modelStructure, step, metrics) {
       const nodeSize = isOutput ? 0.8 : (isInput ? 1.0 : 1.2);
       let nodeColor = node.color || "#4fc3f7";
       if (isPruned) {
-        nodeColor = "#ff4444";
+        nodeColor = "#ff0000"; // Bright red for pruned nodes
       } else if (step === 3) {
         nodeColor = "#ff6b35"; // Orange during KD
       }
       
       // Determine visibility based on current step
+      // Pruned nodes should always be visible after pruning step
       const isVisible = step === 0 ? isInput : 
                        step === 1 ? (isInput || layerIdx <= 1) :
                        step === 2 ? true : // All visible during forward pass
@@ -769,7 +771,7 @@ function createModelLayout(modelStructure, step, metrics) {
         isInput: isInput,
         layerType: layer.type,
         isVisible: isVisible,
-        opacity: isPruned ? 0.3 : (isVisible ? 1.0 : 0.3)
+        opacity: isPruned ? 0.8 : (isVisible ? 1.0 : 0.3) // Higher opacity for pruned nodes so they're clearly visible
       });
     });
   });
@@ -794,6 +796,8 @@ function createModelLayout(modelStructure, step, metrics) {
                                    (nodeIdx === layer.nodes.length - 1 && nextIdx === nextLayer.nodes.length - 1);
               
               if (shouldConnect) {
+                // Connection is pruned if either source or target node is pruned
+                // Once pruning happens (step >= 4), keep connections pruned
                 const isPruned = step >= 4 && (sourceNode.isPruned || targetNode.isPruned);
                 const isVisible = step >= 2; // Connections visible from forward pass
                 
@@ -802,8 +806,9 @@ function createModelLayout(modelStructure, step, metrics) {
                   end: new THREE.Vector3(...targetNode.position),
                   isActive: step >= 2 && !isPruned,
                   isPruned: isPruned,
-                  strength: isPruned ? 0.2 : 0.7,
-                  isVisible: isVisible
+                  strength: isPruned ? 0.3 : 0.7, // Slightly higher strength for visibility
+                  isVisible: isVisible,
+                  pruningReason: isPruned ? "Pruned connection" : ""
                 });
               }
             }
@@ -850,7 +855,8 @@ function Connection({ start, end, isActive = false, isPruned = false, strength =
   const geometry = new THREE.BufferGeometry().setFromPoints(points);
 
   // All connections equally visible (no focus layer)
-  const effectiveOpacity = isPruned ? 0.2 : strength;
+  // Pruned connections should be clearly visible in red
+  const effectiveOpacity = isPruned ? 0.6 : strength; // Higher opacity for pruned connections
 
   return (
     <group>
@@ -1407,7 +1413,7 @@ function NeuralNetwork({ step, selectedModel, onNodeClick, metrics, displayName,
                 label={node.label}
                 isActive={node.isActive}
                 isPruned={node.isPruned}
-                opacity={node.opacity !== undefined ? node.opacity : (node.isPruned ? 0.2 : 1)}
+                opacity={node.opacity !== undefined ? node.opacity : (node.isPruned ? 0.8 : 1)}
                 layerIndex={node.layerIndex}
                 isInput={node.isInput}
                 isOutput={node.isOutput}

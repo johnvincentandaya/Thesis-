@@ -260,7 +260,7 @@ const Training = () => {
 
     socket.on("server_error", (data) => {
       console.error("Server error:", data);
-      message.error(`Server error: ${data.error}`);
+      message.error({ content: `Server error: ${data.error}`, duration: 15 });
     });
     
     socket.on("connect_error", (error) => {
@@ -292,9 +292,9 @@ const Training = () => {
       // Check if server is still reachable via HTTP
       checkServerStatus();
       if (training) {
-        message.error("Lost socket connection during training. Training may continue in background.");
+        message.error({ content: "Lost socket connection during training. Training may continue in background.", duration: 15 });
       } else {
-        message.error("Socket reconnection failed. Checking server status...");
+        message.error({ content: "Socket reconnection failed. Checking server status...", duration: 15 });
       }
     });
     
@@ -443,7 +443,12 @@ socket.on("training_progress", (data) => {
       setTraining(false);
       setProgress(0);
       setTrainingError(data.error || "Training Failed");
-      message.error({ content: `Training Failed: ${data.error}`, key: "training", duration: 0 });
+      message.error({ content: `Training Failed: ${data.error}`, key: "training", duration: 15 });
+      
+      // Auto-clear error after 15 seconds
+      setTimeout(() => {
+        setTrainingError(null);
+      }, 15000);
     });
     
     socket.on("training_cancelled", (data) => {
@@ -515,7 +520,7 @@ socket.on("training_progress", (data) => {
       }
     } catch (err) {
       console.error("Reconnection error:", err);
-      message.error("Failed to reconnect. Please check your server and network.");
+      message.error({ content: "Failed to reconnect. Please check your server and network.", duration: 15 });
     } finally {
       setRetryLoading(false);
     }
@@ -542,18 +547,18 @@ socket.on("training_progress", (data) => {
     } = options;
 
     if (!selectedModel) {
-      message.error("Please select a model first.");
+      message.error({ content: "Please select a model first.", duration: 15 });
       return;
     }
     const effectiveModelPath = overrideModelPath || uploadedModelPath;
     const effectiveModelName = overrideModelName || uploadedModelName;
 
     if (!effectiveModelPath) {
-      message.error("Upload a valid custom model (.pt/.pth/.bin, max 500MB) before training.");
+      message.error({ content: "Upload a valid custom model (.pt/.pth/.bin, max 500MB) before training.", duration: 15 });
       return;
     }
     if (!skipUploadValidation && uploadStatus !== "success") {
-      message.error("Upload a valid custom model (.pt/.pth/.bin, max 500MB) before training.");
+      message.error({ content: "Upload a valid custom model (.pt/.pth/.bin, max 500MB) before training.", duration: 15 });
       return;
     }
     if (uploadingFile) {
@@ -644,7 +649,7 @@ socket.on("training_progress", (data) => {
       message.error({ 
         content: `Failed to start training: ${error.message}`, 
         key: "training", 
-        duration: 10 
+        duration: 15 
       });
     }
   };
@@ -673,17 +678,17 @@ socket.on("training_progress", (data) => {
         localStorage.removeItem('kd_pruning_evaluation_results');
         message.success("Training has been cancelled successfully.");
       } else {
-        message.error("Failed to cancel training. Please try again.");
+        message.error({ content: "Failed to cancel training. Please try again.", duration: 15 });
       }
     } catch (error) {
       console.error("Error cancelling training:", error);
-      message.error("Error cancelling training. Please try again.");
+      message.error({ content: "Error cancelling training. Please try again.", duration: 15 });
     }
   };
 
   const proceedToVisualization = () => {
     if (progress < 100) {
-      message.error("Training must be completed before proceeding!");
+      message.error({ content: "Training must be completed before proceeding!", duration: 15 });
       return;
     }
     navigate("/visualization", { 
@@ -1108,7 +1113,7 @@ const renderEducationalMetrics = (metrics) => {
       setUploadError(errorMsg);
       setUploadStatus("error");
       setUploadedModelPath(null);
-      message.error(errorMsg);
+      message.error({ content: errorMsg, duration: 15 });
       return;
     }
 
@@ -1117,7 +1122,7 @@ const renderEducationalMetrics = (metrics) => {
       setUploadError(errorMsg);
       setUploadStatus("error");
       setUploadedModelPath(null);
-      message.error(errorMsg);
+      message.error({ content: errorMsg, duration: 15 });
       return;
     }
 
@@ -1163,7 +1168,7 @@ const renderEducationalMetrics = (metrics) => {
       setUploadError(errorMsg);
       setUploadStatus("error");
       setUploadedModelPath(null);
-      message.error(errorMsg);
+      message.error({ content: errorMsg, duration: 15 });
     } finally {
       setUploadingFile(false);
       if (inputEl) {
@@ -1917,16 +1922,16 @@ const renderEducationalMetrics = (metrics) => {
                           </Button>
                         </div>
                       )}
-                      {uploadStatus === "success" && uploadedModelPath && !training && (
+                      {uploadStatus === "success" && uploadedModelPath && (
                         <div style={{ marginTop: 16, display: 'flex', gap: 12 }}>
                           <Button
                             type="primary"
                             size="large"
                             onClick={() => startTraining()}
-                            disabled={!selectedModel || !uploadedModelPath}
+                            disabled={training || !selectedModel || !uploadedModelPath}
                             style={{ flex: 1 }}
                           >
-                            Start Training
+                            {training ? "Training in Progress..." : "Start Training"}
                           </Button>
                         </div>
                       )}
