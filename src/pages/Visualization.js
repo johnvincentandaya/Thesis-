@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Layout, Card, Button, Typography, Row, Col, Progress, Alert, Space, Divider } from "antd";
+import { Layout, Card, Button, Typography, Row, Col, Progress, Space, Divider, Collapse, Steps } from "antd";
 import { Navbar, Nav, Container } from "react-bootstrap";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -58,6 +58,22 @@ const baselineModelInfo = {
 
 const getBaselineInfo = (modelKey) => {
   return baselineModelInfo[modelKey] || baselineModelInfo.default;
+};
+
+// Human-readable model type label for sidebar header
+const getModelTypeLabel = (modelKey) => {
+  if (!modelKey) return "Neural Network";
+  const key = String(modelKey).toLowerCase();
+  if (key.includes("distill") || key.includes("bert") || key.includes("t5")) {
+    return "NLP Transformer";
+  }
+  if (key.includes("mobilenet") || key.includes("resnet")) {
+    return "Vision CNN";
+  }
+  if (key.includes("uploaded")) {
+    return "Uploaded Student Model";
+  }
+  return "Neural Network";
 };
 
 // Deterministic seeded randomness utilities for consistent visualization
@@ -183,6 +199,636 @@ function NeuralNode({ position, color = "#4fc3f7", size = 0.3, isActive = false,
       )}
     </group>
   );
+}
+
+// Layer Block Component - Rounded Rectangle for Layers
+function LayerBlock({ position, width = 1.2, height = 0.8, depth = 0.3, color = "#4fc3f7", label = "", isActive = false, isPruned = false, opacity = 1, layerIndex = 0, isInput = false, isOutput = false, onNodeClick }) {
+  const meshRef = useRef();
+  
+  useFrame((state) => {
+    if (isActive && meshRef.current && !isPruned) {
+      meshRef.current.scale.x = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.05;
+      meshRef.current.scale.y = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.05;
+    }
+    
+    if (isPruned && meshRef.current) {
+      meshRef.current.scale.x = 0.7 + Math.sin(state.clock.elapsedTime * 5) * 0.1;
+      meshRef.current.scale.y = 0.7 + Math.sin(state.clock.elapsedTime * 5) * 0.1;
+    }
+  });
+
+  const handleClick = (event) => {
+    event.stopPropagation();
+    if (onNodeClick) {
+      onNodeClick({
+        label,
+        layerIndex,
+        isPruned,
+        color,
+        position
+      });
+    }
+  };
+
+  // Pruned nodes: red, visible but faded, smaller
+  const effectiveOpacity = isPruned ? opacity * 0.6 : opacity; // More visible for pruned (60% of base opacity)
+  const blockColor = isPruned ? "#ff0000" : color; // Pure red (#ff0000) for pruned
+  const scale = isPruned ? 0.7 : 1.0;
+
+  return (
+    <group position={position}>
+      <Box
+        ref={meshRef}
+        args={[width * scale, height * scale, depth * scale]}
+        onClick={handleClick}
+        style={{ cursor: 'pointer' }}
+      >
+        <meshStandardMaterial
+          color={blockColor}
+          opacity={effectiveOpacity}
+          transparent
+          emissive={isPruned ? "#ff0000" : (isActive ? color : "#000")}
+          emissiveIntensity={isPruned ? 0.8 : (isActive ? 0.3 : 0)} // Brighter red glow for pruned nodes
+          roughness={0.3}
+          metalness={0.1}
+        />
+      </Box>
+      
+      {/* Label - Always show for clarity */}
+      {label && (
+        <Html position={[0, height * scale * 0.6 + 0.3, 0]} center>
+          <div style={{
+            background: isPruned ? 'rgba(255, 68, 68, 0.95)' : 
+                        isInput ? 'rgba(76, 175, 80, 0.95)' :
+                        isOutput ? 'rgba(33, 150, 243, 0.95)' :
+                        'rgba(0,0,0,0.9)',
+            color: 'white',
+            padding: '5px 10px',
+            borderRadius: '8px',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            whiteSpace: 'nowrap',
+            border: isPruned ? '2px solid #ff0000' : '1px solid #fff',
+            boxShadow: isPruned ? '0 0 10px #ff0000' : '0 0 5px rgba(0,0,0,0.5)',
+            pointerEvents: 'none',
+            minWidth: '80px',
+            textAlign: 'center'
+          }}>
+            {label}
+          </div>
+        </Html>
+      )}
+    </group>
+  );
+}
+
+// Directional Edge Component - With Arrowhead and weight-based thickness
+function DirectionalEdge({ start, end, isActive = false, isPruned = false, strength = 1, isDotted = false, weight = 0.5 }) {
+  const lineRef = useRef();
+  const arrowRef = useRef();
+  
+  useFrame((state) => {
+    if (isActive && lineRef.current && !isPruned) {
+      lineRef.current.material.opacity = 0.4 + Math.sin(state.clock.elapsedTime * 2) * 0.2;
+    }
+    
+    if (isPruned && lineRef.current) {
+      lineRef.current.material.opacity = 0.1;
+    }
+  });
+
+  const direction = new THREE.Vector3().subVectors(end, start).normalize();
+  
+  // Arrowhead position (slightly before end to avoid overlap)
+  const arrowOffset = direction.clone().multiplyScalar(-0.3);
+  const arrowPosition = new THREE.Vector3().addVectors(end, arrowOffset);
+  
+  // Calculate arrow rotation
+  const arrowRotation = new THREE.Euler();
+  arrowRotation.y = Math.atan2(direction.x, direction.z);
+  arrowRotation.x = -Math.asin(direction.y);
+
+  // Line thickness based on weight magnitude
+  const lineThickness = isPruned ? 0.5 : Math.max(0.5, weight * 3); // 0.5-3px based on weight
+  const effectiveOpacity = isPruned ? 0.4 : Math.min(0.8, 0.3 + weight * 0.5);
+  // Color: red for pruned connections, gray for active connections
+  const lineColor = isPruned ? "#ff0000" : "#666666";
+
+  // Dotted line for pruned connections (red)
+  if (isDotted || isPruned) {
+    const segments = 20;
+    const dots = [];
+    
+    for (let i = 0; i < segments; i += 2) { // Skip every other segment for dotted effect
+      const t = i / segments;
+      const dotPos = new THREE.Vector3().lerpVectors(start, end, t);
+      dots.push(dotPos);
+    }
+    
+    return (
+      <group>
+        {dots.map((dot, idx) => (
+          <mesh key={idx} position={dot}>
+            <sphereGeometry args={[0.04, 8, 8]} />
+            <meshStandardMaterial
+              color="#ff0000" // Red for pruned connections
+              opacity={effectiveOpacity}
+              transparent
+            />
+          </mesh>
+        ))}
+      </group>
+    );
+  }
+
+  return (
+    <group>
+      {/* Main edge line with weight-based thickness */}
+      <line ref={lineRef}>
+        <bufferGeometry attach="geometry">
+          <bufferAttribute
+            attach="attributes-position"
+            count={2}
+            array={new Float32Array([start.x, start.y, start.z, end.x, end.y, end.z])}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <lineBasicMaterial
+          attach="material"
+          color={lineColor}
+          opacity={effectiveOpacity}
+          transparent
+          linewidth={lineThickness}
+        />
+      </line>
+
+      {/* Arrowhead */}
+      {!isPruned && (
+        <group position={arrowPosition} rotation={arrowRotation}>
+          <mesh ref={arrowRef}>
+            <coneGeometry args={[0.06 * lineThickness, 0.15 * lineThickness, 8]} />
+            <meshStandardMaterial
+              color={lineColor}
+              opacity={effectiveOpacity}
+              transparent
+            />
+          </mesh>
+        </group>
+      )}
+    </group>
+  );
+}
+
+// Distillation Flow Component - Shows knowledge transfer from teacher to student
+function DistillationFlow({ start, end, controlPoint, isActive = false, strength = 0.4 }) {
+  const curveRef = useRef();
+  const arrowRef = useRef();
+  
+  useFrame((state) => {
+    if (isActive && curveRef.current) {
+      const pulse = Math.sin(state.clock.elapsedTime * 2) * 0.1;
+      curveRef.current.material.opacity = 0.5 + pulse;
+    }
+  });
+
+  // Create quadratic Bezier curve through control point
+  const curve = new THREE.QuadraticBezierCurve3(start, controlPoint, end);
+  const points = curve.getPoints(50);
+  
+  // Arrow position on the curve (near the end)
+  const arrowT = 0.85;
+  const arrowPos = curve.getPointAt(arrowT);
+  const tangent = curve.getTangentAt(arrowT);
+  
+  const arrowRotation = new THREE.Euler();
+  arrowRotation.y = Math.atan2(tangent.x, tangent.z);
+  arrowRotation.x = -Math.asin(tangent.y);
+
+  return (
+    <group>
+      {/* Curved flow line */}
+      <line ref={curveRef}>
+        <bufferGeometry attach="geometry">
+          <bufferAttribute
+            attach="attributes-position"
+            count={points.length}
+            array={new Float32Array(points.flatMap(p => [p.x, p.y, p.z]))}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <lineBasicMaterial
+          attach="material"
+          color="#333333"
+          opacity={isActive ? 0.6 : 0.3}
+          transparent
+          linewidth={2}
+          dashed={true}
+          dashSize={0.3}
+          gapSize={0.2}
+        />
+      </line>
+      
+      {/* Arrow showing direction of knowledge transfer */}
+      {isActive && (
+        <group position={arrowPos} rotation={arrowRotation}>
+          <mesh ref={arrowRef}>
+            <coneGeometry args={[0.08, 0.2, 8]} />
+            <meshStandardMaterial
+              color="#333333"
+              opacity={0.8}
+              transparent
+            />
+          </mesh>
+        </group>
+      )}
+    </group>
+  );
+}
+
+// Teacher-Student Distillation Layout - Clear structural visualization
+function createSimpleModelLayout(modelStructure, step, metrics) {
+  if (!modelStructure || !modelStructure.nodes || modelStructure.nodes.length === 0) {
+    return { nodes: [], connections: [], distillationFlows: [], stepInfo: null };
+  }
+
+  // Group nodes by layer
+  const layers = {};
+  modelStructure.nodes.forEach((node, idx) => {
+    const layerIndex = node.layerIndex !== undefined ? node.layerIndex : idx;
+    if (!layers[layerIndex]) {
+      layers[layerIndex] = {
+        index: layerIndex,
+        nodes: [],
+        label: node.label || `Layer ${layerIndex + 1}`,
+        type: node.layerType || 'Unknown'
+      };
+    }
+    layers[layerIndex].nodes.push({ ...node, originalIndex: idx });
+  });
+
+  const layerCount = Object.keys(layers).length;
+  const layoutNodes = [];
+  const layoutConnections = [];
+  const distillationFlows = [];
+  
+  // Three-panel layout: Teacher (left) | Distillation (center) | Student (right)
+  const panelWidth = 12;
+  const teacherCenterX = -panelWidth;
+  const distillationCenterX = 0;
+  const studentCenterX = panelWidth;
+  const horizontalSpacing = 3.0;
+  const maxNodesPerLayer = 6; // Limit for clarity
+  
+  // Calculate node importance based on layer position and metrics
+  const calculateImportance = (layerIndex, nodeIndex, totalNodes) => {
+    // Important nodes: input, output, and middle layers with higher indices
+    const layerImportance = layerIndex === 0 || layerIndex === layerCount - 1 ? 1.2 : 0.8;
+    const nodeImportance = 0.7 + (nodeIndex / totalNodes) * 0.3;
+    return layerImportance * nodeImportance;
+  };
+  
+  // Create Teacher Model (Left Panel)
+  Object.values(layers).sort((a, b) => a.index - b.index).forEach((layer, layerIdx) => {
+    const x = teacherCenterX + (layerIdx - (layerCount - 1) / 2) * horizontalSpacing;
+    const nodeCount = Math.min(layer.nodes.length, maxNodesPerLayer);
+    const isInput = layer.index === 0;
+    const isOutput = layer.index === layerCount - 1;
+    
+    const verticalSpacing = nodeCount > 1 ? 2.5 / Math.max(1, nodeCount - 1) : 0;
+    const startY = -(nodeCount - 1) * verticalSpacing / 2;
+    
+    layer.nodes.slice(0, maxNodesPerLayer).forEach((node, nodeIdx) => {
+      const y = nodeCount > 1 ? startY + nodeIdx * verticalSpacing : 0;
+      const importance = calculateImportance(layer.index, nodeIdx, nodeCount);
+      const nodeSize = 0.3 + importance * 0.4; // Node size based on importance
+      
+      layoutNodes.push({
+        id: `teacher_${layer.index}_${nodeIdx}`,
+        position: [x, y, 0],
+        width: nodeSize,
+        height: nodeSize,
+        depth: 0.2,
+        color: "#666666", // Neutral gray for structure
+        label: isInput ? "Input" : (isOutput ? "Output" : ""),
+        layerIndex: layer.index,
+        nodeIndex: nodeIdx,
+        isActive: step >= 1,
+        isPruned: false,
+        isOutput: isOutput,
+        isInput: isInput,
+        isTeacher: true,
+        opacity: 1.0,
+        importance: importance
+      });
+    });
+  });
+  
+  // Create Student Model (Right Panel) - Smaller and pruned
+  const pruningRatio = metrics?.pruning_analysis?.pruning_details?.pruning_ratio || 30;
+  const studentLayers = Math.max(2, Math.floor(layerCount * 0.7)); // Student has fewer layers
+  
+  // Progressive pruning: show pruning happening during step 4, complete by step 5+
+  const isPruningStep = step === 4; // Step 4: pruning in progress
+  const isPrunedStep = step >= 5; // Step 5+: pruning complete
+  
+  for (let layerIdx = 0; layerIdx < studentLayers; layerIdx++) {
+    const originalLayerIdx = Math.floor((layerIdx / studentLayers) * (layerCount - 1));
+    const layer = Object.values(layers).sort((a, b) => a.index - b.index)[originalLayerIdx];
+    if (!layer) continue;
+    
+    const x = studentCenterX + (layerIdx - (studentLayers - 1) / 2) * horizontalSpacing;
+    const nodeCount = Math.max(2, Math.min(Math.floor(layer.nodes.length * 0.6), maxNodesPerLayer));
+    const isInput = layerIdx === 0;
+    const isOutput = layerIdx === studentLayers - 1;
+    
+    const verticalSpacing = nodeCount > 1 ? 2.0 / Math.max(1, nodeCount - 1) : 0;
+    const startY = -(nodeCount - 1) * verticalSpacing / 2;
+    
+    // Calculate which nodes should be pruned (based on importance/position)
+    const nodesToPrune = Math.floor(nodeCount * (pruningRatio / 100));
+    
+    for (let nodeIdx = 0; nodeIdx < nodeCount; nodeIdx++) {
+      const y = nodeCount > 1 ? startY + nodeIdx * verticalSpacing : 0;
+      const importance = calculateImportance(layerIdx, nodeIdx, nodeCount);
+      
+      // Prune nodes from the end (less important ones)
+      // Show pruning starting from step 4, complete by step 5+
+      const shouldPrune = nodeIdx >= (nodeCount - nodesToPrune) && nodesToPrune > 0;
+      const isPruned = (isPruningStep || isPrunedStep) && shouldPrune;
+      
+      const nodeSize = (0.2 + importance * 0.3) * 0.8; // Smaller than teacher
+      
+      // Progressive opacity: during pruning (step 4) fade to 0.5, after (step 5+) fade to 0.3
+      // Keep visible enough to clearly see they're being removed (red)
+      const opacity = isPruned ? (isPruningStep ? 0.5 : 0.3) : 1.0;
+      
+      // Color: red for pruned nodes, gray for active nodes
+      const nodeColor = isPruned ? "#ff0000" : "#666666";
+      
+      layoutNodes.push({
+        id: `student_${layerIdx}_${nodeIdx}`,
+        position: [x, y, 0],
+        width: nodeSize,
+        height: nodeSize,
+        depth: 0.2,
+        color: nodeColor,
+        label: isInput ? "Input" : (isOutput ? "Output" : ""),
+        layerIndex: layerIdx,
+        nodeIndex: nodeIdx,
+        isActive: step >= 2 && !isPruned,
+        isPruned: isPruned,
+        isOutput: isOutput,
+        isInput: isInput,
+        isStudent: true,
+        opacity: opacity,
+        importance: importance
+      });
+    }
+  }
+  
+  // Create connections within Teacher Model
+  const teacherNodes = layoutNodes.filter(n => n.isTeacher);
+  Object.values(layers).sort((a, b) => a.index - b.index).forEach((layer, layerIdx) => {
+    if (layerIdx < layerCount - 1) {
+      const nextLayer = Object.values(layers).sort((a, b) => a.index - b.index)[layerIdx + 1];
+      const currentLayerNodes = teacherNodes.filter(n => n.layerIndex === layer.index);
+      const nextLayerNodes = teacherNodes.filter(n => n.layerIndex === nextLayer.index);
+      
+      currentLayerNodes.forEach((sourceNode) => {
+        nextLayerNodes.forEach((targetNode) => {
+          // Weight magnitude based on importance and random factor
+          const weightMagnitude = 0.3 + (sourceNode.importance + targetNode.importance) / 2 * 0.4;
+          
+          layoutConnections.push({
+            start: new THREE.Vector3(...sourceNode.position),
+            end: new THREE.Vector3(...targetNode.position),
+            isActive: step >= 1,
+            isPruned: false,
+            strength: weightMagnitude, // Line thickness = weight magnitude
+            weight: weightMagnitude
+          });
+        });
+      });
+    }
+  });
+  
+  // Create connections within Student Model
+  const studentNodes = layoutNodes.filter(n => n.isStudent);
+  for (let layerIdx = 0; layerIdx < studentLayers - 1; layerIdx++) {
+    const currentLayerNodes = studentNodes.filter(n => n.layerIndex === layerIdx);
+    const nextLayerNodes = studentNodes.filter(n => n.layerIndex === layerIdx + 1);
+    
+    currentLayerNodes.forEach((sourceNode) => {
+      nextLayerNodes.forEach((targetNode) => {
+        // Connection is pruned if either node is pruned
+        const isPruned = (isPruningStep || isPrunedStep) && (sourceNode.isPruned || targetNode.isPruned);
+        const weightMagnitude = 0.2 + (sourceNode.importance + targetNode.importance) / 2 * 0.3;
+        
+        layoutConnections.push({
+          start: new THREE.Vector3(...sourceNode.position),
+          end: new THREE.Vector3(...targetNode.position),
+          isActive: step >= 2 && !isPruned,
+          isPruned: isPruned,
+          strength: isPruned ? 0.05 : weightMagnitude, // Very thin if pruned
+          weight: weightMagnitude,
+          isDotted: isPruned // Mark as dotted for rendering
+        });
+      });
+    });
+  }
+  
+  // Create Knowledge Distillation Flow Indicators (Center Panel)
+  // Arrows from teacher to student showing knowledge transfer
+  if (step >= 3) { // Show during KD step
+    const teacherOutputNodes = teacherNodes.filter(n => n.isOutput);
+    const studentInputNodes = studentNodes.filter(n => n.isInput);
+    
+    teacherOutputNodes.forEach((teacherNode, idx) => {
+      const studentNode = studentInputNodes[Math.min(idx, studentInputNodes.length - 1)];
+      if (studentNode) {
+        distillationFlows.push({
+          start: new THREE.Vector3(...teacherNode.position),
+          end: new THREE.Vector3(...studentNode.position),
+          controlPoint: new THREE.Vector3(
+            distillationCenterX,
+            (teacherNode.position[1] + studentNode.position[1]) / 2,
+            0
+          ),
+          isActive: step >= 3,
+          strength: 0.4
+        });
+      }
+    });
+  }
+  
+  // Step-specific information
+  const stepInfo = {
+    0: { title: "Model Initialized", description: "All layers loaded and ready" },
+    1: { title: "Input Processing", description: "Processing input data through embedding layers" },
+    2: { title: "Forward Pass", description: "Data flowing through all layers" },
+    3: { title: "Knowledge Distillation", description: "Learning from teacher model" },
+    4: { title: "Pruning", description: "Removing redundant connections" },
+    5: { title: "Fine-tuning", description: "Recovering performance after pruning" },
+    6: { title: "Complete", description: "Model optimized and ready" }
+  };
+  
+  return { 
+    nodes: layoutNodes, 
+    connections: layoutConnections,
+    distillationFlows: distillationFlows,
+    stepInfo: stepInfo[step] || stepInfo[0]
+  };
+}
+
+// Non-linear Model Layout - Creates a realistic neural network structure (kept for backward compatibility)
+function createModelLayout(modelStructure, step, metrics) {
+  if (!modelStructure || !modelStructure.nodes || modelStructure.nodes.length === 0) {
+    return { nodes: [], connections: [], stepInfo: null };
+  }
+
+  // Group nodes by layer
+  const layers = {};
+  modelStructure.nodes.forEach((node, idx) => {
+    const layerIndex = node.layerIndex !== undefined ? node.layerIndex : idx;
+    if (!layers[layerIndex]) {
+      layers[layerIndex] = {
+        index: layerIndex,
+        nodes: [],
+        label: node.label || `Layer ${layerIndex + 1}`,
+        type: node.layerType || 'Unknown'
+      };
+    }
+    layers[layerIndex].nodes.push({ ...node, originalIndex: idx });
+  });
+
+  const layerCount = Object.keys(layers).length;
+  const layoutNodes = [];
+  const layoutConnections = [];
+  
+  // Create a non-linear layout: Input at center-left, branches out, converges to Output
+  const baseRadius = 8.0;
+  const angleStep = (Math.PI * 1.5) / Math.max(1, layerCount - 1); // Spread layers in an arc
+  
+  // Organize layers in a non-linear pattern
+  Object.values(layers).sort((a, b) => a.index - b.index).forEach((layer, layerIdx) => {
+    const isInput = layer.index === 0;
+    const isOutput = layer.index === layerCount - 1;
+    const nodeCount = layer.nodes.length;
+    
+    // Position layers in an arc pattern (non-linear)
+    const angle = isInput ? -Math.PI / 4 : (isOutput ? Math.PI / 4 : (layerIdx - 1) * angleStep - Math.PI / 4);
+    const radius = isInput ? baseRadius * 0.3 : (isOutput ? baseRadius * 0.3 : baseRadius * (0.5 + layerIdx * 0.15));
+    const centerX = isInput ? -baseRadius * 0.8 : (isOutput ? baseRadius * 0.8 : 0);
+    const centerY = 0;
+    
+    // Arrange nodes in each layer
+    const nodeSpacing = nodeCount > 1 ? Math.min(2.0, 4.0 / nodeCount) : 0;
+    const startOffset = -(nodeCount - 1) * nodeSpacing / 2;
+    
+    layer.nodes.forEach((node, nodeIdx) => {
+      // Non-linear positioning: nodes spread vertically, layers spread in arc
+      const nodeX = centerX + Math.cos(angle) * radius;
+      const nodeY = centerY + Math.sin(angle) * radius + startOffset + nodeIdx * nodeSpacing;
+      const nodeZ = (nodeIdx % 2 === 0 ? 0.5 : -0.5) * 0.3; // Slight depth variation
+      
+      // Determine pruning state based on current step
+      const pruningRatio = metrics?.pruning_analysis?.pruning_details?.pruning_ratio || 30;
+      const isPruned = step >= 4 && (nodeIdx >= Math.floor(nodeCount * (1 - pruningRatio / 100)));
+      
+      // Node properties
+      const nodeSize = isOutput ? 0.8 : (isInput ? 1.0 : 1.2);
+      let nodeColor = node.color || "#4fc3f7";
+      if (isPruned) {
+        nodeColor = "#ff4444";
+      } else if (step === 3) {
+        nodeColor = "#ff6b35"; // Orange during KD
+      }
+      
+      // Determine visibility based on current step
+      const isVisible = step === 0 ? isInput : 
+                       step === 1 ? (isInput || layerIdx <= 1) :
+                       step === 2 ? true : // All visible during forward pass
+                       step === 3 ? true : // All visible during KD
+                       step === 4 ? true : // All visible during pruning
+                       step === 5 ? true : // All visible during fine-tuning
+                       true; // All visible at final step
+      
+      layoutNodes.push({
+        id: node.id || `node_${layer.index}_${nodeIdx}`,
+        position: [nodeX, nodeY, nodeZ],
+        width: nodeSize,
+        height: nodeSize,
+        depth: 0.3,
+        color: nodeColor,
+        label: node.label || layer.label,
+        layerIndex: layer.index,
+        nodeIndex: nodeIdx,
+        isActive: step >= 2 && !isPruned,
+        isPruned: isPruned,
+        isOutput: isOutput,
+        isInput: isInput,
+        layerType: layer.type,
+        isVisible: isVisible,
+        opacity: isPruned ? 0.3 : (isVisible ? 1.0 : 0.3)
+      });
+    });
+  });
+  
+  // Create connections - non-linear paths between layers
+  Object.values(layers).sort((a, b) => a.index - b.index).forEach((layer, layerIdx) => {
+    if (layerIdx < layerCount - 1) {
+      const nextLayer = Object.values(layers).sort((a, b) => a.index - b.index)[layerIdx + 1];
+      
+      layer.nodes.forEach((node, nodeIdx) => {
+        const sourceNode = layoutNodes.find(n => n.layerIndex === layer.index && n.nodeIndex === nodeIdx);
+        if (sourceNode) {
+          // Connect to nodes in next layer (create branching pattern)
+          nextLayer.nodes.forEach((nextNode, nextIdx) => {
+            const targetNode = layoutNodes.find(n => n.layerIndex === nextLayer.index && n.nodeIndex === nextIdx);
+            if (targetNode) {
+              // Connect with some branching (not just linear)
+              const shouldConnect = nextLayer.nodes.length === 1 || 
+                                   nodeIdx === nextIdx || 
+                                   Math.abs(nodeIdx - nextIdx) <= 1 ||
+                                   (nodeIdx === 0 && nextIdx === 0) ||
+                                   (nodeIdx === layer.nodes.length - 1 && nextIdx === nextLayer.nodes.length - 1);
+              
+              if (shouldConnect) {
+                const isPruned = step >= 4 && (sourceNode.isPruned || targetNode.isPruned);
+                const isVisible = step >= 2; // Connections visible from forward pass
+                
+                layoutConnections.push({
+                  start: new THREE.Vector3(...sourceNode.position),
+                  end: new THREE.Vector3(...targetNode.position),
+                  isActive: step >= 2 && !isPruned,
+                  isPruned: isPruned,
+                  strength: isPruned ? 0.2 : 0.7,
+                  isVisible: isVisible
+                });
+              }
+            }
+          });
+        }
+      });
+    }
+  });
+  
+  // Step-specific information (only show current step)
+  const stepInfo = {
+    0: { title: "Model Initialized", description: "All layers loaded and ready" },
+    1: { title: "Input Processing", description: "Processing input data through embedding layers" },
+    2: { title: "Forward Pass", description: "Data flowing through all layers" },
+    3: { title: "Knowledge Distillation", description: "Learning from teacher model" },
+    4: { title: "Pruning", description: "Removing redundant connections" },
+    5: { title: "Fine-tuning", description: "Recovering performance after pruning" },
+    6: { title: "Complete", description: "Model optimized and ready" }
+  };
+  
+  return { 
+    nodes: layoutNodes.filter(n => n.isVisible !== false), 
+    connections: layoutConnections.filter(c => c.isVisible !== false),
+    stepInfo: stepInfo[step] || stepInfo[0]
+  };
 }
 
 function Connection({ start, end, isActive = false, isPruned = false, strength = 1, pruningReason = "", sourceLayer = 0, targetLayer = 0 }) {
@@ -426,49 +1072,14 @@ function NeuralNetwork({ step, selectedModel, onNodeClick, metrics, displayName,
   const connections = [];
   let nodeId = 0;
   
-  // Use real model structure if available for uploaded models
+  // Use teacher-student distillation layout for uploaded models
   if (selectedModel === "uploaded_custom" && modelStructure && config.useRealStructure) {
-    // Use real nodes from backend
-    modelStructure.nodes.forEach((node, idx) => {
-      nodes.push({
-        id: nodeId++,
-        position: [node.x || idx * config.spacing, node.y || 0, node.z || 0],
-        color: node.color || config.colors[idx % config.colors.length],
-        isActive: step >= Math.floor((idx / modelStructure.nodes.length) * 6) + 1,
-        isPruned: step >= 4 && (idx >= Math.floor(modelStructure.nodes.length * 0.7)),
-        size: node.size || 0.3,
-        label: node.label || `L${idx + 1}`,
-        layerIndex: node.layerIndex !== undefined ? node.layerIndex : idx,
-        nodeIndex: idx,
-        pruningReason: step >= 4 && (idx >= Math.floor(modelStructure.nodes.length * 0.7)) ? "Pruned by ratio" : ""
-      });
-    });
-    
-    // Use real connections from backend
-    if (modelStructure.connections && modelStructure.connections.length > 0) {
-      modelStructure.connections.forEach((conn) => {
-        connections.push({
-          start: new THREE.Vector3(conn.source.x, conn.source.y, conn.source.z),
-          end: new THREE.Vector3(conn.target.x, conn.target.y, conn.target.z),
-          isActive: step >= 2,
-          isPruned: step >= 4,
-          strength: conn.strength || 0.7,
-          pruningReason: step >= 4 ? "Connection pruned" : ""
-        });
-      });
-    } else {
-      // Generate connections between consecutive nodes
-      for (let i = 0; i < nodes.length - 1; i++) {
-        connections.push({
-          start: new THREE.Vector3(...nodes[i].position),
-          end: new THREE.Vector3(...nodes[i + 1].position),
-          isActive: step >= 2,
-          isPruned: step >= 4,
-          strength: 0.7,
-          pruningReason: step >= 4 ? "Connection pruned" : ""
-        });
-      }
-    }
+    const modelLayout = createSimpleModelLayout(modelStructure, step, metrics);
+    nodes.push(...modelLayout.nodes);
+    connections.push(...modelLayout.connections);
+    // Store distillation flows and step info for display
+    window.distillationFlows = modelLayout.distillationFlows || [];
+    window.currentStepInfo = modelLayout.stepInfo;
   } else {
   
   // Dynamic pruning calculation based on computational analysis
@@ -713,6 +1324,131 @@ function NeuralNetwork({ step, selectedModel, onNodeClick, metrics, displayName,
          </Html>
        ))}
       
+      {/* Render Nodes and Connections - Hierarchical layout for uploaded models */}
+      {selectedModel === "uploaded_custom" && modelStructure && config.useRealStructure ? (
+        <>
+          {/* Current Step Display - Only show current step */}
+          {window.currentStepInfo && (
+            <Html position={[0, 6, 0]} center>
+              <div style={{
+                background: 'rgba(0, 0, 0, 0.9)',
+                color: 'white',
+                padding: '12px 20px',
+                borderRadius: '12px',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                textAlign: 'center',
+                border: '2px solid #4fc3f7',
+                boxShadow: '0 0 20px rgba(79, 195, 247, 0.5)',
+                minWidth: '300px',
+                pointerEvents: 'none'
+              }}>
+                <div style={{ fontSize: '18px', marginBottom: '4px' }}>
+                  {window.currentStepInfo.title}
+                </div>
+                <div style={{ fontSize: '13px', opacity: 0.9, fontWeight: 'normal' }}>
+                  {window.currentStepInfo.description}
+                </div>
+              </div>
+            </Html>
+          )}
+          
+          {/* Section Labels: Teacher | Distillation | Student */}
+          <Html position={[-12, 4, 0]} center>
+            <div style={{
+              background: 'rgba(0, 0, 0, 0.8)',
+              color: 'white',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              pointerEvents: 'none'
+            }}>
+              Teacher Model
+            </div>
+          </Html>
+          <Html position={[0, 4, 0]} center>
+            <div style={{
+              background: 'rgba(0, 0, 0, 0.8)',
+              color: 'white',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              pointerEvents: 'none'
+            }}>
+              Knowledge Transfer
+            </div>
+          </Html>
+          <Html position={[12, 4, 0]} center>
+            <div style={{
+              background: 'rgba(0, 0, 0, 0.8)',
+              color: 'white',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              pointerEvents: 'none'
+            }}>
+              Student Model
+            </div>
+          </Html>
+
+          {/* Render nodes - size based on importance */}
+          {nodes.map((node) => {
+            return (
+              <LayerBlock
+                key={node.id}
+                position={node.position}
+                width={node.width}
+                height={node.height}
+                depth={node.depth}
+                color={node.color}
+                label={node.label}
+                isActive={node.isActive}
+                isPruned={node.isPruned}
+                opacity={node.opacity !== undefined ? node.opacity : (node.isPruned ? 0.2 : 1)}
+                layerIndex={node.layerIndex}
+                isInput={node.isInput}
+                isOutput={node.isOutput}
+                onNodeClick={onNodeClick}
+              />
+            );
+          })}
+          
+          {/* Render connections with weight-based thickness */}
+          {connections.map((conn, idx) => {
+            return (
+              <DirectionalEdge
+                key={`edge-${idx}`}
+                start={conn.start}
+                end={conn.end}
+                isActive={conn.isActive}
+                isPruned={conn.isPruned}
+                strength={conn.strength || 0.8}
+                weight={conn.weight || conn.strength || 0.5}
+                isDotted={conn.isDotted || false}
+              />
+            );
+          })}
+          
+          {/* Render distillation flows (knowledge transfer arrows) */}
+          {window.distillationFlows && window.distillationFlows.map((flow, idx) => {
+            return (
+              <DistillationFlow
+                key={`flow-${idx}`}
+                start={flow.start}
+                end={flow.end}
+                controlPoint={flow.controlPoint}
+                isActive={flow.isActive}
+                strength={flow.strength}
+              />
+            );
+          })}
+        </>
+      ) : (
+        <>
+          {/* Standard visualization for baseline models */}
       {/* Connections */}
       {connections.map((conn, index) => (
         <Connection key={`conn-${index}`} {...conn} />
@@ -725,29 +1461,32 @@ function NeuralNetwork({ step, selectedModel, onNodeClick, metrics, displayName,
       
       {/* Data flow particles */}
       <DataFlow step={step} isActive={step >= 1 && step <= 3} seedKey={selectedModel || 'default-model-seed'} />
+        </>
+      )}
       
-             {/* Pruning Statistics */}
-       {step >= 4 && (
-         <Html position={[0, -5, 0]} center>
+          {/* Layer Labels - Clear labels for each layer */}
+          {selectedModel === "uploaded_custom" && modelStructure && config.useRealStructure && (
+            <>
+              {nodes.filter(n => n.isInput || n.isOutput || n.layerIndex % 2 === 0).map((node) => (
+                <Html key={`label-${node.id}`} position={[node.position[0], node.position[1] + node.height * 0.7, node.position[2]]} center>
            <div style={{
-             background: 'rgba(255, 0, 0, 0.95)',
+                    background: node.isInput ? 'rgba(76, 175, 80, 0.9)' : 
+                               node.isOutput ? 'rgba(33, 150, 243, 0.9)' : 
+                               'rgba(0, 0, 0, 0.7)',
              color: 'white',
-             padding: '16px 24px',
-             borderRadius: '20px',
-             fontSize: '16px',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
              fontWeight: 'bold',
-             textAlign: 'center',
-             border: '4px solid #ff0000',
-             boxShadow: '0 0 25px #ff0000',
-             minWidth: '250px',
-             pointerEvents: 'none'
-           }}>
-             🔴 PRUNING IN PROGRESS
-             <div style={{ fontSize: '14px', marginTop: '10px', opacity: 0.95 }}>
-               Removing redundant nodes and connections...
-             </div>
+                    whiteSpace: 'nowrap',
+                    pointerEvents: 'none',
+                    border: '1px solid rgba(255, 255, 255, 0.3)'
+                  }}>
+                    {node.label}
            </div>
          </Html>
+              ))}
+            </>
        )}
     </group>
   );
@@ -881,7 +1620,6 @@ const Visualization = () => {
   const [started, setStarted] = useState(false);
   const [step, setStep] = useState(0);
   const [autoPlay, setAutoPlay] = useState(false);
-  const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
   const [windowSize, setWindowSize] = useState({
     width: window.innerWidth,
     height: window.innerHeight
@@ -1204,22 +1942,116 @@ const Visualization = () => {
       <Layout style={{ minHeight: '100vh', background: '#f0f2f5' }}>
         <Content style={{ padding: "20px" }}>
           <div style={{ maxWidth: 1600, margin: '0 auto' }}>
-            <Row gutter={[24, 24]}>
-              {/* 3D Visualization Panel - Two simulations stacked (75% width) */}
-              <Col xs={24} lg={18}>
-                <Row gutter={[24, 24]}>
+            {/* Header Section: Page Type and Instructions */}
+            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+              {/* Page Type Section - Shows both Baseline and Uploaded Model */}
+              <Col xs={24}>
+                <Card style={{ borderRadius: '12px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%)' }}>
+                  <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                    <div style={{ fontSize: '20px', marginBottom: '12px' }}>🤖 Page Type</div>
+                    <Row gutter={[24, 16]}>
+                      {/* Baseline Model */}
+                      <Col xs={24} md={12}>
+                        <div style={{ padding: '12px', background: 'rgba(255, 255, 255, 0.6)', borderRadius: '8px' }}>
+                          <Title level={5} style={{ margin: '0 0 4px 0', color: '#1890ff' }}>
+                            🔵 Baseline Model
+                          </Title>
+                          <Title level={4} style={{ margin: 0, color: '#333' }}>
+                            {baselineSummary.label}
+                          </Title>
+                          <Paragraph style={{ margin: '4px 0 0 0', color: '#666', fontSize: '13px' }}>
+                            {getModelTypeLabel(selectedModel)}
+                          </Paragraph>
+                        </div>
+                      </Col>
+                      {/* Uploaded Model */}
+                      <Col xs={24} md={12}>
+                        <div style={{ padding: '12px', background: 'rgba(255, 255, 255, 0.6)', borderRadius: '8px' }}>
+                          <Title level={5} style={{ margin: '0 0 4px 0', color: '#ff6b35' }}>
+                            🧪 Uploaded Model
+                          </Title>
+                          {uploadedModelMeta ? (
+                            <>
+                              <Title level={4} style={{ margin: 0, color: '#333' }}>
+                                {uploadedModelMeta?.name || "Your Model"}
+                              </Title>
+                              <Paragraph style={{ margin: '4px 0 0 0', color: '#666', fontSize: '13px' }}>
+                                Trained & Compressed
+                              </Paragraph>
+                            </>
+                          ) : (
+                            <>
+                              <Title level={4} style={{ margin: 0, color: '#999' }}>
+                                Not Available
+                              </Title>
+                              <Paragraph style={{ margin: '4px 0 0 0', color: '#999', fontSize: '13px' }}>
+                                Upload a model on Training page
+                              </Paragraph>
+                            </>
+                          )}
+                        </div>
+                      </Col>
+                    </Row>
+                  </div>
+                </Card>
+              </Col>
+              {/* Instructions Section - Below Model Type */}
+              <Col xs={24}>
+                <Card style={{ borderRadius: '12px', background: 'linear-gradient(135deg, #fff7e6 0%, #fff2d9 100%)' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '20px', marginBottom: '8px' }}>📖 Instructions</div>
+                    <Title level={5} style={{ margin: '0 0 8px 0', color: '#d46b08' }}>
+                      How to Use
+                    </Title>
+                    <div style={{ fontSize: '13px', color: '#666', lineHeight: '1.6' }}>
+                      <div>🖱️ Mouse: Rotate view • Scroll: Zoom</div>
+                      <div>▶️ Auto-play or step manually</div>
+                    </div>
+                  </div>
+                </Card>
+              </Col>
+            </Row>
+
+            {/* Two Simulations Side-by-Side */}
+            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+              {/* Left: Baseline Model Simulation */}
+              <Col xs={24} lg={12}>
+                <Row gutter={[16, 16]}>
+                  {/* Step Guide Above Baseline Simulation */}
+                  {started && (
+                    <Col xs={24}>
+                      <Card style={{ 
+                        marginBottom: 16,
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #e6f7ff 0%, #f0f9ff 100%)',
+                        border: '2px solid #1890ff',
+                        textAlign: 'center'
+                      }}>
+                        <Title level={4} style={{ color: '#1890ff', marginBottom: 8 }}>
+                          🔵 Baseline Model: {baselineSummary.label}
+                        </Title>
+                        <Paragraph style={{ color: '#333', fontSize: '15px', marginBottom: 0 }}>
+                          <strong>Current Step:</strong> {stepInfo.title}
+                          <br />
+                          <span style={{ fontSize: '13px', opacity: 0.8 }}>{stepInfo.description}</span>
+                        </Paragraph>
+                      </Card>
+                    </Col>
+                  )}
+
                   {/* Top: Baseline Model */}
                   <Col xs={24}>
                     <Card 
                       className="visualization-container"
                       style={{ 
                         height: '75vh', 
-                        background: '#faf8f3', // Cream background
-                        border: 'none',
+                        background: '#ffffff',
+                        border: '1px solid #d9d9d9',
                         borderRadius: '12px',
                         overflow: 'hidden',
                         padding: 0,
-                        position: 'relative'
+                        position: 'relative',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
                       }}
                     >
                       <div style={{ 
@@ -1251,7 +2083,8 @@ const Visualization = () => {
                             Baseline Model View
                           </Title>
                           <Paragraph className="page-hero-subtitle" style={{ color: '#666', fontSize: '1.05rem', marginBottom: '20px', fontWeight: '400' }}>
-                            Visualize {baselineSummary.label} (system model) before compression.
+                            This is the <strong>{baselineSummary.label}</strong> baseline model - a pre-trained reference model that shows the original, uncompressed neural network structure. 
+                            Click below to visualize how it works and compare it with your trained model.
                           </Paragraph>
                           <Button 
                             type="primary" 
@@ -1280,7 +2113,7 @@ const Visualization = () => {
                           <Canvas
                             camera={{ position: [8, 4, 8], fov: 60, near: 0.01, far: 10000 }}
                             style={{ 
-                              background: 'linear-gradient(135deg, #faf8f3 0%, #f5f1e8 50%, #f0ebe0 100%)', // Cream gradient
+                              background: '#ffffff',
                               width: '100%',
                               height: '100%',
                               display: 'block'
@@ -1289,6 +2122,10 @@ const Visualization = () => {
                               antialias: true, 
                               alpha: false,
                               powerPreference: "high-performance"
+                            }}
+                            onCreated={({ gl, scene }) => {
+                              gl.setClearColor('#ffffff', 1);
+                              scene.background = new THREE.Color('#ffffff');
                             }}
                             dpr={Math.min(window.devicePixelRatio, 2)}
                           >
@@ -1327,19 +2164,47 @@ const Visualization = () => {
                       )}
                     </Card>
                   </Col>
+                </Row>
+                  </Col>
                   
-                  {/* Bottom: Uploaded Trained Model (75% width) */}
+              {/* Right: Uploaded Model Simulation */}
+              <Col xs={24} lg={12}>
+                <Row gutter={[16, 16]}>
+                  {/* Step Guide Above Uploaded Model Simulation */}
+                  {started && uploadedModelMeta && (
+                    <Col xs={24}>
+                      <Card style={{ 
+                        marginBottom: 16,
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #fff2f0 0%, #fff1f0 100%)',
+                        border: '2px solid #ff6b35',
+                        textAlign: 'center'
+                      }}>
+                        <Title level={4} style={{ color: '#ff6b35', marginBottom: 8 }}>
+                          🧪 Your Uploaded Model: {uploadedModelMeta?.name || "Your Model"}
+                        </Title>
+                        <Paragraph style={{ color: '#333', fontSize: '15px', marginBottom: 0 }}>
+                          <strong>Current Step:</strong> {stepInfo.title}
+                          <br />
+                          <span style={{ fontSize: '13px', opacity: 0.8 }}>{stepInfo.description}</span>
+                        </Paragraph>
+                      </Card>
+                    </Col>
+                  )}
+
+                  {/* Uploaded Model Simulation */}
                   <Col xs={24}>
                     <Card
                       className="visualization-container"
                       style={{
                         height: '75vh',
-                        background: '#faf8f3', // Cream background
-                        border: 'none',
+                        background: '#ffffff',
+                        border: '1px solid #d9d9d9',
                         borderRadius: '12px',
                         overflow: 'hidden',
                         padding: 0,
-                        position: 'relative'
+                        position: 'relative',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
                       }}
                     >
                       <div style={{ 
@@ -1384,9 +2249,10 @@ const Visualization = () => {
                           padding: '0 14px'
                         }}>
                           <div style={{ fontSize: '3rem', marginBottom: '12px', fontWeight: 'bold' }}>🧪</div>
-                          <Title level={4} style={{ color: '#ff6b35', marginBottom: 12 }}>{uploadedModelMeta?.name}</Title>
-                          <Paragraph style={{ color: '#666', marginBottom: 20 }}>
-                            Start the simulation to see the trained upload versus {baselineSummary.label}.
+                          <Title level={4} style={{ color: '#ff6b35', marginBottom: 12 }}>{uploadedModelMeta?.name || "Your Model"}</Title>
+                          <Paragraph style={{ color: '#666', marginBottom: 20, fontSize: '1.05rem', lineHeight: '1.6' }}>
+                            This is <strong>your uploaded model</strong> that has been trained with Knowledge Distillation and Pruning on the Training page. 
+                            It's the compressed, optimized version of your model. Click below to visualize how it compares to the baseline model above.
                           </Paragraph>
                           <Button
                             type="primary"
@@ -1415,7 +2281,7 @@ const Visualization = () => {
                           <Canvas
                             camera={{ position: [8, 4, 8], fov: 60, near: 0.01, far: 10000 }}
                             style={{
-                              background: 'linear-gradient(135deg, #faf8f3 0%, #f5f1e8 50%, #f0ebe0 100%)', // Cream gradient
+                              background: '#ffffff',
                               width: '100%',
                               height: '100%',
                               display: 'block'
@@ -1424,6 +2290,10 @@ const Visualization = () => {
                               antialias: true,
                               alpha: false,
                               powerPreference: "high-performance"
+                            }}
+                            onCreated={({ gl, scene }) => {
+                              gl.setClearColor('#ffffff', 1);
+                              scene.background = new THREE.Color('#ffffff');
                             }}
                             dpr={Math.min(window.devicePixelRatio, 2)}
                           >
@@ -1460,82 +2330,51 @@ const Visualization = () => {
                       )}
                     </Card>
                   </Col>
+
                 </Row>
               </Col>
+            </Row>
 
-              {/* Control Panel (25% width) */}
-              <Col xs={24} lg={6}>
-                <div style={{ height: '150vh', overflowY: 'auto' }}>
-                                     {started ? (
-                     <>
-                                               {/* Model Header */}
-                        <Card style={{ marginBottom: 16, borderRadius: '12px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%)' }}>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '24px', marginBottom: '8px' }}>Neural Network</div>
-                            <Title level={4} className="page-hero-title" style={{ margin: 0 }}>
-                              {selectedModel}
-                            </Title>
-                            <Paragraph style={{ margin: '8px 0 0 0', color: '#666', fontSize: '14px' }}>
-                              Neural Network Simulation
-                            </Paragraph>
-                          </div>
-                        </Card>
-                        
-                        {/* Instructions */}
-                        <Card style={{ marginBottom: 16, borderRadius: '12px', background: 'linear-gradient(135deg, #fff7e6 0%, #fff2d9 100%)' }}>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '20px', marginBottom: '8px' }}>Instructions</div>
-                            <Title level={5} style={{ margin: '0 0 8px 0', color: '#d46b08' }}>
-                              How to Use
-                            </Title>
-                            <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.4' }}>
-                              <div>Mouse: rotate • scroll: zoom</div>
-                              <div>Auto-play or step manually</div>
-                            </div>
-                          </div>
-                        </Card>
-                       
-                       {/* Step Information */}
-                       <Card style={{ marginBottom: 16, borderRadius: '12px' }}>
+            {/* Step Information - Below Simulations */}
+            {started && (
+              <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+                <Col xs={24}>
+                  <Card style={{ borderRadius: '12px', textAlign: 'center' }}>
                          <Title level={3} style={{ marginBottom: 8, color: '#1890ff' }}>
                            {stepInfo.title}
                          </Title>
-                        <Paragraph style={{ color: '#666', marginBottom: 8 }}>
-                          {stepInfo.subtitle}
-                        </Paragraph>
-                        <Paragraph style={{ fontSize: '13px', lineHeight: '1.5', marginBottom: 8 }}>
+                    <Paragraph style={{ fontSize: '15px', color: '#666', marginBottom: 16 }}>
                           {stepInfo.description}
                         </Paragraph>
-                        
-                        <Divider style={{ margin: '16px 0' }} />
-                        
-                        <div style={{ marginBottom: 12 }}>
-                          <AntText strong style={{ color: '#52c41a' }}>Visual Hint:</AntText>
-                          <Paragraph style={{ fontSize: '12px', color: '#666', marginTop: 4 }}>
-                            {stepInfo.visualHint}
-                          </Paragraph>
+                    <Progress 
+                      percent={((step + 1) / 7) * 100} 
+                      status="active"
+                      strokeColor={{
+                        '0%': '#108ee9',
+                        '100%': '#87d068',
+                      }}
+                      style={{ maxWidth: '600px', margin: '0 auto' }}
+                    />
+                    <div style={{ textAlign: 'center', marginTop: 8, fontSize: '14px', color: '#666' }}>
+                      Step {step + 1} of 7
                         </div>
-
-                        {showTechnicalDetails && (
-                          <div style={{ marginTop: 16 }}>
-                            <AntText strong style={{ color: '#722ed1' }}>Technical Details:</AntText>
-                            <ul style={{ fontSize: '12px', color: '#666', marginTop: 8 }}>
-                              {stepInfo.technicalDetails.map((detail, index) => (
-                                <li key={index}>{detail}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
                       </Card>
+                </Col>
+              </Row>
+            )}
 
-                      {/* Controls */}
-                      <Card style={{ marginBottom: 16, borderRadius: '12px' }}>
-                        <Space direction="vertical" style={{ width: '100%' }}>
+            {/* Control Buttons - Below Step Info */}
+            {started && (
+              <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+                <Col xs={24}>
+                  <Card style={{ borderRadius: '12px', background: '#ffffff', border: '1px solid #d9d9d9' }}>
+                    <Space direction="vertical" style={{ width: '100%' }} size="middle">
                           <div style={{ display: 'flex', gap: 8 }}>
                             <Button 
                               onClick={prevStep} 
                               disabled={step === 0}
                               style={{ flex: 1 }}
+                          size="large"
                             >
                               Previous
                             </Button>
@@ -1544,6 +2383,7 @@ const Visualization = () => {
                               disabled={step === 6}
                               type="primary"
                               style={{ flex: 1 }}
+                          size="large"
                             >
                               Next
                             </Button>
@@ -1553,6 +2393,7 @@ const Visualization = () => {
                              onClick={() => setAutoPlay(!autoPlay)}
                              type={autoPlay ? "default" : "primary"}
                              style={{ width: '100%' }}
+                        size="large"
                            >
                              {autoPlay ? 'Stop Auto-play' : 'Start Auto-play'}
                            </Button>
@@ -1560,307 +2401,296 @@ const Visualization = () => {
                           <Button 
                             onClick={resetSimulation}
                             style={{ width: '100%' }}
+                        size="large"
                           >
                             Reset Simulation
                           </Button>
-                          
-                          <Button 
-                            onClick={() => setShowTechnicalDetails(!showTechnicalDetails)}
-                            type="dashed"
-                            style={{ width: '100%' }}
-                          >
-                            {showTechnicalDetails ? 'Hide' : 'Show'} Technical Details
-                          </Button>
-                          
-                          <Button 
-                            onClick={() => navigate('/training')}
-                            type="default"
-                            style={{ width: '100%' }}
-                          >
-                            Back to Training
-                          </Button>
-
-                          {/* Visualization clarity controls simplified */}
-                          <Divider style={{ margin: '8px 0' }} />
-                          {/* Focus layer and camera reset removed */}
                         </Space>
                       </Card>
+                </Col>
+              </Row>
+            )}
 
-                      {/* Enhanced Node Explanation Panel */}
-                      {selectedNode && (
-                        <Card style={{ marginBottom: 16, borderRadius: '12px', background: 'linear-gradient(135deg, #e6f7ff 0%, #f0f9ff 100%)' }}>
-                          <Title level={5} style={{ color: '#1890ff', marginBottom: 16 }}>
-                             Node Analysis: {selectedNode.label}
-                          </Title>
-                          
-                          <div style={{ fontSize: '13px', color: '#333', lineHeight: '1.6' }}>
-                            <div style={{ marginBottom: '12px', padding: '8px', background: '#f0f9ff', borderRadius: '6px', border: '1px solid #91d5ff' }}>
-                              <strong> Layer Position:</strong> Layer {selectedNode.layerIndex + 1} of 4
+            {/* Comparison Sections - Below Controls */}
+            {started && uploadedModelMeta && metricsSource && (
+              <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+                <Col xs={24}>
+                  <Row gutter={[16, 16]}>
+                    {/* Quick Model Comparison */}
+                    <Col xs={24} lg={12}>
+                      <Card style={{ marginBottom: 16, borderRadius: '12px' }}>
+                        <Collapse
+                          items={[{
+                            key: '1',
+                            label: <Title level={5} style={{ margin: 0 }}>📊 Quick Model Comparison</Title>,
+                            children: (
+                              <div>
+                                <div style={{ marginBottom: 16 }}>
+                                  <AntText strong style={{ fontSize: '13px', color: '#1890ff' }}>Baseline Model ({baselineSummary.label}):</AntText>
+                                  <ul style={{ fontSize: '12px', color: '#666', marginTop: 6, paddingLeft: 18 }}>
+                                    <li>{baselineSummary.architecture}</li>
+                                    <li>{baselineSummary.parameters}</li>
+                                  </ul>
                             </div>
-                            
-                            <div style={{ marginBottom: '12px', padding: '8px', background: selectedNode.isPruned ? '#fff2f0' : '#f6ffed', borderRadius: '6px', border: `1px solid ${selectedNode.isPruned ? '#ffccc7' : '#b7eb8f'}` }}>
-                              <strong>🔧 Status:</strong> {selectedNode.isPruned ? '❌ Pruned (Removed)' : '✅ Active (Working)'}
-                            </div>
-                            
-                            {selectedNode.isPruned && selectedNode.pruningReason && (
-                              <div style={{ marginBottom: '12px', padding: '8px', background: '#fff2f0', borderRadius: '6px', border: '1px solid #ffccc7' }}>
-                                <strong> Pruning Reason:</strong> {selectedNode.pruningReason}
-                              </div>
-                            )}
-                            
                             <Divider style={{ margin: '12px 0' }} />
-                            
-                            <div style={{ marginBottom: '12px' }}>
-                              <strong style={{ color: '#1890ff' }}> Educational Explanation:</strong>
-                            </div>
-                            
-                            <div style={{ fontSize: '12px', lineHeight: '1.5', color: '#555' }}>
-                              {getNodeExplanation(selectedNode)}
-                            </div>
-                            
-                            <Divider style={{ margin: '12px 0' }} />
-                            
-                            <div style={{ fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
-                              <strong>💡 Learning Tip:</strong> {
-                                selectedNode.isPruned 
-                                  ? "Pruned nodes show how neural networks can be made more efficient by removing unnecessary parts while maintaining performance."
-                                  : selectedNode.layerIndex === 0
-                                    ? "Input nodes are the 'eyes' of the neural network - they see and process the raw data."
-                                    : selectedNode.layerIndex === 3
-                                      ? "Output nodes are the 'brain' of the neural network - they make the final decisions."
-                                      : "Hidden nodes are the 'thinking' part of the neural network - they process and transform information."
-                              }
+                                <div>
+                                  <AntText strong style={{ fontSize: '13px', color: '#ff6b35' }}>Your Uploaded Model ({uploadedModelMeta?.name || "Your Model"}):</AntText>
+                                  <ul style={{ fontSize: '12px', color: '#666', marginTop: 6, paddingLeft: 18 }}>
+                                    {studentMetrics?.num_params && (
+                                      <li>Parameters: {studentMetrics.num_params.toLocaleString?.() || studentMetrics.num_params}</li>
+                                    )}
+                                    {studentMetrics?.size_mb && (
+                                      <li>Size: {studentMetrics.size_mb} MB (compressed)</li>
+                                    )}
+                                    {studentMetrics?.latency_ms && (
+                                      <li>Latency: {studentMetrics.latency_ms} ms (faster)</li>
+                                    )}
+                                  </ul>
                             </div>
                           </div>
-                          
-                          <Button 
-                            onClick={() => setSelectedNode(null)}
-                            size="small"
-                            style={{ width: '100%', marginTop: '12px' }}
-                          >
-                            Close Analysis
-                          </Button>
-                        </Card>
-                      )}
-
-                      {/* Progress */}
-                      <Card style={{ marginBottom: 16, borderRadius: '12px' }}>
-                        <Title level={5} style={{ marginBottom: 12 }}>Simulation Progress</Title>
-                        <Progress 
-                          percent={((step + 1) / 7) * 100} 
-                          status="active"
-                          strokeColor={{
-                            '0%': '#108ee9',
-                            '100%': '#87d068',
-                          }}
+                            )
+                          }]}
                         />
-                        <div style={{ textAlign: 'center', marginTop: 8, fontSize: '12px', color: '#666' }}>
-                          Step {step + 1} of 7
-                        </div>
                       </Card>
+                    </Col>
 
                       {/* Visualization Legend */}
+                    <Col xs={24} lg={12}>
                       <Card style={{ marginBottom: 16, borderRadius: '12px' }}>
-                        <Title level={5} style={{ marginBottom: 12 }}>What You're Seeing</Title>
-                        <div style={{ fontSize: '12px', color: '#666' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                            <div style={{ 
-                              width: '12px', 
-                              height: '12px', 
-                              borderRadius: '50%', 
-                              backgroundColor: '#4fc3f7', 
-                              marginRight: '8px' 
-                            }}></div>
-                            <span>Working nodes</span>
+                        <Collapse
+                          items={[{
+                            key: '1',
+                            label: <Title level={5} style={{ margin: 0 }}>📖 Visualization Legend</Title>,
+                            children: (
+                              <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.8' }}>
+                                <div style={{ marginBottom: 8 }}>
+                                  <strong style={{ color: '#4fc3f7' }}>🔵 Blue nodes:</strong> Active layers processing data
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                            <div style={{ 
-                              width: '12px', 
-                              height: '12px', 
-                              borderRadius: '50%', 
-                              backgroundColor: '#ff4444', 
-                              marginRight: '8px' 
-                            }}></div>
-                            <span>Removed nodes</span>
+                                <div style={{ marginBottom: 8 }}>
+                                  <strong style={{ color: '#ff4444' }}>🔴 Red nodes:</strong> Pruned (removed) layers after compression
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                            <div style={{ 
-                              width: '12px', 
-                              height: '12px', 
-                              borderRadius: '50%', 
-                              backgroundColor: '#888', 
-                              marginRight: '8px' 
-                            }}></div>
-                            <span>Working connections</span>
+                                <div style={{ marginBottom: 8 }}>
+                                  <strong style={{ color: '#888' }}>⚪ Gray lines:</strong> Active connections between layers
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                            <div style={{ 
-                              width: '12px', 
-                              height: '12px', 
-                              borderRadius: '50%', 
-                              backgroundColor: '#ff0000', 
-                              marginRight: '8px' 
-                            }}></div>
-                            <span>Removed connections</span>
+                                <div style={{ marginBottom: 0 }}>
+                                  <strong style={{ color: '#ff0000' }}>🔴 Red lines:</strong> Pruned (removed) connections
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                            <div style={{ 
-                              width: '12px', 
-                              height: '12px', 
-                              borderRadius: '50%', 
-                              backgroundColor: '#666', 
-                              marginRight: '8px' 
-                            }}></div>
-                            <span>Inactive nodes</span>
                           </div>
-                        </div>
-                        <Divider style={{ margin: '12px 0' }} />
-                        <div style={{ fontSize: '11px', color: '#999' }}>
-                          <strong>Labels:</strong><br />
-                          • N1-1, N1-2: First layer<br />
-                          • N2-1, N2-2: Second layer<br />
-                          • Red labels show why parts were removed
-                        </div>
+                            )
+                          }]}
+                        />
                       </Card>
+                    </Col>
+                  </Row>
+                </Col>
+              </Row>
+            )}
 
-                      {/* Training Results (always visible if available) */}
-                      { (vizMetrics || metrics || persistedResults) && (
-                        <Card style={{ borderRadius: '12px', background: 'linear-gradient(135deg, #f6ffed 0%, #f0f9ff 100%)' }}>
-                          <Title level={4} style={{ color: '#52c41a', marginBottom: 16 }}>
-                            Compression Results
+            {/* Key Differences Section - Below Comparison Sections */}
+            {started && uploadedModelMeta && metricsSource && (
+              <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+                <Col xs={24}>
+                  <Card style={{ 
+                    marginBottom: 16,
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #fff7e6 0%, #fff1d9 100%)',
+                    border: '2px solid #faad14'
+                  }}>
+                    <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                      <Title level={4} style={{ color: '#faad14', marginBottom: 4 }}>
+                        ⚖️ Key Differences
                           </Title>
-
-                          {/* Display Evaluation Metrics (4 Categories) */}
-                          {(vizMetrics || metrics || persistedResults)?.evaluation_metrics && (
-                            <div style={{ marginBottom: 16 }}>
-                              <Title level={5} style={{ color: '#52c41a', marginBottom: 12 }}>
-                                📊 Evaluation Metrics (4 Categories)
+                      <Paragraph style={{ color: '#666', fontSize: '12px' }}>
+                        Baseline vs Your Uploaded Model
+                      </Paragraph>
+                    </div>
+                    
+                    <Row gutter={[12, 12]}>
+                      {/* Accuracy Comparison */}
+                      {metricsSource?.teacher_vs_student?.comparison?.accuracy && (
+                        <Col xs={24} md={8}>
+                          <Card size="small" style={{ 
+                            background: 'linear-gradient(135deg, #f6ffed 0%, #f0f9ff 100%)',
+                            border: '1px solid #52c41a'
+                          }}>
+                            <Title level={5} style={{ color: '#52c41a', marginBottom: 8, textAlign: 'center', fontSize: '14px' }}>
+                              📊 Accuracy
                               </Title>
-                              <Row gutter={[8, 8]}>
-                                {Object.entries((vizMetrics || metrics || persistedResults).evaluation_metrics).map(([category, metrics]) => (
-                                  <Col span={6} key={category}>
-                                    <Card size="small" style={{ height: '100%', background: '#f6ffed' }}>
-                                      <Title level={6} style={{ color: '#1890ff', marginBottom: 8, fontSize: '12px' }}>
-                                        {category.charAt(0).toUpperCase() + category.slice(1)}
-                                      </Title>
-                                      {metrics.map((metric, index) => (
-                                        <div key={index} style={{ marginBottom: 4, fontSize: '10px' }}>
-                                          <div style={{ fontWeight: 'bold', color: '#666' }}>{metric.metric}</div>
-                                          <div style={{ color: '#52c41a' }}>
-                                            {metric.before} → {metric.after}
+                            <div style={{ textAlign: 'center', marginBottom: 4 }}>
+                              <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
+                                Baseline: {metricsSource.teacher_vs_student.comparison.accuracy.teacher}
                                           </div>
+                              <div style={{ fontSize: '13px', color: '#666', marginTop: 2 }}>
+                                Your Model: {metricsSource.teacher_vs_student.comparison.accuracy.student}
                                         </div>
-                                      ))}
+                              <div style={{ 
+                                fontSize: '15px', 
+                                fontWeight: 'bold', 
+                                color: '#52c41a',
+                                marginTop: 6
+                              }}>
+                                {metricsSource.teacher_vs_student.comparison.accuracy.difference}
+                              </div>
+                            </div>
+                            <Paragraph style={{ fontSize: '11px', color: '#666', textAlign: 'center', margin: 0 }}>
+                              {metricsSource.teacher_vs_student.comparison.accuracy.explanation}
+                            </Paragraph>
                                     </Card>
                                   </Col>
-                                ))}
-                              </Row>
-                            </div>
-                          )}
-
-                          {(vizMetrics || metrics || persistedResults)?.model_performance && (
-                            <div style={{ marginBottom: 16 }}>
-                              <Row gutter={8}>
-                                <Col span={12}>
-                                  <div style={{ textAlign: 'center', padding: '12px', background: '#f6ffed', borderRadius: '8px' }}>
-                                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#52c41a' }}>
-                                      {(vizMetrics || metrics || persistedResults)?.model_performance?.metrics?.accuracy || 'N/A'}
-                                    </div>
-                                    <div style={{ fontSize: '12px', color: '#666' }}>Accuracy</div>
-                                  </div>
-                                </Col>
-                                <Col span={12}>
-                                  <div style={{ textAlign: 'center', padding: '12px', background: '#fff7e6', borderRadius: '8px' }}>
-                                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#fa8c16' }}>
-                                      {(vizMetrics || metrics || persistedResults)?.model_performance?.metrics?.size_mb || 'N/A'}
-                                    </div>
-                                    <div style={{ fontSize: '12px', color: '#666' }}>Size (MB)</div>
-                                  </div>
-                                </Col>
-                              </Row>
-                            </div>
-                          )}
-
-                          <Alert
-                            message="Simulation Complete!"
-                            description="You've successfully witnessed the complete Knowledge Distillation and Pruning process in 3D."
-                            type="success"
-                            showIcon
-                          />
-                        </Card>
                       )}
-                                             {/* Pruning Statistics */}
-                       {step >= 4 && (
-                         <Card style={{ marginBottom: 16, borderRadius: '12px', background: 'linear-gradient(135deg, #fff2f0 0%, #fff1f0 100%)' }}>
-                           <Title level={5} style={{ color: '#cf1322', marginBottom: 12 }}>Dynamic Pruning Results</Title>
-                           <div style={{ fontSize: '12px', color: '#666' }}>
-                             <Row gutter={8} style={{ marginBottom: '8px' }}>
-                               <Col span={12}>
-                                 <div style={{ textAlign: 'center', padding: '8px', background: '#fff2f0', borderRadius: '6px', border: '1px solid #ffccc7' }}>
-                                   <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#cf1322' }}>
-                                     {calculatePruningStats().nodePercentage}%
+
+                      {/* Model Size Comparison */}
+                      {metricsSource?.teacher_vs_student?.comparison?.model_size && (
+                        <Col xs={24} md={8}>
+                          <Card size="small" style={{ 
+                            background: 'linear-gradient(135deg, #f6ffed 0%, #f0f9ff 100%)',
+                            border: '1px solid #52c41a'
+                          }}>
+                            <Title level={5} style={{ color: '#52c41a', marginBottom: 8, textAlign: 'center', fontSize: '14px' }}>
+                              💾 Model Size
+                            </Title>
+                            <div style={{ textAlign: 'center', marginBottom: 4 }}>
+                              <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
+                                Baseline: {metricsSource.teacher_vs_student.comparison.model_size.teacher}
+                                    </div>
+                              <div style={{ fontSize: '13px', color: '#666', marginTop: 2 }}>
+                                Your Model: {metricsSource.teacher_vs_student.comparison.model_size.student}
+                                  </div>
+                              <div style={{ 
+                                fontSize: '15px', 
+                                fontWeight: 'bold', 
+                                color: '#52c41a',
+                                marginTop: 6
+                              }}>
+                                {metricsSource.teacher_vs_student.comparison.model_size.difference}
+                                    </div>
+                                  </div>
+                            <Paragraph style={{ fontSize: '11px', color: '#666', textAlign: 'center', margin: 0 }}>
+                              {metricsSource.teacher_vs_student.comparison.model_size.explanation}
+                            </Paragraph>
+                          </Card>
+                                </Col>
+                      )}
+
+                      {/* Inference Speed Comparison */}
+                      {metricsSource?.teacher_vs_student?.comparison?.inference_speed && (
+                        <Col xs={24} md={8}>
+                          <Card size="small" style={{ 
+                            background: 'linear-gradient(135deg, #fff2f0 0%, #fff1f0 100%)',
+                            border: '1px solid #ff6b35'
+                          }}>
+                            <Title level={5} style={{ color: '#ff6b35', marginBottom: 8, textAlign: 'center', fontSize: '14px' }}>
+                              ⚡ Inference Speed
+                            </Title>
+                            <div style={{ textAlign: 'center', marginBottom: 4 }}>
+                              <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
+                                Baseline: {metricsSource.teacher_vs_student.comparison.inference_speed.teacher}
                                    </div>
-                                   <div style={{ fontSize: '10px', color: '#666' }}>Nodes Cut</div>
+                              <div style={{ fontSize: '13px', color: '#666', marginTop: 2 }}>
+                                Your Model: {metricsSource.teacher_vs_student.comparison.inference_speed.student}
                                  </div>
-                               </Col>
-                               <Col span={12}>
-                                 <div style={{ textAlign: 'center', padding: '8px', background: '#fff2f0', borderRadius: '6px', border: '1px solid #ffccc7' }}>
-                                   <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#cf1322' }}>
-                                     {calculatePruningStats().connectionPercentage}%
+                              <div style={{ 
+                                fontSize: '15px', 
+                                fontWeight: 'bold', 
+                                color: '#52c41a',
+                                marginTop: 6
+                              }}>
+                                {metricsSource.teacher_vs_student.comparison.inference_speed.difference}
                                    </div>
-                                   <div style={{ fontSize: '10px', color: '#666' }}>Connections Cut</div>
                                  </div>
+                            <Paragraph style={{ fontSize: '11px', color: '#666', textAlign: 'center', margin: 0 }}>
+                              {metricsSource.teacher_vs_student.comparison.inference_speed.explanation}
+                            </Paragraph>
+                          </Card>
                                </Col>
+                      )}
                              </Row>
-                             
-                             <div style={{ marginTop: '12px' }}>
-                               <div style={{ fontSize: '11px', color: '#cf1322', fontWeight: 'bold', marginBottom: '6px' }}>
-                                 Pruning Strategy for {selectedModel}:
-                               </div>
-                               <div style={{ fontSize: '10px', color: '#666', marginBottom: '8px' }}>
-                                 <strong>Threshold:</strong> {calculatePruningStats().threshold}%<br />
-                                 <strong>Method:</strong> {calculatePruningStats().method}
-                               </div>
-                               <div style={{ fontSize: '11px', color: '#cf1322', fontWeight: 'bold', marginBottom: '6px' }}>
-                                 Why These Parts Were Removed:
-                               </div>
-                               <ul style={{ fontSize: '10px', color: '#666', margin: 0, paddingLeft: '16px' }}>
-                                 <li>Low activation scores</li>
-                                 <li>Weak weight magnitudes</li>
-                                 <li>Poor gradient flow</li>
-                                 <li>Redundant features</li>
-                                 <li>Edge position penalties</li>
-                               </ul>
-                             </div>
-                           </div>
                          </Card>
-                       )}
-                    </>
-                  ) : (
-                    <Card style={{ borderRadius: '12px' }}>
-                      <Title level={4}>3D Neural Network Demo</Title>
-                      <Paragraph>
-                        Watch your model in action:
+                </Col>
+              </Row>
+            )}
+
+            {/* Understanding the Differences - Step by Step (One at a time) - Below Key Differences */}
+            {started && uploadedModelMeta && metricsSource && (
+              <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+                <Col xs={24}>
+                  <Card style={{ 
+                    borderRadius: '12px',
+                    background: step === 0 ? 'rgba(230, 247, 255, 0.5)' :
+                                step === 1 ? 'rgba(230, 247, 255, 0.5)' :
+                                step === 2 ? 'rgba(230, 247, 255, 0.5)' :
+                                step === 3 ? 'rgba(255, 242, 240, 0.5)' :
+                                step === 4 ? 'rgba(255, 242, 240, 0.5)' :
+                                step === 5 ? 'rgba(246, 255, 237, 0.5)' :
+                                'rgba(246, 255, 237, 0.5)',
+                    border: '1px solid #d9d9d9'
+                  }}>
+                    <Title level={5} style={{ marginBottom: 8, fontSize: '14px' }}>
+                      📋 Understanding the Differences - Step {step + 1}
+                    </Title>
+                    {step === 0 && (
+                      <Paragraph style={{ color: '#333', fontSize: '13px', lineHeight: '1.6', marginBottom: 0 }}>
+                        <strong>Baseline Model (Left) - The "Teacher":</strong> The original, uncompressed reference model ({baselineSummary.label}). 
+                        This is the "teacher" model that serves as the performance benchmark. It's larger, has more parameters ({baselineSummary.parameters}), 
+                        and represents the model before any compression techniques were applied.
                       </Paragraph>
-                      <ul style={{ fontSize: '14px', color: '#666' }}>
-                        <li>See the network structure</li>
-                        <li>Watch data flow through</li>
-                        <li>See parts get removed</li>
-                        <li>Check the results</li>
-                        <li>Learn step by step</li>
-                      </ul>
-                      <Divider />
-                      <Paragraph style={{ fontSize: '12px', color: '#999' }}>
-                        <strong>How to use:</strong><br />
-                        • Mouse: Move the 3D view around<br />
-                        • Auto-play: Watch everything automatically<br />
-                        • Manual: Go step by step
+                    )}
+                    {step === 1 && (
+                      <Paragraph style={{ color: '#333', fontSize: '13px', lineHeight: '1.6', marginBottom: 0 }}>
+                        <strong>Processing Input:</strong> Both models are processing the same input data. The baseline model processes it through all its 
+                        uncompressed layers, showing the full computational path.
                       </Paragraph>
-                    </Card>
-                  )}
-                </div>
+                    )}
+                    {step === 2 && (
+                      <Paragraph style={{ color: '#333', fontSize: '13px', lineHeight: '1.6', marginBottom: 0 }}>
+                        <strong>Forward Pass:</strong> Data flows through all layers in both models. Notice how the baseline model has more connections 
+                        and nodes compared to your uploaded model.
+                      </Paragraph>
+                    )}
+                    {step === 3 && (
+                      <Paragraph style={{ color: '#333', fontSize: '13px', lineHeight: '1.6', marginBottom: 0 }}>
+                        <strong>Knowledge Distillation:</strong> Your uploaded model learned from the baseline teacher model. This is where it captured 
+                        the teacher's knowledge and confidence levels, not just correct answers.
+                      </Paragraph>
+                    )}
+                    {step === 4 && (
+                      <Paragraph style={{ color: '#333', fontSize: '13px', lineHeight: '1.6', marginBottom: 0 }}>
+                        <strong>Pruning:</strong> Your uploaded model ({uploadedModelMeta?.name || "Your Model"}) had {metricsSource?.pruning_analysis?.pruning_details?.pruning_ratio || '30%'} of unnecessary weights removed. 
+                        Notice the red nodes/connections showing what was pruned. This makes it smaller and faster.
+                      </Paragraph>
+                    )}
+                    {step === 5 && (
+                      <Paragraph style={{ color: '#333', fontSize: '13px', lineHeight: '1.6', marginBottom: 0 }}>
+                        <strong>Fine-tuning:</strong> Your model is being fine-tuned after pruning to recover performance. The compressed model adjusts 
+                        to its new, smaller structure.
+                      </Paragraph>
+                    )}
+                    {step === 6 && (
+                      <Paragraph style={{ color: '#333', fontSize: '13px', lineHeight: '1.6', marginBottom: 0 }}>
+                        <strong>Key Takeaway:</strong> Compression techniques (KD + Pruning) reduced your model's size and improved inference speed 
+                        while preserving accuracy. Compare the metrics above to see the improvements!
+                      </Paragraph>
+                    )}
+                  </Card>
               </Col>
             </Row>
+            )}
+          </div>
+
+          {/* Back to Training Button at Bottom */}
+          <div style={{ textAlign: 'center', marginTop: '40px', marginBottom: '20px' }}>
+            <Button 
+              onClick={() => navigate('/training')}
+              type="default"
+              size="large"
+              style={{ 
+                padding: '0 40px',
+                height: '48px',
+                fontSize: '16px'
+              }}
+            >
+              Back to Training
+            </Button>
           </div>
         </Content>
       </Layout>

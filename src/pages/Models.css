@@ -150,3 +150,48 @@ h1 {
         gap: 6px;
     }
 }
+
+/* Ensure all text in "How Metrics Are Computed" section is black */
+.card[style*="background: #ffffff"] .card-body,
+.card[style*="background: #ffffff"] .card-body *,
+.card[style*="background: #ffffff"] .card-body p,
+.card[style*="background: #ffffff"] .card-body strong,
+.card[style*="background: #ffffff"] .card-body ul,
+.card[style*="background: #ffffff"] .card-body li,
+.card[style*="background: #ffffff"] .card-body code,
+.card[style*="background: #ffffff"] .card-body div {
+    color: #000000 !important;
+}
+
+/* Accordion headers and body text - force black */
+.card[style*="background: #ffffff"] .accordion-button,
+.card[style*="background: #ffffff"] .accordion-button:not(.collapsed),
+.card[style*="background: #ffffff"] .accordion-button::after,
+.card[style*="background: #ffffff"] .accordion-body,
+.card[style*="background: #ffffff"] .accordion-body *,
+.card[style*="background: #ffffff"] .accordion-body p,
+.card[style*="background: #ffffff"] .accordion-body strong,
+.card[style*="background: #ffffff"] .accordion-body ul,
+.card[style*="background: #ffffff"] .accordion-body li,
+.card[style*="background: #ffffff"] .accordion-body code,
+.card[style*="background: #ffffff"] .accordion-body div {
+    color: #000000 !important;
+}
+
+/* Ensure formulas and code blocks are black */
+.card[style*="background: #ffffff"] .accordion-body code {
+    color: #000000 !important;
+    background: #f5f5f5 !important;
+}
+
+/* Override any Bootstrap default colors for accordion in metrics section */
+.card[style*="border: 2px solid #1890ff"] .accordion-item,
+.card[style*="border: 2px solid #1890ff"] .accordion-button,
+.card[style*="border: 2px solid #1890ff"] .accordion-body {
+    color: #000000 !important;
+}
+
+.card[style*="border: 2px solid #1890ff"] .accordion-button *,
+.card[style*="border: 2px solid #1890ff"] .accordion-body * {
+    color: #000000 !important;
+}

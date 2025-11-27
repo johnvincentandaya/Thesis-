@@ -1181,6 +1181,26 @@ const renderEducationalMetrics = (metrics) => {
     localStorage.removeItem("kd_uploaded_model_meta");
   };
 
+  const resetForNewTraining = () => {
+    // Clear uploaded model
+    clearUploadedModel();
+    // Reset training state
+    setTraining(false);
+    setTrainingComplete(false);
+    setTrainingError(null);
+    setProgress(0);
+    setCurrentLoss(null);
+    setTrainingPhase(null);
+    setTrainingMessage(null);
+    setMetrics(null);
+    setComputationDetails(null);
+    // Clear persisted results
+    clearPersistedResult();
+    // Scroll to top to show upload section
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    message.success("Ready to train a new model. Please upload your model file.");
+  };
+
   
 
   // On mount, restore all state from persistedResult if available and not currently training, and only if user has started training before
@@ -1826,9 +1846,26 @@ const renderEducationalMetrics = (metrics) => {
                         type="file"
                         accept=".pt,.pth,.bin,.json,.config,.ckpt"
                         onChange={handleCustomModelUpload}
-                        disabled={uploadingFile || training || !selectedModel}
-                        style={{ width: '100%', margin: '8px 0', padding: '8px', border: '1px solid #d9d9d9', borderRadius: '4px' }}
+                        disabled={uploadingFile || training || !selectedModel || (uploadedModelPath !== null)}
+                        style={{ 
+                          width: '100%', 
+                          margin: '8px 0', 
+                          padding: '8px', 
+                          border: '1px solid #d9d9d9', 
+                          borderRadius: '4px',
+                          opacity: (uploadedModelPath !== null) ? 0.6 : 1,
+                          cursor: (uploadedModelPath !== null) ? 'not-allowed' : 'pointer'
+                        }}
                       />
+                      {(uploadedModelPath !== null) && (
+                        <Alert
+                          style={{ marginTop: 12 }}
+                          type="info"
+                          showIcon
+                          message="Upload disabled"
+                          description="A model has already been uploaded. Click 'Remove Uploaded Model' or 'Train Another Model' to upload a different model."
+                        />
+                      )}
                       <small style={{ color: '#999' }}>Maximum upload size: 500MB</small>
                       {!selectedModel && (
                         <Alert
@@ -2054,28 +2091,28 @@ const renderEducationalMetrics = (metrics) => {
 
                           return (
                             <>
-                              <Paragraph style={{ color: '#94a3b8' }}>
+                              <Paragraph style={{ color: '#000000' }}>
                                 Baseline metrics for {baselineLabel} come from fixed KD + pruning runs. Your uploaded model is distilled, pruned,
                                 and then compared against that reference using the required evaluation formulas.
                               </Paragraph>
                               <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', color: '#e6f4ff' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', color: '#000000' }}>
                                   <thead>
                                     <tr>
-                                      <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.12)' }}>Metric</th>
-                                      <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.12)' }}>{baselineLabel} (Reference)</th>
-                                      <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.12)' }}>{uploadedModelName || "Uploaded Model"}</th>
+                                      <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid rgba(0, 0, 0, 0.2)', color: '#000000', fontWeight: 'bold' }}>Metric</th>
+                                      <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid rgba(0, 0, 0, 0.2)', color: '#000000', fontWeight: 'bold' }}>{baselineLabel} (Reference)</th>
+                                      <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid rgba(0, 0, 0, 0.2)', color: '#000000', fontWeight: 'bold' }}>{uploadedModelName || "Uploaded Model (Training Results)"}</th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     {comparisonRows.map((row) => (
                                       <tr key={row.key}>
-                                        <td style={{ padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                          <strong>{row.label}</strong>
-                                          <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: 4 }}>{row.formula}</div>
+                                        <td style={{ padding: '12px', borderBottom: '1px solid rgba(0, 0, 0, 0.1)', color: '#000000' }}>
+                                          <strong style={{ color: '#000000' }}>{row.label}</strong>
+                                          <div style={{ fontSize: '12px', color: '#333333', marginTop: 4 }}>{row.formula}</div>
                                         </td>
-                                        <td style={{ padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>{row.baseline}</td>
-                                        <td style={{ padding: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>{row.uploaded}</td>
+                                        <td style={{ padding: '12px', borderBottom: '1px solid rgba(0, 0, 0, 0.1)', color: '#000000' }}>{row.baseline}</td>
+                                        <td style={{ padding: '12px', borderBottom: '1px solid rgba(0, 0, 0, 0.1)', color: '#000000' }}>{row.uploaded}</td>
                                       </tr>
                                     ))}
                                   </tbody>
@@ -2216,6 +2253,61 @@ const renderEducationalMetrics = (metrics) => {
                   showIcon
                   style={{ marginTop: 24 }}
                 />
+              </Col>
+            </Row>
+          )}
+
+          {/* Action Buttons at Bottom of Page - only show after training is complete */}
+          {(trainingComplete && metrics && !trainingError) && (
+            <Row justify="center" style={{ marginTop: 40, marginBottom: 40 }}>
+              <Col xs={24} sm={20} md={16} lg={12} xl={10}>
+                <Card
+                  style={{
+                    borderRadius: '16px',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                    textAlign: 'center'
+                  }}
+                >
+                  <Title level={4} style={{ marginBottom: 20 }}>
+                    Next Steps
+                  </Title>
+                  <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <Button
+                      type="default"
+                      size="large"
+                      onClick={resetForNewTraining}
+                      style={{
+                        borderRadius: 999,
+                        padding: '0 32px',
+                        fontWeight: 500,
+                        height: 45
+                      }}
+                    >
+                      Train Another Model
+                    </Button>
+                    <Button
+                      type="primary"
+                      size="large"
+                      icon={<ArrowRightOutlined />}
+                      onClick={() => navigate("/visualization", {
+                        state: {
+                          fromTraining: true,
+                          selectedModel,
+                          uploadedModelName,
+                          latestMetrics: metrics
+                        }
+                      })}
+                      style={{
+                        borderRadius: 999,
+                        padding: '0 32px',
+                        fontWeight: 500,
+                        height: 45
+                      }}
+                    >
+                      Proceed to Visualization
+                    </Button>
+                  </div>
+                </Card>
               </Col>
             </Row>
           )}
