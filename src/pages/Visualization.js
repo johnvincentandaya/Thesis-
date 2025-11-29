@@ -2428,7 +2428,7 @@ const Visualization = () => {
                         <Collapse
                           items={[{
                             key: '1',
-                            label: <Title level={5} style={{ margin: 0 }}>📊 Quick Model Comparison</Title>,
+                            label: <Title level={5} style={{ margin: 0 }}> Quick Model Comparison</Title>,
                             children: (
                               <div>
                                 <div style={{ marginBottom: 16 }}>
@@ -2466,7 +2466,7 @@ const Visualization = () => {
                         <Collapse
                           items={[{
                             key: '1',
-                            label: <Title level={5} style={{ margin: 0 }}>📖 Visualization Legend</Title>,
+                            label: <Title level={5} style={{ margin: 0 }}> Visualization Legend</Title>,
                             children: (
                               <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.8' }}>
                                 <div style={{ marginBottom: 8 }}>
@@ -2504,7 +2504,7 @@ const Visualization = () => {
                   }}>
                     <div style={{ textAlign: 'center', marginBottom: 16 }}>
                       <Title level={4} style={{ color: '#faad14', marginBottom: 4 }}>
-                        ⚖️ Key Differences
+                         Key Differences
                           </Title>
                       <Paragraph style={{ color: '#666', fontSize: '12px' }}>
                         Baseline vs Your Uploaded Model
@@ -2520,7 +2520,7 @@ const Visualization = () => {
                             border: '1px solid #52c41a'
                           }}>
                             <Title level={5} style={{ color: '#52c41a', marginBottom: 8, textAlign: 'center', fontSize: '14px' }}>
-                              📊 Accuracy
+                               Accuracy
                               </Title>
                             <div style={{ textAlign: 'center', marginBottom: 4 }}>
                               <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
@@ -2553,7 +2553,7 @@ const Visualization = () => {
                             border: '1px solid #52c41a'
                           }}>
                             <Title level={5} style={{ color: '#52c41a', marginBottom: 8, textAlign: 'center', fontSize: '14px' }}>
-                              💾 Model Size
+                               Model Size
                             </Title>
                             <div style={{ textAlign: 'center', marginBottom: 4 }}>
                               <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
@@ -2586,7 +2586,7 @@ const Visualization = () => {
                             border: '1px solid #ff6b35'
                           }}>
                             <Title level={5} style={{ color: '#ff6b35', marginBottom: 8, textAlign: 'center', fontSize: '14px' }}>
-                              ⚡ Inference Speed
+                              Inference Speed
                             </Title>
                             <div style={{ textAlign: 'center', marginBottom: 4 }}>
                               <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
@@ -2632,7 +2632,7 @@ const Visualization = () => {
                     border: '1px solid #d9d9d9'
                   }}>
                     <Title level={5} style={{ marginBottom: 8, fontSize: '14px' }}>
-                      📋 Understanding the Differences - Step {step + 1}
+                       Understanding the Differences - Step {step + 1}
                     </Title>
                     {step === 0 && (
                       <Paragraph style={{ color: '#333', fontSize: '13px', lineHeight: '1.6', marginBottom: 0 }}>
