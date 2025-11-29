@@ -1954,7 +1954,7 @@ const Visualization = () => {
               <Col xs={24}>
                 <Card style={{ borderRadius: '12px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%)' }}>
                   <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                    <div style={{ fontSize: '20px', marginBottom: '12px' }}>🤖 Page Type</div>
+                    <div style={{ fontSize: '20px', marginBottom: '12px' }}> Page Type</div>
                     <Row gutter={[24, 16]}>
                       {/* Baseline Model */}
                       <Col xs={24} md={12}>
@@ -2005,13 +2005,13 @@ const Visualization = () => {
               <Col xs={24}>
                 <Card style={{ borderRadius: '12px', background: 'linear-gradient(135deg, #fff7e6 0%, #fff2d9 100%)' }}>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '20px', marginBottom: '8px' }}>📖 Instructions</div>
+                    <div style={{ fontSize: '20px', marginBottom: '8px' }}> Instructions</div>
                     <Title level={5} style={{ margin: '0 0 8px 0', color: '#d46b08' }}>
                       How to Use
                     </Title>
                     <div style={{ fontSize: '13px', color: '#666', lineHeight: '1.6' }}>
-                      <div>🖱️ Mouse: Rotate view • Scroll: Zoom</div>
-                      <div>▶️ Auto-play or step manually</div>
+                      <div> Mouse: Rotate view • Scroll: Zoom</div>
+                      <div> Auto-play or step manually</div>
                     </div>
                   </div>
                 </Card>
@@ -2084,7 +2084,7 @@ const Visualization = () => {
                           textAlign: 'center',
                           padding: '0 12px'
                         }}>
-                          <div style={{ fontSize: '3rem', marginBottom: '12px', fontWeight: 'bold' }}>🧠</div>
+                          <div style={{ fontSize: '3rem', marginBottom: '12px', fontWeight: 'bold' }}></div>
                           <Title level={2} className="page-hero-title" style={{ marginBottom: '12px', color: '#333' }}>
                             Baseline Model View
                           </Title>
@@ -2254,7 +2254,7 @@ const Visualization = () => {
                           textAlign: 'center',
                           padding: '0 14px'
                         }}>
-                          <div style={{ fontSize: '3rem', marginBottom: '12px', fontWeight: 'bold' }}>🧪</div>
+                          <div style={{ fontSize: '3rem', marginBottom: '12px', fontWeight: 'bold' }}></div>
                           <Title level={4} style={{ color: '#ff6b35', marginBottom: 12 }}>{uploadedModelMeta?.name || "Your Model"}</Title>
                           <Paragraph style={{ color: '#666', marginBottom: 20, fontSize: '1.05rem', lineHeight: '1.6' }}>
                             This is <strong>your uploaded model</strong> that has been trained with Knowledge Distillation and Pruning on the Training page. 

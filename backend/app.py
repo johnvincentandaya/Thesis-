@@ -3281,13 +3281,12 @@ def model_info():
             # Return specific model info
             info = trained_models.get(model_name)
             if not info:
-                # Fallback to static info if training failed
                 info = get_builtin_model_info(model_name)
-                if not info:
-                    return jsonify({
-                        "success": False,
-                        "error": f"Model '{model_name}' not found in builtin models."
-                    }), 404
+            if not info:
+                return jsonify({
+                    "success": False,
+                    "error": f"Model '{model_name}' not found in builtin models."
+                }), 404
             return jsonify({
                 "success": True,
                 "data": info
@@ -3295,7 +3294,6 @@ def model_info():
         else:
             # Return all trained models info
             if not trained_models:
-                # Fallback to static if training completely failed
                 return jsonify({
                     "success": True,
                     "data": BUILTIN_MODELS_INFO,
