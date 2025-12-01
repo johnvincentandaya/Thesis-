@@ -31,6 +31,7 @@
   cursor: pointer;
   transition: all 0.3s ease;
   background: white;
+  color: #000!important;
 }
 
 .option-item:hover {
@@ -58,7 +59,10 @@
   font-size: 14px;
   line-height: 1.5;
   margin-left: 8px;
+  color: #000!important;
 }
+
+
 
 /* Progress Bar Animation */
 .progress {
