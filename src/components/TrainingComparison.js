@@ -31,7 +31,7 @@ const TrainingComparison = ({ computationDetails, socket }) => {
     <div className="training-comparison-container">
       {/* Header with hardware info */}
       <div className="comparison-header">
-        <h2 className="comparison-title">📊 Model Performance Comparison</h2>
+        <h2 className="comparison-title">Model Performance Comparison</h2>
         <div className="hardware-info">
           <span className="hw-device">
             Device: <strong>{hardware?.device || 'Unknown'}</strong>
@@ -50,7 +50,7 @@ const TrainingComparison = ({ computationDetails, socket }) => {
         {/* Uploaded Model Card */}
         <div className="model-card uploaded-card">
           <div className="card-header uploaded-header">
-            <h3 className="card-title">📤 Uploaded Model</h3>
+            <h3 className="card-title">Uploaded Model</h3>
             <span className="card-subtitle">(After KD + Pruning)</span>
             {uploaded_model_name && (
               <div className="model-name">{uploaded_model_name}</div>
@@ -128,7 +128,7 @@ const TrainingComparison = ({ computationDetails, socket }) => {
         {baseline_reference && (
           <div className="model-card baseline-card">
             <div className="card-header baseline-header">
-              <h3 className="card-title">📌 Baseline Reference</h3>
+              <h3 className="card-title">Baseline Reference</h3>
               <span className="card-subtitle">(Pretrained, No Training)</span>
               {baseline_model_name && (
                 <div className="model-name">{baseline_model_name}</div>

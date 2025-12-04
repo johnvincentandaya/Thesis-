@@ -29,17 +29,17 @@ end
 
 % Check if exports directory exists
 if isempty(exports_dir) || ~exist(exports_dir, 'dir')
-    fprintf('❌ Exports directory not found in any of these locations:\n');
+    fprintf('Exports directory not found in any of these locations:\n');
     for i = 1:length(possible_paths)
         fprintf('   - %s\n', possible_paths{i});
     end
-    fprintf('\n📋 To fix this:\n');
+    fprintf('\nTo fix this:\n');
     fprintf('1. Run your Python backend first: python app.py\n');
     fprintf('2. Train at least one model in the web interface\n');
     fprintf('3. Upload the generated JSON files to MATLAB Online\n');
     fprintf('4. Place them in a folder called "exports"\n');
     fprintf('5. Run this script again\n\n');
-    fprintf('💡 Alternative: Run quick_start for basic testing without Python data\n');
+    fprintf('Alternative: Run quick_start for basic testing without Python data\n');
     return;
 end
 
@@ -47,7 +47,7 @@ end
 json_files = dir(fullfile(exports_dir, '*.json'));
 
 if isempty(json_files)
-    fprintf('❌ No JSON files found in exports directory.\n');
+    fprintf('No JSON files found in exports directory.\n');
     fprintf('   Please run Python backend training first.\n');
     return;
 end
@@ -85,7 +85,7 @@ for i = 1:length(json_files)
         fprintf('   - Latency Improvement: %.1f%%\n', compression.latency_improvement_percent);
         
     catch ME
-        fprintf('❌ Error loading %s: %s\n', json_files(i).name, ME.message);
+        fprintf('Error loading %s: %s\n', json_files(i).name, ME.message);
     end
 end
 
@@ -121,7 +121,7 @@ for model_idx = 1:length(models_to_test)
         fprintf('   - Latency Improvement: %.1f%%\n', metrics.improvements.latency_improvement_percent);
         
     catch ME
-        fprintf('❌ Error testing MATLAB %s: %s\n', model_name, ME.message);
+        fprintf('Error testing MATLAB %s: %s\n', model_name, ME.message);
     end
 end
 
@@ -182,13 +182,13 @@ for model_idx = 1:length(models_to_test)
         
         % Overall assessment
         if size_diff < 5 && latency_diff < 10 && acc_diff < 5
-            fprintf('✅ Results are CONSISTENT between Python and MATLAB\n');
+            fprintf('Results are CONSISTENT between Python and MATLAB\n');
         else
-            fprintf('⚠️  Results show some DIFFERENCES between Python and MATLAB\n');
+            fprintf('Results show some DIFFERENCES between Python and MATLAB\n');
         end
         
     else
-        fprintf('❌ Missing data for %s comparison\n', model_name);
+        fprintf('Missing data for %s comparison\n', model_name);
     end
 end
 
@@ -200,7 +200,7 @@ create_comparison_plots(comparison_results);
 
 % Save comparison results
 save('python_matlab_comparison.mat', 'python_results', 'matlab_results', 'comparison_results');
-fprintf('✅ Comparison results saved to python_matlab_comparison.mat\n');
+fprintf('Comparison results saved to python_matlab_comparison.mat\n');
 
 fprintf('\n=== Comparison Complete ===\n');
 fprintf('This analysis helps validate that your MATLAB implementation\n');
@@ -413,5 +413,5 @@ function create_comparison_plots(comparison_results)
     
     % Save the plot
     saveas(gcf, 'python_matlab_comparison.png');
-    fprintf('✅ Comparison plots saved as python_matlab_comparison.png\n');
+    fprintf('Comparison plots saved as python_matlab_comparison.png\n');
 end

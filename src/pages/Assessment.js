@@ -458,7 +458,7 @@ function Assessment() {
               </div>
               {score >= passingScore ? (
                 <div style={{ color: '#52c41a', fontWeight: 'bold', fontSize: '1.2rem', marginTop: 16 }}>
-                  🎉 Congratulations! You passed the assessment!
+                  Congratulations! You passed the assessment!
                 </div>
               ) : (
                 <div style={{ color: '#ff4d4f', fontWeight: 'bold', fontSize: '1.2rem', marginTop: 16 }}>
@@ -480,7 +480,7 @@ function Assessment() {
                 return (
                   <Card className="mb-4 shadow-sm">
                     <Card.Body className="text-center">
-                      <h5 className="fw-bold mb-3 text-success">🎉 Perfect Score!</h5>
+                      <h5 className="fw-bold mb-3 text-success">Perfect Score!</h5>
                       <p className="text-muted">You got all questions correct! Great job!</p>
                     </Card.Body>
                   </Card>

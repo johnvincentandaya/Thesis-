@@ -24,9 +24,9 @@ const getSocketURL = () => {
 export const SOCKET_URL = getSocketURL();
 
 // Debug logging for mobile connectivity
-console.log('🔗 Socket URL:', SOCKET_URL);
-console.log('📱 User Agent:', navigator.userAgent);
-console.log('🌐 Location:', window.location.href);
+console.log('Socket URL:', SOCKET_URL);
+console.log('User Agent:', navigator.userAgent);
+console.log('Location:', window.location.href);
 
 // Enhanced socket configuration for maximum stability and mobile compatibility
 export const socket = io(SOCKET_URL, {
@@ -64,7 +64,7 @@ let connectionState = {
 
 // Enhanced connection error handling
 socket.on('connect', () => {
-  console.log('✅ Socket.IO connected successfully');
+  console.log('Socket.IO connected successfully');
   connectionState.isConnected = true;
   connectionState.reconnectAttempts = 0;
   connectionState.lastConnected = new Date();
@@ -75,7 +75,7 @@ socket.on('connect', () => {
 });
 
 socket.on('disconnect', (reason) => {
-  console.log('❌ Socket.IO disconnected:', reason);
+  console.log('Socket.IO disconnected:', reason);
   connectionState.isConnected = false;
   
   // Don't show alerts for intentional disconnections
@@ -91,7 +91,7 @@ socket.on('disconnect', (reason) => {
 });
 
 socket.on('connect_error', (error) => {
-  console.error('❌ Socket.IO connection error:', error);
+  console.error('Socket.IO connection error:', error);
   connectionState.connectionErrors.push({
     error: error.message,
     timestamp: new Date().toISOString()
@@ -106,7 +106,7 @@ socket.on('connect_error', (error) => {
 });
 
 socket.on('connect_timeout', () => {
-  console.error('⏰ Socket.IO connection timeout');
+  console.error('Socket.IO connection timeout');
   connectionState.connectionErrors.push({
     error: 'Connection timeout',
     timestamp: new Date().toISOString()
@@ -118,7 +118,7 @@ socket.on('connect_timeout', () => {
 });
 
 socket.on('reconnect', (attemptNumber) => {
-  console.log(`🔄 Socket.IO reconnected after ${attemptNumber} attempts`);
+  console.log(`Socket.IO reconnected after ${attemptNumber} attempts`);
   connectionState.isConnected = true;
   connectionState.reconnectAttempts = attemptNumber;
   connectionState.lastConnected = new Date();
@@ -130,12 +130,12 @@ socket.on('reconnect', (attemptNumber) => {
 });
 
 socket.on('reconnect_attempt', (attemptNumber) => {
-  console.log(`🔄 Socket.IO reconnection attempt ${attemptNumber}`);
+  console.log(`Socket.IO reconnection attempt ${attemptNumber}`);
   connectionState.reconnectAttempts = attemptNumber;
 });
 
 socket.on('reconnect_failed', () => {
-  console.error('❌ Socket.IO reconnection failed after all attempts');
+  console.error('Socket.IO reconnection failed after all attempts');
   connectionState.isConnected = false;
   
   if (typeof window !== 'undefined' && window.alert) {
@@ -168,12 +168,12 @@ socket.on('disconnect', () => {
 
 // Handle pong responses
 socket.on('pong', (data) => {
-  console.log('🏓 Received pong from server:', data);
+  console.log('Received pong from server:', data);
 });
 
 // Enhanced error handling for socket events
 socket.on('error', (error) => {
-  console.error('❌ Socket.IO error:', error);
+  console.error('Socket.IO error:', error);
   connectionState.connectionErrors.push({
     error: error.message || 'Unknown error',
     timestamp: new Date().toISOString()
@@ -192,7 +192,7 @@ export const checkConnectionHealth = () => {
 
 // Manual reconnection function
 export const forceReconnect = () => {
-  console.log('🔄 Forcing socket reconnection...');
+  console.log('Forcing socket reconnection...');
   socket.disconnect();
   setTimeout(() => {
     socket.connect();
@@ -202,16 +202,16 @@ export const forceReconnect = () => {
 // Mobile-specific connection test
 export const testMobileConnection = async () => {
   try {
-    console.log('🧪 Testing mobile connection to:', SOCKET_URL);
+    console.log('Testing mobile connection to:', SOCKET_URL);
     const response = await fetch(`${SOCKET_URL}/test`, {
       method: 'GET',
       timeout: 10000
     });
     const data = await response.json();
-    console.log('✅ Mobile connection test successful:', data);
+    console.log('Mobile connection test successful:', data);
     return { success: true, data };
   } catch (error) {
-    console.error('❌ Mobile connection test failed:', error);
+    console.error('Mobile connection test failed:', error);
     return { success: false, error: error.message };
   }
 };

@@ -146,7 +146,7 @@ const MetricsDisplay = ({ beforeMetrics, afterMetrics, loading }) => {
         )
       },
       {
-        title: 'Before (Teacher)',
+        title: 'Before',
         dataIndex: 'before',
         key: 'before',
         render: (text, record) => {
@@ -158,13 +158,47 @@ const MetricsDisplay = ({ beforeMetrics, afterMetrics, loading }) => {
         }
       },
       {
-        title: 'After (Student)',
+        title: 'After KD',
+        dataIndex: 'after_kd',
+        key: 'after_kd',
+        render: (text, record) => {
+          if (!text || text === 'N/A') return <Text type="secondary">-</Text>;
+          const color = record.key === 'model_complexity' 
+            ? getComplexityColor(text)
+            : getMetricColor(record.key, text);
+          return <Tag color={color}>{text}</Tag>;
+        }
+      },
+      {
+        title: 'After',
         dataIndex: 'after',
         key: 'after',
         render: (text, record) => {
           const color = record.key === 'model_complexity' 
             ? getComplexityColor(text)
             : getMetricColor(record.key, text);
+          return <Tag color={color}>{text}</Tag>;
+        }
+      },
+      {
+        title: 'KD Change',
+        dataIndex: 'kd_change',
+        key: 'kd_change',
+        render: (text, record) => {
+          if (!text || text === 'N/A' || text === '0.00%' || text === '0') return <Text type="secondary">-</Text>;
+          const numValue = parseFloat(text.replace(/[+,%]/g, ''));
+          const color = numValue > 0 ? 'green' : numValue < 0 ? 'red' : 'blue';
+          return <Tag color={color}>{text}</Tag>;
+        }
+      },
+      {
+        title: 'Pruning Change',
+        dataIndex: 'pruning_change',
+        key: 'pruning_change',
+        render: (text, record) => {
+          if (!text || text === 'N/A' || text === '0.00%' || text === '0') return <Text type="secondary">-</Text>;
+          const numValue = parseFloat(text.replace(/[+,%]/g, ''));
+          const color = numValue > 0 ? 'green' : numValue < 0 ? 'red' : 'blue';
           return <Tag color={color}>{text}</Tag>;
         }
       },

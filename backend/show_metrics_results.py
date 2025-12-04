@@ -59,10 +59,10 @@ def show_metrics_results():
             print("SYSTEM STATUS: FULLY FUNCTIONAL WITH AUTHENTIC METRICS!")
             
         else:
-            print(f"❌ Error: {response.status_code} - {response.text}")
+            print(f"Error: {response.status_code} - {response.text}")
             
     except Exception as e:
-        print(f"❌ Error connecting to backend: {e}")
+        print(f"Error connecting to backend: {e}")
         print("Make sure the backend is running on port 5001")
 
 if __name__ == "__main__":

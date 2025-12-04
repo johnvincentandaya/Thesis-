@@ -19,15 +19,15 @@ required_files = {
 missing_files = {};
 for i = 1:length(required_files)
     if exist(required_files{i}, 'file')
-        fprintf('   ✅ %s\n', required_files{i});
+        fprintf('   %s\n', required_files{i});
     else
-        fprintf('   ❌ %s (MISSING)\n', required_files{i});
+        fprintf('   %s (MISSING)\n', required_files{i});
         missing_files{end+1} = required_files{i};
     end
 end
 
 if ~isempty(missing_files)
-    fprintf('\n❌ Missing files detected. Please upload all required files.\n');
+    fprintf('\nMissing files detected. Please upload all required files.\n');
     return;
 end
 
@@ -55,18 +55,18 @@ try
     % Test function call (without actually running it)
     fprintf('   Testing simplified_kd_pruning function...\n');
     % [student, metrics] = simplified_kd_pruning(test_model, test_data, 0.3);
-    fprintf('   ✅ simplified_kd_pruning.m - Syntax OK\n');
+    fprintf('   simplified_kd_pruning.m - Syntax OK\n');
 catch ME
-    fprintf('   ❌ simplified_kd_pruning.m - Error: %s\n', ME.message);
+    fprintf('   simplified_kd_pruning.m - Error: %s\n', ME.message);
 end
 
 % Test kd_pruning_algorithm
 try
     fprintf('   Testing kd_pruning_algorithm function...\n');
     % [student, metrics] = kd_pruning_algorithm(test_model, test_data, 0.3, 2.0, 3);
-    fprintf('   ✅ kd_pruning_algorithm.m - Syntax OK\n');
+    fprintf('   kd_pruning_algorithm.m - Syntax OK\n');
 catch ME
-    fprintf('   ❌ kd_pruning_algorithm.m - Error: %s\n', ME.message);
+    fprintf('   kd_pruning_algorithm.m - Error: %s\n', ME.message);
 end
 
 %% Test 3: Check for Deep Learning Toolbox Dependencies
@@ -74,10 +74,10 @@ fprintf('\n3. Checking for Deep Learning Toolbox dependencies...\n');
 
 % Check if Deep Learning Toolbox is available
 if license('test', 'Deep_Learning_Toolbox')
-    fprintf('   ✅ Deep Learning Toolbox is available\n');
+    fprintf('   Deep Learning Toolbox is available\n');
     has_dlt = true;
 else
-    fprintf('   ⚠️  Deep Learning Toolbox not available - using simplified versions\n');
+    fprintf('   Deep Learning Toolbox not available - using simplified versions\n');
     has_dlt = false;
 end
 
@@ -87,12 +87,12 @@ for i = 1:length(problematic_functions)
     func_name = problematic_functions{i};
     if exist(func_name, 'builtin') || exist(func_name, 'file')
         if strcmp(func_name, 'copy') && ~has_dlt
-            fprintf('   ⚠️  %s function found but may not work without Deep Learning Toolbox\n', func_name);
+            fprintf('   %s function found but may not work without Deep Learning Toolbox\n', func_name);
         else
-            fprintf('   ✅ %s function available\n', func_name);
+            fprintf('   %s function available\n', func_name);
         end
     else
-        fprintf('   ✅ %s function not found (good for basic MATLAB)\n', func_name);
+        fprintf('   %s function not found (good for basic MATLAB)\n', func_name);
     end
 end
 
@@ -106,7 +106,7 @@ try
     
     % Check if results are reasonable
     if isstruct(student_model) && isstruct(metrics)
-        fprintf('   ✅ simplified_kd_pruning works correctly\n');
+        fprintf('   simplified_kd_pruning works correctly\n');
         fprintf('      - Student model created: %s\n', class(student_model));
         fprintf('      - Metrics calculated: %s\n', class(metrics));
         
@@ -116,11 +116,11 @@ try
             fprintf('      - Parameter reduction: %.1f%%\n', metrics.improvements.param_reduction_percent);
         end
     else
-        fprintf('   ❌ simplified_kd_pruning returned invalid results\n');
+        fprintf('   simplified_kd_pruning returned invalid results\n');
     end
     
 catch ME
-    fprintf('   ❌ simplified_kd_pruning failed: %s\n', ME.message);
+    fprintf('   simplified_kd_pruning failed: %s\n', ME.message);
 end
 
 %% Test 5: Test Full Version (if Deep Learning Toolbox available)
@@ -128,13 +128,13 @@ if has_dlt
     fprintf('\n5. Testing full version with Deep Learning Toolbox...\n');
     try
         [student_model_full, metrics_full] = kd_pruning_algorithm(test_model, test_data, 0.3, 2.0, 3);
-        fprintf('   ✅ kd_pruning_algorithm works correctly\n');
+        fprintf('   kd_pruning_algorithm works correctly\n');
     catch ME
-        fprintf('   ❌ kd_pruning_algorithm failed: %s\n', ME.message);
+        fprintf('   kd_pruning_algorithm failed: %s\n', ME.message);
     end
 else
     fprintf('\n5. Skipping full version test (Deep Learning Toolbox not available)\n');
-    fprintf('   ✅ This is expected - simplified version will be used\n');
+    fprintf('   This is expected - simplified version will be used\n');
 end
 
 %% Test 6: Test Script Files
@@ -144,34 +144,34 @@ fprintf('\n6. Testing script files...\n');
 try
     fprintf('   Testing quick_start.m syntax...\n');
     % We can't actually run it interactively, but we can check syntax
-    fprintf('   ✅ quick_start.m - Ready to run\n');
+    fprintf('   quick_start.m - Ready to run\n');
 catch ME
-    fprintf('   ❌ quick_start.m - Error: %s\n', ME.message);
+    fprintf('   quick_start.m - Error: %s\n', ME.message);
 end
 
 % Test test_kd_pruning.m
 try
     fprintf('   Testing test_kd_pruning.m syntax...\n');
-    fprintf('   ✅ test_kd_pruning.m - Ready to run\n');
+    fprintf('   test_kd_pruning.m - Ready to run\n');
 catch ME
-    fprintf('   ❌ test_kd_pruning.m - Error: %s\n', ME.message);
+    fprintf('   test_kd_pruning.m - Error: %s\n', ME.message);
 end
 
 % Test compare_python_results.m
 try
     fprintf('   Testing compare_python_results.m syntax...\n');
-    fprintf('   ✅ compare_python_results.m - Ready to run\n');
+    fprintf('   compare_python_results.m - Ready to run\n');
 catch ME
-    fprintf('   ❌ compare_python_results.m - Error: %s\n', ME.message);
+    fprintf('   compare_python_results.m - Error: %s\n', ME.message);
 end
 
 %% Test 7: Check JSON Support
 fprintf('\n7. Checking JSON support...\n');
 
 if exist('jsondecode', 'builtin')
-    fprintf('   ✅ jsondecode function available (MATLAB R2016b+)\n');
+    fprintf('   jsondecode function available (MATLAB R2016b+)\n');
 else
-    fprintf('   ❌ jsondecode not available - need MATLAB R2016b or later\n');
+    fprintf('   jsondecode not available - need MATLAB R2016b or later\n');
 end
 
 %% Summary
@@ -183,45 +183,45 @@ total_tests = 6;
 
 if isempty(missing_files)
     success_count = success_count + 1;
-    fprintf('✅ All required files present\n');
+    fprintf('All required files present\n');
 else
-    fprintf('❌ Some files missing\n');
+    fprintf('Some files missing\n');
 end
 
 if exist('jsondecode', 'builtin')
     success_count = success_count + 1;
-    fprintf('✅ JSON support available\n');
+    fprintf('JSON support available\n');
 else
-    fprintf('❌ JSON support missing\n');
+    fprintf('JSON support missing\n');
 end
 
 % Test if basic functionality works
 try
     [~, ~] = simplified_kd_pruning(test_model, test_data, 0.3);
     success_count = success_count + 1;
-    fprintf('✅ Basic KD-pruning functionality works\n');
+    fprintf('Basic KD-pruning functionality works\n');
 catch
-    fprintf('❌ Basic KD-pruning functionality failed\n');
+    fprintf('Basic KD-pruning functionality failed\n');
 end
 
 if has_dlt
     success_count = success_count + 1;
-    fprintf('✅ Deep Learning Toolbox available\n');
+    fprintf('Deep Learning Toolbox available\n');
 else
     success_count = success_count + 1;
-    fprintf('✅ Simplified version will work without Deep Learning Toolbox\n');
+    fprintf('Simplified version will work without Deep Learning Toolbox\n');
 end
 
 fprintf('\nOverall Status: %d/%d tests passed\n', success_count, total_tests);
 
 if success_count >= 4
-    fprintf('\n🎉 All MATLAB files are ready for your study!\n');
+    fprintf('\nAll MATLAB files are ready for your study!\n');
     fprintf('\nNext steps:\n');
     fprintf('1. Run: quick_start\n');
     fprintf('2. Or run: compare_python_results (after uploading Python JSON files)\n');
     fprintf('3. Or run: test_kd_pruning\n');
 else
-    fprintf('\n⚠️  Some issues detected. Please check the errors above.\n');
+    fprintf('\nSome issues detected. Please check the errors above.\n');
 end
 
 fprintf('\n=== Test Complete ===\n');

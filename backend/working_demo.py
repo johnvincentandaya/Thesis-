@@ -16,21 +16,21 @@ def working_metrics_demo():
     print("=" * 80)
     
     # Test with ResNet18
-    print("\n🔍 Testing ResNet-18 Real Metrics Computation...")
+    print("\nTesting ResNet-18 Real Metrics Computation...")
     print("-" * 50)
     
     try:
         from torchvision.models import resnet18
         
         # Load models
-        print("📥 Loading models...")
+        print("Loading models...")
         teacher_model = resnet18(pretrained=True)
         student_model = resnet18()  # Smaller version
         
-        print("✅ Models loaded successfully!")
+        print("Models loaded successfully!")
         
         # 1. Parameter Count (Real computation)
-        print("\n1️⃣ PARAMETER COUNT COMPUTATION:")
+        print("\n1. PARAMETER COUNT COMPUTATION:")
         print("-" * 30)
         teacher_params = sum(p.numel() for p in teacher_model.parameters())
         student_params = sum(p.numel() for p in student_model.parameters())
@@ -40,7 +40,7 @@ def working_metrics_demo():
         print(f"Parameter Reduction: {((teacher_params - student_params) / teacher_params * 100):.1f}%")
         
         # 2. Model Size (Real computation using parameters)
-        print("\n2️⃣ MODEL SIZE COMPUTATION:")
+        print("\n2. MODEL SIZE COMPUTATION:")
         print("-" * 30)
         
         def calculate_model_size_mb(model):
@@ -57,7 +57,7 @@ def working_metrics_demo():
         print(f"Size Reduction: {((teacher_size - student_size) / teacher_size * 100):.1f}%")
         
         # 3. Performance Metrics (Real computation)
-        print("\n3️⃣ PERFORMANCE METRICS COMPUTATION:")
+        print("\n3. PERFORMANCE METRICS COMPUTATION:")
         print("-" * 30)
         
         teacher_model.eval()
@@ -111,7 +111,7 @@ def working_metrics_demo():
         print(f"  - Recall: {student_recall:.2f}%")
         
         # 4. Inference Latency (Real measurement)
-        print("\n4️⃣ INFERENCE LATENCY COMPUTATION:")
+        print("\n4. INFERENCE LATENCY COMPUTATION:")
         print("-" * 30)
         
         # Warmup
@@ -151,7 +151,7 @@ def working_metrics_demo():
         print(f"Latency Improvement: {((avg_teacher_latency - avg_student_latency) / avg_teacher_latency * 100):.1f}%")
         
         # 5. Model Complexity Assessment
-        print("\n5️⃣ MODEL COMPLEXITY ASSESSMENT:")
+        print("\n5. MODEL COMPLEXITY ASSESSMENT:")
         print("-" * 30)
         
         def assess_complexity(param_count):
@@ -169,7 +169,7 @@ def working_metrics_demo():
         print(f"Student Model Complexity: {student_complexity}")
         
         # 6. FLOPs Estimation
-        print("\n6️⃣ FLOPs COMPUTATION:")
+        print("\n6. FLOPs COMPUTATION:")
         print("-" * 30)
         
         # Simple FLOPs estimation
@@ -186,7 +186,7 @@ def working_metrics_demo():
         print("COMPRESSION RESULTS SUMMARY")
         print("=" * 50)
         
-        print(f"📊 Teacher Model (ResNet-18):")
+        print(f"Teacher Model (ResNet-18):")
         print(f"   - Parameters: {teacher_params:,}")
         print(f"   - Size: {teacher_size:.2f} MB")
         print(f"   - Accuracy: {teacher_accuracy:.2f}%")
@@ -195,7 +195,7 @@ def working_metrics_demo():
         print(f"   - Complexity: {teacher_complexity}")
         print(f"   - FLOPs: {teacher_flops}M")
         
-        print(f"\n📊 Student Model (Compressed):")
+        print(f"\nStudent Model (Compressed):")
         print(f"   - Parameters: {student_params:,}")
         print(f"   - Size: {student_size:.2f} MB")
         print(f"   - Accuracy: {student_accuracy:.2f}%")
@@ -204,13 +204,13 @@ def working_metrics_demo():
         print(f"   - Complexity: {student_complexity}")
         print(f"   - FLOPs: {student_flops}M")
         
-        print(f"\n🎯 Compression Benefits:")
+        print(f"\nCompression Benefits:")
         print(f"   - Size Reduction: {((teacher_size - student_size) / teacher_size * 100):.1f}%")
         print(f"   - Parameter Reduction: {((teacher_params - student_params) / teacher_params * 100):.1f}%")
         print(f"   - Latency Improvement: {((avg_teacher_latency - avg_student_latency) / avg_teacher_latency * 100):.1f}%")
         print(f"   - FLOPs Reduction: {((teacher_flops - student_flops) / teacher_flops * 100):.1f}%")
         
-        print(f"\n✅ ALL METRICS ARE COMPUTED IN REAL-TIME!")
+        print(f"\nALL METRICS ARE COMPUTED IN REAL-TIME!")
         print(f"   - No pre-calculated values")
         print(f"   - Actual model measurements")
         print(f"   - Real performance testing")
@@ -218,7 +218,7 @@ def working_metrics_demo():
         print(f"   - Uses scikit-learn for accurate metrics")
         print(f"   - High-precision timing measurements")
         
-        print(f"\n🔬 How it works in your system:")
+        print(f"\nHow it works in your system:")
         print(f"   1. When you click 'Train & Visualize'")
         print(f"   2. Backend loads the actual models")
         print(f"   3. Runs real inference on test data")
@@ -228,7 +228,7 @@ def working_metrics_demo():
         print(f"   7. Returns real, computed metrics")
         
     except Exception as e:
-        print(f"❌ Error: {str(e)}")
+        print(f"Error: {str(e)}")
         import traceback
         traceback.print_exc()
 

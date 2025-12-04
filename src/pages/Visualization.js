@@ -48,11 +48,11 @@ const baselineModelInfo = {
   },
   default: {
     label: "Baseline Model",
-    architecture: "High-capacity teacher network",
+    architecture: "High-capacity before model",
     layerStructure: "Feature extractor → latent blocks → classifier",
     nodeSizes: "Dense hidden units sized for accuracy first",
     parameters: "Tens of millions of parameters",
-    effects: "Acts as the knowledge source for student compression."
+    effects: "Acts as the knowledge source for model compression."
   }
 };
 
@@ -71,7 +71,7 @@ const getModelTypeLabel = (modelKey) => {
     return "Vision CNN";
   }
   if (key.includes("uploaded")) {
-    return "Uploaded Student Model";
+    return "Uploaded Model (After)";
   }
   return "Neural Network";
 };
@@ -1549,7 +1549,7 @@ const getStepInfo = (step, selectedModel) => {
         "L1 threshold",
         "~30% sparsity"
       ],
-      visualHint: "🔴 Red = pruned."
+      visualHint: "Red = pruned."
     },
     {
       title: "Fine-tune",
@@ -1960,7 +1960,7 @@ const Visualization = () => {
                       <Col xs={24} md={12}>
                         <div style={{ padding: '12px', background: 'rgba(255, 255, 255, 0.6)', borderRadius: '8px' }}>
                           <Title level={5} style={{ margin: '0 0 4px 0', color: '#1890ff' }}>
-                            🔵 Baseline Model
+                            Baseline Model
                           </Title>
                           <Title level={4} style={{ margin: 0, color: '#333' }}>
                             {baselineSummary.label}
@@ -1974,7 +1974,7 @@ const Visualization = () => {
                       <Col xs={24} md={12}>
                         <div style={{ padding: '12px', background: 'rgba(255, 255, 255, 0.6)', borderRadius: '8px' }}>
                           <Title level={5} style={{ margin: '0 0 4px 0', color: '#ff6b35' }}>
-                            🧪 Uploaded Model
+                            Uploaded Model
                           </Title>
                           {uploadedModelMeta ? (
                             <>
@@ -2034,7 +2034,7 @@ const Visualization = () => {
                         textAlign: 'center'
                       }}>
                         <Title level={4} style={{ color: '#1890ff', marginBottom: 8 }}>
-                          🔵 Baseline Model: {baselineSummary.label}
+                          Baseline Model: {baselineSummary.label}
                         </Title>
                         <Paragraph style={{ color: '#333', fontSize: '15px', marginBottom: 0 }}>
                           <strong>Current Step:</strong> {stepInfo.title}
@@ -2187,7 +2187,7 @@ const Visualization = () => {
                         textAlign: 'center'
                       }}>
                         <Title level={4} style={{ color: '#ff6b35', marginBottom: 8 }}>
-                          🧪 Your Uploaded Model: {uploadedModelMeta?.name || "Your Model"}
+                          Your Uploaded Model: {uploadedModelMeta?.name || "Your Model"}
                         </Title>
                         <Paragraph style={{ color: '#333', fontSize: '15px', marginBottom: 0 }}>
                           <strong>Current Step:</strong> {stepInfo.title}
@@ -2237,7 +2237,7 @@ const Visualization = () => {
                           textAlign: 'center',
                           padding: '0 16px',
                         }}>
-                          <div style={{ fontSize: '3rem', marginBottom: '12px' }}>📤</div>
+                          <div style={{ fontSize: '3rem', marginBottom: '12px' }}></div>
                           <Title level={3} style={{ color: '#ff6b35', marginBottom: 12 }}>No Uploaded Model</Title>
                           <Paragraph style={{ color: '#666' }}>
                             Upload a custom model on the Training Page to see its visualization here.
@@ -2470,16 +2470,16 @@ const Visualization = () => {
                             children: (
                               <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.8' }}>
                                 <div style={{ marginBottom: 8 }}>
-                                  <strong style={{ color: '#4fc3f7' }}>🔵 Blue nodes:</strong> Active layers processing data
+                                  <strong style={{ color: '#4fc3f7' }}>Blue nodes:</strong> Active layers processing data
                           </div>
                                 <div style={{ marginBottom: 8 }}>
-                                  <strong style={{ color: '#ff4444' }}>🔴 Red nodes:</strong> Pruned (removed) layers after compression
+                                  <strong style={{ color: '#ff4444' }}>Red nodes:</strong> Pruned (removed) layers after compression
                           </div>
                                 <div style={{ marginBottom: 8 }}>
-                                  <strong style={{ color: '#888' }}>⚪ Gray lines:</strong> Active connections between layers
+                                  <strong style={{ color: '#888' }}>Gray lines:</strong> Active connections between layers
                           </div>
                                 <div style={{ marginBottom: 0 }}>
-                                  <strong style={{ color: '#ff0000' }}>🔴 Red lines:</strong> Pruned (removed) connections
+                                  <strong style={{ color: '#ff0000' }}>Red lines:</strong> Pruned (removed) connections
                           </div>
                           </div>
                             )

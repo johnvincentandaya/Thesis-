@@ -157,6 +157,14 @@ const Training = () => {
   const [trainingPhase, setTrainingPhase] = useState(null);
   const [trainingMessage, setTrainingMessage] = useState(null);
   const [evaluationResults, setEvaluationResults] = useState(null);
+  const [rawDataTable, setRawDataTable] = useState(() => {
+    try {
+      const saved = localStorage.getItem('kd_pruning_raw_data_table');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [currentResultIndex, setCurrentResultIndex] = useState(0);
   const [visualizationUnlocked, setVisualizationUnlocked] = useState(() => {
     return localStorage.getItem('visualization_unlocked') === 'true';
@@ -398,10 +406,10 @@ socket.on("training_progress", (data) => {
             return;
           }
 
-          if (key === "teacher_vs_student") {
-            const prevTvs = merged.teacher_vs_student || {};
-            const newTvs = data.teacher_vs_student || {};
-            merged.teacher_vs_student = {
+          if (key === "before_vs_after" || key === "teacher_vs_student") {
+            const prevTvs = merged.before_vs_after || merged.teacher_vs_student || {};
+            const newTvs = data.before_vs_after || data.teacher_vs_student || {};
+            merged.before_vs_after = {
               ...prevTvs,
               ...newTvs,
               comparison: mergeComparison(prevTvs.comparison, newTvs.comparison)
@@ -431,6 +439,18 @@ socket.on("training_progress", (data) => {
         localStorage.setItem('kd_pruning_evaluation_results', JSON.stringify(merged));
         return merged;
       });
+    });
+
+    // Listen for raw data table
+    socket.on("raw_data_table", (data) => {
+      console.log("Received raw data table for model:", data?.stages?.before?.metrics?.size_mb, "MB");
+      console.log("Raw data table details:", {
+        before_size: data?.stages?.before?.metrics?.size_mb,
+        after_kd_size: data?.stages?.after_kd?.metrics?.size_mb,
+        after_pruning_size: data?.stages?.after_pruning?.metrics?.size_mb
+      });
+      setRawDataTable(data);
+      localStorage.setItem('kd_pruning_raw_data_table', JSON.stringify(data));
     });
 
     // Listen for training computation details (side-by-side comparison)
@@ -578,11 +598,13 @@ socket.on("training_progress", (data) => {
     setCurrentLoss(null);
     setMetrics(null);
     setEvaluationResults(null);
+    setRawDataTable(null); // Clear raw data table for new training
     setTrainingPhase(null);
     setTrainingMessage(null);
     setTrainingError(null);
     // Clear previous results when starting new training
     localStorage.removeItem('kd_pruning_evaluation_results');
+    localStorage.removeItem('kd_pruning_raw_data_table'); // Clear cached raw data table
     
     try {
       // Test server connection first
@@ -817,18 +839,18 @@ const renderEducationalMetrics = (metrics) => {
         </Card>
       )}
 
-      {/* Teacher vs Student Comparison */}
-      {metrics?.teacher_vs_student && (
+      {/* Before vs After Comparison */}
+      {(metrics?.before_vs_after || metrics?.teacher_vs_student) && (
         <Card
-          title={metrics.teacher_vs_student.title || "Teacher vs Student"}
+          title={((metrics.before_vs_after || metrics.teacher_vs_student)?.title) || "Before vs After"}
           bordered={false}
           style={{ marginBottom: 20 }}
         >
           <Paragraph style={{ marginBottom: 16, color: "#666" }}>
-            {metrics.teacher_vs_student.description || ""}
+            {((metrics.before_vs_after || metrics.teacher_vs_student)?.description) || ""}
           </Paragraph>
-          {metrics.teacher_vs_student.comparison &&
-            Object.entries(metrics.teacher_vs_student.comparison).map(
+          {((metrics.before_vs_after || metrics.teacher_vs_student)?.comparison) &&
+            Object.entries((metrics.before_vs_after || metrics.teacher_vs_student).comparison).map(
               ([key, data]) => (
                 <div
                   key={key}
@@ -844,12 +866,12 @@ const renderEducationalMetrics = (metrics) => {
                   </Text>
                   <Row gutter={16} style={{ marginTop: 8 }}>
                     <Col span={8}>
-                      <Text type="secondary">Teacher:</Text>{" "}
-                      {data?.teacher ?? "N/A"}
+                      <Text type="secondary">Before:</Text>{" "}
+                      {data?.before ?? data?.teacher ?? "N/A"}
                     </Col>
                     <Col span={8}>
-                      <Text type="secondary">Student:</Text>{" "}
-                      {data?.student ?? "N/A"}
+                      <Text type="secondary">After:</Text>{" "}
+                      {data?.after ?? data?.student ?? "N/A"}
                     </Col>
                     <Col span={8}>{renderDifference(data?.difference)}</Col>
                   </Row>
@@ -1138,6 +1160,9 @@ const renderEducationalMetrics = (metrics) => {
     setUploadingFile(true);
     setUploadError(null);
     setUploadStatus("uploading");
+    // Clear previous raw data table when new model is uploaded
+    setRawDataTable(null);
+    localStorage.removeItem('kd_pruning_raw_data_table');
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -1198,9 +1223,12 @@ const renderEducationalMetrics = (metrics) => {
     setTrainingPhase(null);
     setTrainingMessage(null);
     setMetrics(null);
+    setRawDataTable(null); // Clear raw data table
     setComputationDetails(null);
     // Clear persisted results
     clearPersistedResult();
+    // Clear cached raw data table
+    localStorage.removeItem('kd_pruning_raw_data_table');
     // Scroll to top to show upload section
     window.scrollTo({ top: 0, behavior: 'smooth' });
     message.success("Ready to train a new model. Please upload your model file.");
@@ -1237,7 +1265,7 @@ const renderEducationalMetrics = (metrics) => {
   useEffect(() => {
     console.log("Metrics updated:", metrics);
     if (metrics) {
-      console.log("✅ Metrics received - results should show now");
+      console.log("Metrics received - results should show now");
       console.log("Training complete:", trainingComplete);
       console.log("Training active:", training);
       console.log("Progress:", progress);
@@ -1364,7 +1392,7 @@ const renderEducationalMetrics = (metrics) => {
             {evaluationResults?.evaluation_metrics && (
               <Card style={{ marginBottom: 16, background: 'linear-gradient(135deg, #f6ffed 0%, #f0f9ff 100%)' }}>
                 <Title level={5} style={{ color: '#52c41a', marginBottom: 16 }}>
-                  📊 Evaluation Metrics (4 Categories)
+                  Evaluation Metrics (4 Categories)
                 </Title>
                 <Row gutter={[16, 16]}>
                   {Object.entries(evaluationResults.evaluation_metrics).map(([category, metrics]) => (
@@ -1412,6 +1440,469 @@ const renderEducationalMetrics = (metrics) => {
                 </Col>
               </Row>
             )}
+
+            {/* Raw Data Table - Uncompressed vs Compressed Model */}
+            {rawDataTable && (
+              <Card 
+                style={{ marginTop: 24, marginBottom: 16 }}
+                title={
+                  <Title level={4} style={{ margin: 0, color: '#1890ff' }}>
+                    Raw Model Data - Uncompressed vs Compressed Model
+                  </Title>
+                }
+              >
+                <Paragraph style={{ color: '#666', marginBottom: 16 }}>
+                  Complete raw data showing all metrics for the uncompressed (original) model and compressed (after KD + Pruning) model. 
+                  All values are computed from actual model evaluation.
+                </Paragraph>
+                
+                {/* Main Comparison Table: Uncompressed → After KD → After Pruning */}
+                <div style={{ overflowX: 'auto', marginBottom: 24 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', marginBottom: 20 }}>
+                    <thead>
+                      <tr style={{ background: '#f0f2f5' }}>
+                        <th style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'left', fontWeight: 'bold', width: '20%' }}>Metric</th>
+                        <th style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontWeight: 'bold', background: '#e6f7ff', width: '20%' }}>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#1890ff' }}>Uncompressed</div>
+                          <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#666', marginTop: '4px' }}>
+                            (Before)
+                          </div>
+                        </th>
+                        <th style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontWeight: 'bold', background: '#fff7e6', width: '20%' }}>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#fa8c16' }}>After KD</div>
+                          <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#666', marginTop: '4px' }}>
+                            (Change from Before)
+                          </div>
+                        </th>
+                        <th style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontWeight: 'bold', background: '#f6ffed', width: '20%' }}>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#52c41a' }}>After Pruning</div>
+                          <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#666', marginTop: '4px' }}>
+                            (Change from KD)
+                          </div>
+                        </th>
+                        <th style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontWeight: 'bold', background: '#f0f0f0', width: '20%' }}>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#722ed1' }}>Total Change</div>
+                          <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#666', marginTop: '4px' }}>
+                            (From Uncompressed)
+                          </div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* Accuracy */}
+                      <tr>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', fontWeight: 'bold' }}>Accuracy (%)</td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.before?.metrics?.accuracy?.toFixed(2) || 'N/A'}%
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.after_kd?.metrics?.accuracy?.toFixed(2) || 'N/A'}%
+                          {rawDataTable.stages?.after_kd?.changes_from_before?.accuracy_change !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_kd.changes_from_before.accuracy_change >= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_kd.changes_from_before.accuracy_change >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.accuracy_change.toFixed(2)}%)
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.after_pruning?.metrics?.accuracy?.toFixed(2) || 'N/A'}%
+                          {rawDataTable.stages?.after_pruning?.changes_from_kd?.accuracy_change !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_pruning.changes_from_kd.accuracy_change >= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_pruning.changes_from_kd.accuracy_change >= 0 ? '+' : ''}{rawDataTable.stages.after_pruning.changes_from_kd.accuracy_change.toFixed(2)}%)
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold', 
+                          color: rawDataTable.stages?.after_pruning?.changes_from_before?.accuracy_change >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                          {rawDataTable.stages?.after_pruning?.changes_from_before?.accuracy_change !== undefined ? 
+                            `${rawDataTable.stages.after_pruning.changes_from_before.accuracy_change >= 0 ? '+' : ''}${rawDataTable.stages.after_pruning.changes_from_before.accuracy_change.toFixed(2)}%` : 'N/A'}
+                          {rawDataTable.stages?.before?.metrics?.accuracy && rawDataTable.stages?.after_pruning?.metrics?.accuracy && (
+                            <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+                              ({((rawDataTable.stages.after_pruning.metrics.accuracy - rawDataTable.stages.before.metrics.accuracy) / rawDataTable.stages.before.metrics.accuracy * 100).toFixed(2)}%)
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                      
+                      {/* Precision */}
+                      <tr style={{ background: '#fafafa' }}>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', fontWeight: 'bold' }}>Precision (%)</td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.before?.metrics?.precision?.toFixed(2) || 'N/A'}%
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.after_kd?.metrics?.precision?.toFixed(2) || 'N/A'}%
+                          {rawDataTable.stages?.after_kd?.changes_from_before?.precision_change !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_kd.changes_from_before.precision_change >= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_kd.changes_from_before.precision_change >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.precision_change.toFixed(2)}%)
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.after_pruning?.metrics?.precision?.toFixed(2) || 'N/A'}%
+                          {rawDataTable.stages?.after_pruning?.changes_from_kd?.precision_change !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_pruning.changes_from_kd.precision_change >= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_pruning.changes_from_kd.precision_change >= 0 ? '+' : ''}{rawDataTable.stages.after_pruning.changes_from_kd.precision_change.toFixed(2)}%)
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold',
+                          color: rawDataTable.stages?.after_pruning?.changes_from_before?.precision_change >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                          {rawDataTable.stages?.after_pruning?.changes_from_before?.precision_change !== undefined ? 
+                            `${rawDataTable.stages.after_pruning.changes_from_before.precision_change >= 0 ? '+' : ''}${rawDataTable.stages.after_pruning.changes_from_before.precision_change.toFixed(2)}%` : 'N/A'}
+                          {rawDataTable.stages?.before?.metrics?.precision && rawDataTable.stages?.after_pruning?.metrics?.precision && (
+                            <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+                              ({((rawDataTable.stages.after_pruning.metrics.precision - rawDataTable.stages.before.metrics.precision) / rawDataTable.stages.before.metrics.precision * 100).toFixed(2)}%)
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                      
+                      {/* Recall */}
+                      <tr>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', fontWeight: 'bold' }}>Recall (%)</td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.before?.metrics?.recall?.toFixed(2) || 'N/A'}%
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.after_kd?.metrics?.recall?.toFixed(2) || 'N/A'}%
+                          {rawDataTable.stages?.after_kd?.changes_from_before?.recall_change !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_kd.changes_from_before.recall_change >= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_kd.changes_from_before.recall_change >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.recall_change.toFixed(2)}%)
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.after_pruning?.metrics?.recall?.toFixed(2) || 'N/A'}%
+                          {rawDataTable.stages?.after_pruning?.changes_from_kd?.recall_change !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_pruning.changes_from_kd.recall_change >= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_pruning.changes_from_kd.recall_change >= 0 ? '+' : ''}{rawDataTable.stages.after_pruning.changes_from_kd.recall_change.toFixed(2)}%)
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold',
+                          color: rawDataTable.stages?.after_pruning?.changes_from_before?.recall_change >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                          {rawDataTable.stages?.after_pruning?.changes_from_before?.recall_change !== undefined ? 
+                            `${rawDataTable.stages.after_pruning.changes_from_before.recall_change >= 0 ? '+' : ''}${rawDataTable.stages.after_pruning.changes_from_before.recall_change.toFixed(2)}%` : 'N/A'}
+                          {rawDataTable.stages?.before?.metrics?.recall && rawDataTable.stages?.after_pruning?.metrics?.recall && (
+                            <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+                              ({((rawDataTable.stages.after_pruning.metrics.recall - rawDataTable.stages.before.metrics.recall) / rawDataTable.stages.before.metrics.recall * 100).toFixed(2)}%)
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                      
+                      {/* F1-Score */}
+                      <tr style={{ background: '#fafafa' }}>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', fontWeight: 'bold' }}>F1-Score (%)</td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.before?.metrics?.f1_score?.toFixed(2) || 'N/A'}%
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.after_kd?.metrics?.f1_score?.toFixed(2) || 'N/A'}%
+                          {rawDataTable.stages?.after_kd?.changes_from_before?.f1_change !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_kd.changes_from_before.f1_change >= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_kd.changes_from_before.f1_change >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.f1_change.toFixed(2)}%)
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.after_pruning?.metrics?.f1_score?.toFixed(2) || 'N/A'}%
+                          {rawDataTable.stages?.after_pruning?.changes_from_kd?.f1_change !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_pruning.changes_from_kd.f1_change >= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_pruning.changes_from_kd.f1_change >= 0 ? '+' : ''}{rawDataTable.stages.after_pruning.changes_from_kd.f1_change.toFixed(2)}%)
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold',
+                          color: rawDataTable.stages?.after_pruning?.changes_from_before?.f1_change >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                          {rawDataTable.stages?.after_pruning?.changes_from_before?.f1_change !== undefined ? 
+                            `${rawDataTable.stages.after_pruning.changes_from_before.f1_change >= 0 ? '+' : ''}${rawDataTable.stages.after_pruning.changes_from_before.f1_change.toFixed(2)}%` : 'N/A'}
+                          {rawDataTable.stages?.before?.metrics?.f1_score && rawDataTable.stages?.after_pruning?.metrics?.f1_score && (
+                            <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+                              ({((rawDataTable.stages.after_pruning.metrics.f1_score - rawDataTable.stages.before.metrics.f1_score) / rawDataTable.stages.before.metrics.f1_score * 100).toFixed(2)}%)
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                      
+                      {/* Model Size */}
+                      <tr>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', fontWeight: 'bold' }}>Model Size (MB)</td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.before?.metrics?.size_mb?.toFixed(2) || 'N/A'} MB
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.after_kd?.metrics?.size_mb?.toFixed(2) || 'N/A'} MB
+                          {rawDataTable.stages?.after_kd?.changes_from_before?.size_change_mb !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_kd.changes_from_before.size_change_mb <= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_kd.changes_from_before.size_change_mb >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.size_change_mb.toFixed(2)} MB)
+                              {rawDataTable.stages?.after_kd?.changes_from_before?.size_reduction_percent !== undefined && (
+                                <span> {rawDataTable.stages.after_kd.changes_from_before.size_reduction_percent > 0 ? '-' : '+'}{Math.abs(rawDataTable.stages.after_kd.changes_from_before.size_reduction_percent).toFixed(2)}%</span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.after_pruning?.metrics?.size_mb?.toFixed(2) || 'N/A'} MB
+                          {rawDataTable.stages?.after_pruning?.changes_from_kd?.size_change_mb !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_pruning.changes_from_kd.size_change_mb <= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_pruning.changes_from_kd.size_change_mb >= 0 ? '+' : ''}{rawDataTable.stages.after_pruning.changes_from_kd.size_change_mb.toFixed(2)} MB)
+                              {rawDataTable.stages?.after_pruning?.changes_from_kd?.size_reduction_percent !== undefined && (
+                                <span> {rawDataTable.stages.after_pruning.changes_from_kd.size_reduction_percent > 0 ? '-' : '+'}{Math.abs(rawDataTable.stages.after_pruning.changes_from_kd.size_reduction_percent).toFixed(2)}%</span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold', color: '#52c41a' }}>
+                          {rawDataTable.stages?.after_pruning?.changes_from_before?.size_reduction_percent !== undefined ? 
+                            `-${rawDataTable.stages.after_pruning.changes_from_before.size_reduction_percent.toFixed(2)}%` : 'N/A'}
+                          <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                            ({rawDataTable.stages?.after_pruning?.changes_from_before?.size_change_mb !== undefined ? 
+                              `${rawDataTable.stages.after_pruning.changes_from_before.size_change_mb >= 0 ? '+' : ''}${rawDataTable.stages.after_pruning.changes_from_before.size_change_mb.toFixed(2)} MB` : 'N/A'})
+                          </div>
+                        </td>
+                      </tr>
+                      
+                      {/* Inference Latency */}
+                      <tr style={{ background: '#fafafa' }}>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', fontWeight: 'bold' }}>Inference Latency (ms)</td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.before?.metrics?.latency_ms?.toFixed(2) || 'N/A'} ms
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.after_kd?.metrics?.latency_ms?.toFixed(2) || 'N/A'} ms
+                          {rawDataTable.stages?.after_kd?.changes_from_before?.latency_change_ms !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_kd.changes_from_before.latency_change_ms <= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_kd.changes_from_before.latency_change_ms >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.latency_change_ms.toFixed(2)} ms)
+                              {rawDataTable.stages?.after_kd?.changes_from_before?.latency_improvement_percent !== undefined && (
+                                <span> {rawDataTable.stages.after_kd.changes_from_before.latency_improvement_percent > 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.latency_improvement_percent.toFixed(2)}%</span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.after_pruning?.metrics?.latency_ms?.toFixed(2) || 'N/A'} ms
+                          {rawDataTable.stages?.after_pruning?.changes_from_kd?.latency_change_ms !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_pruning.changes_from_kd.latency_change_ms <= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_pruning.changes_from_kd.latency_change_ms >= 0 ? '+' : ''}{rawDataTable.stages.after_pruning.changes_from_kd.latency_change_ms.toFixed(2)} ms)
+                              {rawDataTable.stages?.after_pruning?.changes_from_kd?.latency_improvement_percent !== undefined && (
+                                <span> {rawDataTable.stages.after_pruning.changes_from_kd.latency_improvement_percent > 0 ? '+' : ''}{rawDataTable.stages.after_pruning.changes_from_kd.latency_improvement_percent.toFixed(2)}%</span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold', color: '#52c41a' }}>
+                          {rawDataTable.stages?.after_pruning?.changes_from_before?.latency_improvement_percent !== undefined ? 
+                            `+${rawDataTable.stages.after_pruning.changes_from_before.latency_improvement_percent.toFixed(2)}%` : 'N/A'}
+                          <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                            ({rawDataTable.stages?.after_pruning?.changes_from_before?.latency_change_ms !== undefined ? 
+                              `${rawDataTable.stages.after_pruning.changes_from_before.latency_change_ms >= 0 ? '+' : ''}${rawDataTable.stages.after_pruning.changes_from_before.latency_change_ms.toFixed(2)} ms` : 'N/A'})
+                          </div>
+                        </td>
+                      </tr>
+                      
+                      {/* Parameters Count */}
+                      <tr>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', fontWeight: 'bold' }}>Parameters Count</td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.before?.metrics?.num_params?.toLocaleString() || 'N/A'}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.after_kd?.metrics?.num_params?.toLocaleString() || 'N/A'}
+                          {rawDataTable.stages?.after_kd?.changes_from_before?.params_change !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_kd.changes_from_before.params_change <= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_kd.changes_from_before.params_change >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.params_change.toLocaleString()})
+                              {rawDataTable.stages?.after_kd?.changes_from_before?.params_reduction_percent !== undefined && (
+                                <span> {rawDataTable.stages.after_kd.changes_from_before.params_reduction_percent > 0 ? '-' : '+'}{Math.abs(rawDataTable.stages.after_kd.changes_from_before.params_reduction_percent).toFixed(2)}%</span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.after_pruning?.metrics?.num_params?.toLocaleString() || 'N/A'}
+                          {rawDataTable.stages?.after_pruning?.changes_from_kd?.params_change !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_pruning.changes_from_kd.params_change <= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_pruning.changes_from_kd.params_change >= 0 ? '+' : ''}{rawDataTable.stages.after_pruning.changes_from_kd.params_change.toLocaleString()})
+                              {rawDataTable.stages?.after_pruning?.changes_from_kd?.params_reduction_percent !== undefined && (
+                                <span> {rawDataTable.stages.after_pruning.changes_from_kd.params_reduction_percent > 0 ? '-' : '+'}{Math.abs(rawDataTable.stages.after_pruning.changes_from_kd.params_reduction_percent).toFixed(2)}%</span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold', color: '#52c41a' }}>
+                          {rawDataTable.stages?.after_pruning?.changes_from_before?.params_reduction_percent !== undefined ? 
+                            `-${rawDataTable.stages.after_pruning.changes_from_before.params_reduction_percent.toFixed(2)}%` : 'N/A'}
+                          <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                            ({rawDataTable.stages?.after_pruning?.changes_from_before?.params_change !== undefined ? 
+                              `${rawDataTable.stages.after_pruning.changes_from_before.params_change >= 0 ? '+' : ''}${rawDataTable.stages.after_pruning.changes_from_before.params_change.toLocaleString()}` : 'N/A'})
+                          </div>
+                        </td>
+                      </tr>
+                      
+                      {/* Effective Parameters */}
+                      <tr style={{ background: '#fafafa' }}>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', fontWeight: 'bold' }}>Effective Parameters</td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.before?.metrics?.effective_params?.toLocaleString() || 'N/A'}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.after_kd?.metrics?.effective_params?.toLocaleString() || 'N/A'}
+                          {rawDataTable.stages?.after_kd?.metrics?.effective_params && rawDataTable.stages?.before?.metrics?.effective_params && (
+                            <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+                              ({((rawDataTable.stages.after_kd.metrics.effective_params - rawDataTable.stages.before.metrics.effective_params) / rawDataTable.stages.before.metrics.effective_params * 100).toFixed(2)}%)
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.after_pruning?.metrics?.effective_params?.toLocaleString() || 'N/A'}
+                          {rawDataTable.stages?.after_pruning?.metrics?.effective_params && rawDataTable.stages?.after_kd?.metrics?.effective_params && (
+                            <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+                              ({((rawDataTable.stages.after_pruning.metrics.effective_params - rawDataTable.stages.after_kd.metrics.effective_params) / rawDataTable.stages.after_kd.metrics.effective_params * 100).toFixed(2)}%)
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', color: '#666' }}>
+                          {rawDataTable.stages?.after_pruning?.metrics?.effective_params && rawDataTable.stages?.before?.metrics?.effective_params ? 
+                            `${((rawDataTable.stages.after_pruning.metrics.effective_params - rawDataTable.stages.before.metrics.effective_params) / rawDataTable.stages.before.metrics.effective_params * 100).toFixed(2)}%` : 'N/A'}
+                        </td>
+                      </tr>
+                      
+                      {/* Sparsity */}
+                      <tr>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', fontWeight: 'bold' }}>Sparsity (%)</td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.before?.metrics?.sparsity_percent?.toFixed(2) || '0.00'}%
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
+                          {rawDataTable.stages?.after_kd?.metrics?.sparsity_percent?.toFixed(2) || '0.00'}%
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold', color: '#52c41a' }}>
+                          {rawDataTable.stages?.after_pruning?.metrics?.sparsity_percent?.toFixed(2) || '0.00'}%
+                          {rawDataTable.stages?.after_pruning?.metrics?.sparsity_percent && rawDataTable.stages?.after_kd?.metrics?.sparsity_percent && (
+                            <div style={{ fontSize: '11px', color: '#52c41a', marginTop: '2px' }}>
+                              (+{(rawDataTable.stages.after_pruning.metrics.sparsity_percent - rawDataTable.stages.after_kd.metrics.sparsity_percent).toFixed(2)}%)
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold', color: '#52c41a' }}>
+                          {rawDataTable.stages?.after_pruning?.metrics?.sparsity_percent && rawDataTable.stages?.before?.metrics?.sparsity_percent ? 
+                            `+${(rawDataTable.stages.after_pruning.metrics.sparsity_percent - rawDataTable.stages.before.metrics.sparsity_percent).toFixed(2)}%` : 'N/A'}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Detailed Stage-by-Stage Breakdown (if available) */}
+                {rawDataTable.stages?.after_kd && (
+                  <div style={{ marginTop: 24 }}>
+                    <Title level={5} style={{ marginBottom: 16, color: '#1890ff' }}>
+                      Detailed Stage-by-Stage Breakdown
+                    </Title>
+                    <Paragraph style={{ color: '#666', marginBottom: 12, fontSize: '13px' }}>
+                      This table shows the intermediate stage (After Knowledge Distillation) to see how metrics changed during each phase.
+                    </Paragraph>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                        <thead>
+                          <tr style={{ background: '#f0f2f5' }}>
+                            <th style={{ padding: '10px', border: '1px solid #d9d9d9', textAlign: 'left', fontWeight: 'bold' }}>Metric</th>
+                            <th style={{ padding: '10px', border: '1px solid #d9d9d9', textAlign: 'center', fontWeight: 'bold', background: '#e6f7ff' }}>
+                              Uncompressed
+                            </th>
+                            <th style={{ padding: '10px', border: '1px solid #d9d9d9', textAlign: 'center', fontWeight: 'bold', background: '#fff7e6' }}>
+                              After KD
+                              <div style={{ fontSize: '10px', fontWeight: 'normal', color: '#666', marginTop: '2px' }}>
+                                (Change)
+                              </div>
+                            </th>
+                            <th style={{ padding: '10px', border: '1px solid #d9d9d9', textAlign: 'center', fontWeight: 'bold', background: '#f6ffed' }}>
+                              After Pruning (Compressed)
+                              <div style={{ fontSize: '10px', fontWeight: 'normal', color: '#666', marginTop: '2px' }}>
+                                (Change from KD)
+                              </div>
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {/* Accuracy */}
+                          <tr>
+                            <td style={{ padding: '8px', border: '1px solid #d9d9d9', fontWeight: 'bold' }}>Accuracy (%)</td>
+                            <td style={{ padding: '8px', border: '1px solid #d9d9d9', textAlign: 'center' }}>
+                              {rawDataTable.stages?.before?.metrics?.accuracy?.toFixed(2) || 'N/A'}
+                            </td>
+                            <td style={{ padding: '8px', border: '1px solid #d9d9d9', textAlign: 'center' }}>
+                              {rawDataTable.stages?.after_kd?.metrics?.accuracy?.toFixed(2) || 'N/A'}
+                              {rawDataTable.stages?.after_kd?.changes_from_before?.accuracy_change !== undefined && (
+                                <div style={{ fontSize: '10px', color: rawDataTable.stages.after_kd.changes_from_before.accuracy_change >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                                  ({rawDataTable.stages.after_kd.changes_from_before.accuracy_change >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.accuracy_change.toFixed(2)}%)
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ padding: '8px', border: '1px solid #d9d9d9', textAlign: 'center' }}>
+                              {rawDataTable.stages?.after_pruning?.metrics?.accuracy?.toFixed(2) || 'N/A'}
+                              {rawDataTable.stages?.after_pruning?.changes_from_kd?.accuracy_change !== undefined && (
+                                <div style={{ fontSize: '10px', color: rawDataTable.stages.after_pruning.changes_from_kd.accuracy_change >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                                  ({rawDataTable.stages.after_pruning.changes_from_kd.accuracy_change >= 0 ? '+' : ''}{rawDataTable.stages.after_pruning.changes_from_kd.accuracy_change.toFixed(2)}%)
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                          
+                          {/* Model Size */}
+                          <tr style={{ background: '#fafafa' }}>
+                            <td style={{ padding: '8px', border: '1px solid #d9d9d9', fontWeight: 'bold' }}>Model Size (MB)</td>
+                            <td style={{ padding: '8px', border: '1px solid #d9d9d9', textAlign: 'center' }}>
+                              {rawDataTable.stages?.before?.metrics?.size_mb?.toFixed(2) || 'N/A'}
+                            </td>
+                            <td style={{ padding: '8px', border: '1px solid #d9d9d9', textAlign: 'center' }}>
+                              {rawDataTable.stages?.after_kd?.metrics?.size_mb?.toFixed(2) || 'N/A'}
+                              {rawDataTable.stages?.after_kd?.changes_from_before?.size_change_mb !== undefined && (
+                                <div style={{ fontSize: '10px', color: rawDataTable.stages.after_kd.changes_from_before.size_change_mb <= 0 ? '#52c41a' : '#ff4d4f' }}>
+                                  ({rawDataTable.stages.after_kd.changes_from_before.size_change_mb >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.size_change_mb.toFixed(2)} MB)
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ padding: '8px', border: '1px solid #d9d9d9', textAlign: 'center' }}>
+                              {rawDataTable.stages?.after_pruning?.metrics?.size_mb?.toFixed(2) || 'N/A'}
+                              {rawDataTable.stages?.after_pruning?.changes_from_kd?.size_change_mb !== undefined && (
+                                <div style={{ fontSize: '10px', color: rawDataTable.stages.after_pruning.changes_from_kd.size_change_mb <= 0 ? '#52c41a' : '#ff4d4f' }}>
+                                  ({rawDataTable.stages.after_pruning.changes_from_kd.size_change_mb >= 0 ? '+' : ''}{rawDataTable.stages.after_pruning.changes_from_kd.size_change_mb.toFixed(2)} MB)
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                          
+                          {/* Parameters */}
+                          <tr>
+                            <td style={{ padding: '8px', border: '1px solid #d9d9d9', fontWeight: 'bold' }}>Parameters</td>
+                            <td style={{ padding: '8px', border: '1px solid #d9d9d9', textAlign: 'center' }}>
+                              {rawDataTable.stages?.before?.metrics?.num_params?.toLocaleString() || 'N/A'}
+                            </td>
+                            <td style={{ padding: '8px', border: '1px solid #d9d9d9', textAlign: 'center' }}>
+                              {rawDataTable.stages?.after_kd?.metrics?.num_params?.toLocaleString() || 'N/A'}
+                              {rawDataTable.stages?.after_kd?.changes_from_before?.params_change !== undefined && (
+                                <div style={{ fontSize: '10px', color: rawDataTable.stages.after_kd.changes_from_before.params_change <= 0 ? '#52c41a' : '#ff4d4f' }}>
+                                  ({rawDataTable.stages.after_kd.changes_from_before.params_change >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.params_change.toLocaleString()})
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ padding: '8px', border: '1px solid #d9d9d9', textAlign: 'center' }}>
+                              {rawDataTable.stages?.after_pruning?.metrics?.num_params?.toLocaleString() || 'N/A'}
+                              {rawDataTable.stages?.after_pruning?.changes_from_kd?.params_change !== undefined && (
+                                <div style={{ fontSize: '10px', color: rawDataTable.stages.after_pruning.changes_from_kd.params_change <= 0 ? '#52c41a' : '#ff4d4f' }}>
+                                  ({rawDataTable.stages.after_pruning.changes_from_kd.params_change >= 0 ? '+' : ''}{rawDataTable.stages.after_pruning.changes_from_kd.params_change.toLocaleString()})
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            )}
           </div>
         );
       case 1:
@@ -1420,7 +1911,7 @@ const renderEducationalMetrics = (metrics) => {
           <div>
             {metrics.model_performance ? (
               <Card bordered={false}>
-                <Title level={4}>{metrics.model_performance.title || "Student Model Performance"}</Title>
+                <Title level={4}>{metrics.model_performance.title || "Model Performance (After KD + Pruning)"}</Title>
                 <Paragraph style={{ color: "#666" }}>{metrics.model_performance.description}</Paragraph>
                 <Row gutter={16}>
                   <Col span={12}>
@@ -1453,19 +1944,19 @@ const renderEducationalMetrics = (metrics) => {
                   </Col>
                 </Row>
               </Card>
-            ) : <Text type="secondary">No student model performance data.</Text>}
+            ) : <Text type="secondary">No model performance data.</Text>}
           </div>
         );
       case 2:
         // Teacher vs Student Comparison
         return (
           <div>
-            {metrics.teacher_vs_student ? (
+            {(metrics.before_vs_after || metrics.teacher_vs_student) ? (
               <Card bordered={false}>
-                <Title level={4}>{metrics.teacher_vs_student.title || "Teacher vs Student"}</Title>
-                <Paragraph style={{ color: "#666" }}>{metrics.teacher_vs_student.description}</Paragraph>
-                {metrics.teacher_vs_student.comparison &&
-                  Object.entries(metrics.teacher_vs_student.comparison).map(
+                <Title level={4}>{(metrics.before_vs_after || metrics.teacher_vs_student)?.title || "Before vs After"}</Title>
+                <Paragraph style={{ color: "#666" }}>{(metrics.before_vs_after || metrics.teacher_vs_student)?.description}</Paragraph>
+                {((metrics.before_vs_after || metrics.teacher_vs_student)?.comparison) &&
+                  Object.entries((metrics.before_vs_after || metrics.teacher_vs_student).comparison).map(
                     ([key, data]) => (
                       <div
                         key={key}
@@ -1480,14 +1971,14 @@ const renderEducationalMetrics = (metrics) => {
                           {key.replace("_", " ")}:
                         </Text>
                         <Row gutter={16} style={{ marginTop: 8 }}>
-                          <Col span={8}>
-                            <Text type="secondary">Teacher:</Text>{" "}
-                            {data?.teacher ?? "N/A"}
-                          </Col>
-                          <Col span={8}>
-                            <Text type="secondary">Student:</Text>{" "}
-                            {data?.student ?? "N/A"}
-                          </Col>
+                    <Col span={8}>
+                      <Text type="secondary">Before:</Text>{" "}
+                      {data?.before ?? data?.teacher ?? "N/A"}
+                    </Col>
+                    <Col span={8}>
+                      <Text type="secondary">After:</Text>{" "}
+                      {data?.after ?? data?.student ?? "N/A"}
+                    </Col>
                           <Col span={8}>{renderDifference(data?.difference)}</Col>
                         </Row>
                         <div
@@ -1499,7 +1990,7 @@ const renderEducationalMetrics = (metrics) => {
                     )
                   )}
               </Card>
-            ) : <Text type="secondary">No teacher vs student comparison data.</Text>}
+            ) : <Text type="secondary">No before vs after comparison data.</Text>}
           </div>
         );
       case 3:
@@ -1881,13 +2372,6 @@ const renderEducationalMetrics = (metrics) => {
                           description="Please select a baseline model from Step 1 before uploading."
                         />
                       )}
-                      <Alert
-                        style={{ marginTop: 12 }}
-                        type="warning"
-                        showIcon
-                        message="Strict rule"
-                        description="Do not upload DistilBERT, ResNet-18, MobileNetV2, or T5 Small. The system blocks built-in models."
-                      />
                       {uploadStatus === "uploading" && (
                         <Alert
                           style={{ marginTop: 12 }}

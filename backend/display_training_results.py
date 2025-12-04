@@ -93,10 +93,10 @@ def display_training_results():
             print("- No more '0' values or 'Not Available' messages")
             
         else:
-            print(f"❌ Error: {response.status_code} - {response.text}")
+            print(f"Error: {response.status_code} - {response.text}")
             
     except Exception as e:
-        print(f"❌ Error connecting to backend: {e}")
+        print(f"Error connecting to backend: {e}")
         print("Make sure the backend is running on port 5001")
 
 if __name__ == "__main__":
