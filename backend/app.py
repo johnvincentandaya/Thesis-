@@ -1973,19 +1973,19 @@ def evaluate_model_metrics(model, inputs, is_student=False, uploaded_file_path=N
             
             # Use computed metrics
             acc, prec, rec, f1 = accuracy, precision, recall, f1
+            
+            # Validate that metrics are computed from actual model data
+            if len(all_preds) == 0:
+                print(f"[ERROR] No evaluation data available for {type(model).__name__}")
+                raise ValueError("Cannot compute metrics without real model evaluation data")
+            
+            # Validate that metrics are reasonable (not NaN or infinite)
+            if not all(np.isfinite([acc, prec, rec, f1])):
+                raise ValueError("Computed metrics contain invalid values (NaN or infinite) - metrics must be from actual model evaluation")
     except Exception as e:
         print(f"[ERROR] Failed to compute real model performance metrics: {e}")
         # If we can't compute real metrics, we should fail rather than use dummy data
         raise ValueError(f"Unable to compute authentic model performance metrics: {str(e)}")
-    
-    # Validate that metrics are computed from actual model data
-    if len(all_preds) == 0:
-        print(f"[ERROR] No evaluation data available for {type(model).__name__}")
-        raise ValueError("Cannot compute metrics without real model evaluation data")
-    
-    # Validate that metrics are reasonable (not NaN or infinite)
-    if not all(np.isfinite([acc, prec, rec, f1])):
-        raise ValueError("Computed metrics contain invalid values (NaN or infinite) - metrics must be from actual model evaluation")
     
     return {
         "size_mb": size_mb,
@@ -2577,6 +2577,16 @@ def training_task(model_name, uploaded_model_path=None, uploaded_model_name=None
         # Emit evaluation metrics immediately after training
         print("[TRAIN] Emitting evaluation metrics...")
         
+        # Calculate data changes during KD and pruning (must be before usage in metrics_to_save and evaluation_metrics)
+        kd_accuracy_change = metrics_after_kd.get('accuracy', 0) - teacher_metrics.get('accuracy', 0) if 'metrics_after_kd' in locals() else 0
+        pruning_accuracy_change = student_metrics.get('accuracy', 0) - metrics_after_kd.get('accuracy', 0) if 'metrics_after_kd' in locals() else 0
+        
+        kd_size_change = metrics_after_kd.get('size_mb', 0) - teacher_metrics.get('size_mb', 0) if 'metrics_after_kd' in locals() else 0
+        pruning_size_change = student_metrics.get('size_mb', 0) - metrics_after_kd.get('size_mb', 0) if 'metrics_after_kd' in locals() else 0
+        
+        kd_params_change = metrics_after_kd.get('num_params', 0) - teacher_metrics.get('num_params', 0) if 'metrics_after_kd' in locals() else 0
+        pruning_params_change = student_metrics.get('num_params', 0) - metrics_after_kd.get('num_params', 0) if 'metrics_after_kd' in locals() else 0
+        
         # Automatically save student_metrics results to JSON file
         print("[TRAIN] Saving student metrics to JSON file...")
         try:
@@ -2639,16 +2649,6 @@ def training_task(model_name, uploaded_model_path=None, uploaded_model_name=None
             
         except Exception as e:
             print(f"[TRAIN] Error saving metrics: {str(e)}")
-        
-        # Calculate data changes during KD and pruning
-        kd_accuracy_change = metrics_after_kd.get('accuracy', 0) - teacher_metrics.get('accuracy', 0) if 'metrics_after_kd' in locals() else 0
-        pruning_accuracy_change = student_metrics.get('accuracy', 0) - metrics_after_kd.get('accuracy', 0) if 'metrics_after_kd' in locals() else 0
-        
-        kd_size_change = metrics_after_kd.get('size_mb', 0) - teacher_metrics.get('size_mb', 0) if 'metrics_after_kd' in locals() else 0
-        pruning_size_change = student_metrics.get('size_mb', 0) - metrics_after_kd.get('size_mb', 0) if 'metrics_after_kd' in locals() else 0
-        
-        kd_params_change = metrics_after_kd.get('num_params', 0) - teacher_metrics.get('num_params', 0) if 'metrics_after_kd' in locals() else 0
-        pruning_params_change = student_metrics.get('num_params', 0) - metrics_after_kd.get('num_params', 0) if 'metrics_after_kd' in locals() else 0
         
         evaluation_metrics = {
             "effectiveness": [
