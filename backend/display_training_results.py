@@ -20,7 +20,7 @@ def display_training_results():
             metrics = data.get("test_metrics", {})
             student_metrics = metrics.get("student_metrics", {})
             
-            print("\nSTUDENT MODEL PERFORMANCE (After KD + Pruning):")
+            print("\nSTUDENT MODEL PERFORMANCE (After Knowledge Distillation + Pruning):")
             print("-" * 60)
             print(f"Accuracy: {student_metrics.get('accuracy', 'N/A')}%")
             print(f"F1-Score: {student_metrics.get('f1', 'N/A'):.2f}%")

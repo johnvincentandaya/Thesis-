@@ -27,7 +27,7 @@ function Instructions() {
     <>
       <Navbar bg="black" variant="dark" expand="lg">
         <Container>
-          <Navbar.Brand as={Link} to="/">KD-Pruning Simulator</Navbar.Brand>
+          <Navbar.Brand as={Link} to="/">Knowledge Distillation-Pruning Simulator</Navbar.Brand>
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
             <Nav className="ms-auto">
@@ -42,10 +42,7 @@ function Instructions() {
         </Container>
       </Navbar>
 
-      {/* Main Content */}
       <div className="instructions-container">
-
-        {/* Quick Start Guide */}
         <Card className="quick-start-card" bordered={false}>
           <div className="quick-start-header">
             <Title level={2} className="section-title">
@@ -109,7 +106,6 @@ function Instructions() {
           </Row>
         </Card>
 
-        {/* Detailed Training Process */}
         <Card className="detail-card" bordered={false}>
           <div className="detail-header">
             <Title level={2} className="section-title">
@@ -232,7 +228,6 @@ function Instructions() {
           </div>
         </Card>
 
-        {/* File Requirements */}
         <Row gutter={[24, 24]}>
           <Col xs={24} lg={12}>
             <Card className="requirements-card success-card" bordered={false}>
@@ -304,7 +299,6 @@ function Instructions() {
           </Col>
         </Row>
 
-        {/* Visualization Guide */}
         <Card className="visualization-card" bordered={false}>
           <div className="visualization-header">
             <EyeOutlined className="section-icon-large" />
@@ -341,7 +335,7 @@ function Instructions() {
                 </div>
                 <Title level={4} className="feature-title">Your Trained Model (Bottom)</Title>
                 <Paragraph className="feature-description">
-                  The bottom simulation shows your uploaded model after KD + Pruning. Red nodes indicate pruned (removed) connections, showing how the model was optimized.
+                  The bottom simulation shows your uploaded model after Knowledge Distillation + Pruning. Red nodes indicate pruned (removed) connections, showing how the model was optimized.
                 </Paragraph>
               </div>
             </Col>

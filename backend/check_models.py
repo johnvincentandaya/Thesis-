@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Model and Dependency Checker for KD Pruning Simulator
+Model and Dependency Checker for Knowledge Distillation Pruning Simulator
 This script checks if all required models and dependencies are available.
 """
 
@@ -137,7 +137,7 @@ def test_model_loading() -> Dict[str, bool]:
 def main():
     """Main function to run all checks."""
     print("=" * 60)
-    print("KD PRUNING SIMULATOR - MODEL AND DEPENDENCY CHECKER")
+    print("KNOWLEDGE DISTILLATION PRUNING SIMULATOR - MODEL AND DEPENDENCY CHECKER")
     print("=" * 60)
     
     # Check core packages

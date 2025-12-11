@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Layout, Card, Button, Progress, message, Typography, Row, Col, Alert, Divider } from "antd";
+import { Layout, Card, Button, Progress, message, Typography, Row, Col, Alert, Divider, Spin } from "antd";
 import { ArrowRightOutlined } from "@ant-design/icons";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { socket, SOCKET_URL, checkConnectionHealth, forceReconnect } from "../socket";
@@ -12,8 +12,6 @@ import "../styles/TrainingComparison.css";
 
 const { Title, Text, Paragraph } = Typography;
 const { Content } = Layout;
-
-// Use shared singleton socket
 
 const metricExplanations = {
   accuracy: "Accuracy measures the proportion of correct predictions out of all predictions made.",
@@ -115,36 +113,26 @@ const Training = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Helper to get query param
   function getQueryParam(param) {
     const params = new URLSearchParams(location.search);
     return params.get(param);
   }
   
-  // Find valid model values
   const validModelValues = modelOptions.map(opt => opt.value);
 
-  // --- Model Pre-selection Logic ---
-  // Try to get model from navigation state (from Models page), then from query param, else null
   const getInitialSelectedModel = () => {
-    // 1. From navigation state (Models page)
     const navModel = location.state && location.state.selectedModel;
     if (navModel && validModelValues.includes(navModel)) {
       return navModel;
     }
-    // 2. From query param (URL)
     const modelParam = getQueryParam("model");
     if (modelParam && validModelValues.includes(modelParam)) {
       return modelParam;
     }
-    // 3. Fallback: no selection
     return null;
   };
 
-  // Dropdown: Model selection logic (pre-select from navigation state if present)
   const [selectedModel, setSelectedModel] = useState(getInitialSelectedModel);
-
-  // --- Socket and Server State ---
   const [training, setTraining] = useState(false);
   const [progress, setProgress] = useState(0);
   const [trainingComplete, setTrainingComplete] = useState(false);
@@ -159,12 +147,17 @@ const Training = () => {
   const [evaluationResults, setEvaluationResults] = useState(null);
   const [rawDataTable, setRawDataTable] = useState(() => {
     try {
-      const saved = localStorage.getItem('kd_pruning_raw_data_table');
+      const saved = localStorage.getItem('knowledge_distillation_pruning_raw_data_table');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
     }
   });
+  const [detailedRawData, setDetailedRawData] = useState(null);
+  const [loadingRawData, setLoadingRawData] = useState(false);
+  const [rawDataFetchedOnComplete, setRawDataFetchedOnComplete] = useState(false);
+  const [rawDataFetchInProgress, setRawDataFetchInProgress] = useState(false);
+  const RAW_DATA_CACHE_KEY = "knowledge_distillation_pruning_detailed_raw_data";
   const [currentResultIndex, setCurrentResultIndex] = useState(0);
   const [visualizationUnlocked, setVisualizationUnlocked] = useState(() => {
     return localStorage.getItem('visualization_unlocked') === 'true';
@@ -177,23 +170,14 @@ const Training = () => {
 
   // --- Error State ---
   const [trainingError, setTrainingError] = useState(null);
-  const cachedUploadMeta = (() => {
-    try {
-      const saved = localStorage.getItem('kd_uploaded_model_meta');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  })();
-  const [uploadStatus, setUploadStatus] = useState(cachedUploadMeta ? "success" : "idle");
+  // Don't restore uploaded model from localStorage - start fresh each time
+  const [uploadStatus, setUploadStatus] = useState("idle");
   const [uploadError, setUploadError] = useState(null);
   const [uploadingFile, setUploadingFile] = useState(false);
-  const [uploadedModelPath, setUploadedModelPath] = useState(cachedUploadMeta?.path || null);
-  const [uploadedModelName, setUploadedModelName] = useState(cachedUploadMeta?.name || null);
-  const [uploadedModelSize, setUploadedModelSize] = useState(cachedUploadMeta?.size || null);
+  const [uploadedModelPath, setUploadedModelPath] = useState(null);
+  const [uploadedModelName, setUploadedModelName] = useState(null);
+  const [uploadedModelSize, setUploadedModelSize] = useState(null);
 
-  // Server connection test
-  // Remove message.info from testServerConnection to avoid auto notice
   const testServerConnection = async () => {
     try {
       const response = await fetch(`${SOCKET_URL}/test`);
@@ -208,7 +192,6 @@ const Training = () => {
     }
   };
 
-  // Enhanced server status checking function
   const checkServerStatus = async () => {
     try {
       const response = await fetch(`${SOCKET_URL}/test`, {
@@ -234,20 +217,31 @@ const Training = () => {
   };
 
   useEffect(() => {
-    // Immediately check server status on mount
     checkServerStatus();
 
-    // Set up periodic server status checks
-    const statusCheckInterval = setInterval(checkServerStatus, 10000); // Check every 10 seconds
+    // Hydrate cached raw data once on mount so it persists after first fetch
+    try {
+      const cachedRaw = localStorage.getItem("knowledge_distillation_pruning_detailed_raw_data");
+      if (cachedRaw) {
+        const parsed = JSON.parse(cachedRaw);
+        if (parsed && typeof parsed === "object") {
+          setDetailedRawData(parsed);
+          setRawDataFetchedOnComplete(true);
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to load cached raw data:", e);
+    }
+
+    const statusCheckInterval = setInterval(checkServerStatus, 10000);
 
     socket.on("connect", () => {
       console.log("Socket connected successfully");
       setSocketConnected(true);
       setServerStatus("connected");
-      setTrainingError(null); // Clear any previous errors
+      setTrainingError(null);
     });
 
-    // Enhanced connection monitoring
     socket.on("server_ready", (data) => {
       console.log("Server ready:", data);
       setServerStatus("connected");
@@ -274,14 +268,12 @@ const Training = () => {
     socket.on("connect_error", (error) => {
       console.log("Socket connection error:", error);
       setSocketConnected(false);
-      // Don't immediately set server status to error - check HTTP first
       checkServerStatus();
     });
     
     socket.on("disconnect", (reason) => {
       console.log("Socket disconnected:", reason);
       setSocketConnected(false);
-      // Check if server is still reachable via HTTP
       if (!training) {
         checkServerStatus();
       }
@@ -297,7 +289,6 @@ const Training = () => {
     socket.on("reconnect_failed", () => {
       console.log("Socket reconnection failed");
       setSocketConnected(false);
-      // Check if server is still reachable via HTTP
       checkServerStatus();
       if (training) {
         message.error({ content: "Lost socket connection during training. Training may continue in background.", duration: 15 });
@@ -306,29 +297,25 @@ const Training = () => {
       }
     });
     
-    // Add heartbeat to keep connection alive during training
     const heartbeat = setInterval(() => {
       if (socket.connected && training) {
         socket.emit('ping');
       }
-    }, 30000); // Ping every 30 seconds during training
+    }, 30000);
     const phaseOrder = ["model_loading", "knowledge_distillation", "pruning", "evaluation", "completed"];
 
 socket.on("training_progress", (data) => {
   if (!data) return;
 
-  // Make sure progress only moves forward
   if (typeof data.progress === "number") {
     setProgress(prev => Math.max(prev, data.progress));
   }
 
-  // Make sure phase only moves forward
   if (data.phase) {
     setTrainingPhase(prevPhase => {
       const prevIdx = phaseOrder.indexOf(prevPhase);
       const newIdx = phaseOrder.indexOf(data.phase);
 
-      // allow forward or same, block backward
       if (newIdx === -1) return prevPhase;
       if (prevIdx === -1 || newIdx >= prevIdx) {
         return data.phase;
@@ -337,42 +324,36 @@ socket.on("training_progress", (data) => {
     });
   }
 
-  // Update loss if present
   if (data.loss !== undefined) {
     setCurrentLoss(data.loss.toFixed(4));
   }
 
-  // Always take latest message if provided
   if (data.message) {
     setTrainingMessage(data.message);
   }
 
-  // Mark training complete only when backend says so
   if (data.status === "completed" || data.phase === "completed" || data.progress === 100) {
     setProgress(100);
     setTrainingComplete(true);
     setTraining(false);
-    console.log("Training marked as complete");
+    console.log("[TRAINING] Training marked as complete");
+    console.log("[TRAINING] Progress data:", data);
   }
 });
 
     
     socket.on("training_status", (data) => {
       if (data.phase) setTrainingPhase(data.phase);
-      if (data.message) setTrainingMessage(data.message);
+      if (data.message)       setTrainingMessage(data.message);
     });
     
-    // Handle chunked metrics to avoid message truncation
     socket.on("training_metrics", (data) => {
       console.log("Received training_metrics:", data);
       setMetrics(prevMetrics => {
-        // If no previous metrics, just use incoming
         if (!prevMetrics) return data;
 
-        // Start with previous
         const merged = { ...prevMetrics };
 
-        // Helper: deep merge comparisons
         const mergeComparison = (prevComp, newComp) => {
           if (!prevComp) return newComp || {};
           if (!newComp) return prevComp;
@@ -383,16 +364,13 @@ socket.on("training_progress", (data) => {
           return out;
         };
 
-        // Merge each top-level section
         Object.keys(data).forEach((key) => {
-          // Pass-through error/basic
           if (key === "error" || key === "basic_metrics") {
             merged[key] = data[key];
             return;
           }
 
           if (key === "model_performance") {
-            // Ensure metrics are merged, not overwritten
             const prevMp = merged.model_performance || {};
             const newMp = data.model_performance || {};
             merged.model_performance = {
@@ -417,43 +395,84 @@ socket.on("training_progress", (data) => {
             return;
           }
 
-          // Default shallow merge for other sections
           merged[key] = { ...(merged[key] || {}), ...(data[key] || {}) };
         });
 
-        // Persist after each merge if we have core data
         if (merged.model_performance) {
           setEvaluationResults(merged);
-          localStorage.setItem('kd_pruning_evaluation_results', JSON.stringify(merged));
+          localStorage.setItem('knowledge_distillation_pruning_evaluation_results', JSON.stringify(merged));
         }
         return merged;
       });
     });
 
-    // Listen for evaluation metrics (4 categories)
     socket.on("evaluation_metrics", (data) => {
       console.log("Received evaluation metrics:", data);
       setEvaluationResults(prevResults => {
         const merged = { ...prevResults };
         merged.evaluation_metrics = data;
-        localStorage.setItem('kd_pruning_evaluation_results', JSON.stringify(merged));
+        localStorage.setItem('knowledge_distillation_pruning_evaluation_results', JSON.stringify(merged));
         return merged;
       });
     });
 
-    // Listen for raw data table
     socket.on("raw_data_table", (data) => {
       console.log("Received raw data table for model:", data?.stages?.before?.metrics?.size_mb, "MB");
       console.log("Raw data table details:", {
         before_size: data?.stages?.before?.metrics?.size_mb,
-        after_kd_size: data?.stages?.after_kd?.metrics?.size_mb,
+        after_knowledge_distillation_size: data?.stages?.after_knowledge_distillation?.metrics?.size_mb,
         after_pruning_size: data?.stages?.after_pruning?.metrics?.size_mb
       });
       setRawDataTable(data);
-      localStorage.setItem('kd_pruning_raw_data_table', JSON.stringify(data));
+      localStorage.setItem('knowledge_distillation_pruning_raw_data_table', JSON.stringify(data));
     });
 
-    // Listen for training computation details (side-by-side comparison)
+    socket.on("training_raw_data_ready", (socketData) => {
+      console.log("[RAW DATA] Received raw data directly via socket event!");
+      console.log("[RAW DATA] Full socket data:", JSON.stringify(socketData, null, 2));
+      
+      if (socketData && socketData.success && socketData.data) {
+        setDetailedRawData(socketData.data);
+        try {
+          localStorage.setItem("knowledge_distillation_pruning_detailed_raw_data", JSON.stringify(socketData.data));
+        } catch (e) {
+          console.warn("Failed to cache raw data:", e);
+        }
+        setLoadingRawData(false);
+        setRawDataFetchedOnComplete(true);
+        setRawDataFetchInProgress(false);
+        console.log("[RAW DATA] Raw data set directly from socket event!");
+        
+        const uploadedModel = socketData.data.uploaded_model;
+        const baselineModel = socketData.data.baseline_model;
+        
+        console.log("  - Uploaded model:", {
+          exists: !!uploadedModel,
+          hasTeacherBefore: !!uploadedModel?.teacher_before,
+          hasStudentBefore: !!uploadedModel?.student_before,
+          hasStudentAfter: !!uploadedModel?.student_after,
+          lossHistoryLength: uploadedModel?.loss_history?.length || 0,
+          teacherBeforeKeys: uploadedModel?.teacher_before ? Object.keys(uploadedModel.teacher_before) : [],
+          studentAfterKeys: uploadedModel?.student_after ? Object.keys(uploadedModel.student_after) : []
+        });
+        
+        if (baselineModel) {
+          console.log("  - Baseline model:", {
+            modelName: baselineModel.model_name,
+            hasBeforeTraining: !!baselineModel.before_training,
+            hasAfterTraining: !!baselineModel.after_training,
+            beforeTrainingKeys: baselineModel.before_training ? Object.keys(baselineModel.before_training) : [],
+            afterTrainingKeys: baselineModel.after_training ? Object.keys(baselineModel.after_training) : []
+          });
+        } else {
+          console.warn("  - Baseline model missing from socket data");
+        }
+      } else {
+        console.warn("[RAW DATA] Socket data missing success or data fields:", socketData);
+        console.warn("[RAW DATA] User can click the refresh button to fetch raw data manually.");
+      }
+    });
+
     socket.on("training_computation_details", (data) => {
       console.log("Received training_computation_details:", data);
       setComputationDetails(data);
@@ -465,7 +484,6 @@ socket.on("training_progress", (data) => {
       setTrainingError(data.error || "Training Failed");
       message.error({ content: `Training Failed: ${data.error}`, key: "training", duration: 15 });
       
-      // Auto-clear error after 15 seconds
       setTimeout(() => {
         setTrainingError(null);
       }, 15000);
@@ -480,7 +498,7 @@ socket.on("training_progress", (data) => {
       setTrainingMessage(null);
       setMetrics(null);
       setEvaluationResults(null);
-      localStorage.removeItem('kd_pruning_evaluation_results');
+      localStorage.removeItem('knowledge_distillation_pruning_evaluation_results');
       message.info("Training has been cancelled.");
     });
     return () => {
@@ -497,17 +515,15 @@ socket.on("training_progress", (data) => {
       socket.off("training_computation_details");
       socket.off("training_error");
       socket.off("training_cancelled");
-      // Do not disconnect the shared socket here to allow free navigation
+      socket.off("training_raw_data_ready");
     };
     // eslint-disable-next-line
   }, []);
 
-  // Enhanced reconnection with health check
   const reconnectSocket = async () => {
-    if (retryLoading) return; // Prevent multiple clicks
+    if (retryLoading) return;
     setRetryLoading(true);
     
-    // Show notice to user ONLY when user clicks Retry
     if (!reconnectSocket._noticeShown) {
       message.info("Attempting to reconnect to the server...");
       reconnectSocket._noticeShown = true;
@@ -515,21 +531,16 @@ socket.on("training_progress", (data) => {
     }
     
     try {
-      // Check current connection health
       const health = checkConnectionHealth();
       console.log("Connection health before reconnect:", health);
       
-      // Force reconnection
       forceReconnect();
       setRetryCount((prev) => prev + 1);
       
-      // Wait a moment for connection to establish
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Test server connection
       await testServerConnection();
       
-      // Check health again
       const newHealth = checkConnectionHealth();
       console.log("Connection health after reconnect:", newHealth);
       
@@ -546,13 +557,118 @@ socket.on("training_progress", (data) => {
     }
   };
 
+  // Fetch detailed raw data from backend with retry mechanism
+  const fetchDetailedRawDataWithRetry = async (retryCount = 0, maxRetries = 5) => {
+    console.log(`[RAW DATA] Fetching raw data (attempt ${retryCount + 1}/${maxRetries + 1})...`);
+    setLoadingRawData(true);
+    try {
+      // Use the same socket/base URL as the rest of the training APIs to avoid port mismatches
+      const response = await fetch(`${SOCKET_URL}/training_raw_data`);
+      console.log(`[RAW DATA] Response status: ${response.status}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log("[RAW DATA] Response data:", data);
+        
+        if (data.success && data.data) {
+          // Always set the data if we have any structure - let UI decide what to show
+          // Don't be too strict with validation
+          setDetailedRawData(data.data);
+          try {
+            localStorage.setItem("knowledge_distillation_pruning_detailed_raw_data", JSON.stringify(data.data));
+          } catch (e) {
+            console.warn("Failed to cache raw data:", e);
+          }
+          setRawDataFetchedOnComplete(true);
+          setRawDataFetchInProgress(false);
+          
+          const uploadedModel = data.data.uploaded_model;
+          const baselineModel = data.data.baseline_model;
+          
+          console.log("[RAW DATA] Raw data fetched and set!");
+          console.log("  - Uploaded model:", {
+            exists: !!uploadedModel,
+            hasTeacherBefore: !!uploadedModel?.teacher_before,
+            hasStudentBefore: !!uploadedModel?.student_before,
+            hasStudentAfter: !!uploadedModel?.student_after,
+            lossHistoryLength: uploadedModel?.loss_history?.length || 0,
+            teacherBeforeKeys: uploadedModel?.teacher_before ? Object.keys(uploadedModel.teacher_before) : [],
+            studentAfterKeys: uploadedModel?.student_after ? Object.keys(uploadedModel.student_after) : []
+          });
+          
+          if (baselineModel) {
+            console.log("  - Baseline model:", {
+              modelName: baselineModel.model_name,
+              hasBeforeTraining: !!baselineModel.before_training,
+              hasAfterTraining: !!baselineModel.after_training,
+              beforeTrainingKeys: baselineModel.before_training ? Object.keys(baselineModel.before_training) : [],
+              afterTrainingKeys: baselineModel.after_training ? Object.keys(baselineModel.after_training) : []
+            });
+          }
+          
+          setLoadingRawData(false);
+          return;
+        } else {
+          console.warn("No raw data available in response:", data);
+          setRawDataFetchInProgress(false);
+          if (retryCount < maxRetries) {
+            console.log(`Retrying in 2 seconds... (${retryCount + 1}/${maxRetries})`);
+            setTimeout(() => {
+              fetchDetailedRawDataWithRetry(retryCount + 1, maxRetries);
+            }, 2000);
+            return;
+          }
+          console.warn("Max retries reached, giving up");
+          setDetailedRawData(null);
+        }
+      } else {
+        const errorText = await response.text();
+        console.warn("Failed to fetch detailed raw data:", response.status, errorText);
+        setRawDataFetchInProgress(false);
+        if (retryCount < maxRetries && response.status === 404) {
+          // 404 means data not ready yet, retry
+          console.log(`404 - Data not ready, retrying... (${retryCount + 1}/${maxRetries})`);
+          setTimeout(() => {
+            fetchDetailedRawDataWithRetry(retryCount + 1, maxRetries);
+          }, 2000);
+          return;
+        }
+        setDetailedRawData(null);
+      }
+    } catch (error) {
+      console.error("Error fetching detailed raw data:", error);
+      setRawDataFetchInProgress(false);
+      setRawDataFetchedOnComplete(false);
+      if (retryCount < maxRetries) {
+        console.log(`Error occurred, retrying... (${retryCount + 1}/${maxRetries})`);
+        setTimeout(() => {
+          fetchDetailedRawDataWithRetry(retryCount + 1, maxRetries);
+        }, 2000);
+        return;
+      }
+      console.error("Max retries reached after errors");
+      setDetailedRawData(null);
+    } finally {
+      if (retryCount === maxRetries || !loadingRawData) {
+        setLoadingRawData(false);
+      }
+    }
+  };
+
+  // Simple fetch function for manual refresh
+  const fetchDetailedRawData = async () => {
+    if (rawDataFetchInProgress) return;
+    setRawDataFetchInProgress(true);
+    await fetchDetailedRawDataWithRetry(0, 3);
+  };
+
   const handleModelSelect = (model) => {
     setSelectedModel(model);
     // Only clear results if starting a new training session
     if (training) {
       setMetrics(null);
       setEvaluationResults(null);
-      localStorage.removeItem('kd_pruning_evaluation_results');
+      localStorage.removeItem('knowledge_distillation_pruning_evaluation_results');
     }
     setProgress(0);
     setTrainingComplete(false);
@@ -585,6 +701,11 @@ socket.on("training_progress", (data) => {
       message.warning("Please wait for the upload to finish.");
       return;
     }
+
+    if (trainingComplete) {
+      message.info("Click 'Train Another Model' to start a new run.");
+      return;
+    }
     
     if (training) {
       message.warning("Training is already in progress.");
@@ -599,12 +720,17 @@ socket.on("training_progress", (data) => {
     setMetrics(null);
     setEvaluationResults(null);
     setRawDataTable(null); // Clear raw data table for new training
+    setDetailedRawData(null);
+    setRawDataFetchedOnComplete(false); // Reset flag for new training
     setTrainingPhase(null);
     setTrainingMessage(null);
     setTrainingError(null);
+    setRawDataFetchedOnComplete(false);
+    setRawDataFetchInProgress(false);
+    setDetailedRawData(null);
     // Clear previous results when starting new training
-    localStorage.removeItem('kd_pruning_evaluation_results');
-    localStorage.removeItem('kd_pruning_raw_data_table'); // Clear cached raw data table
+    localStorage.removeItem('knowledge_distillation_pruning_evaluation_results');
+    localStorage.removeItem('knowledge_distillation_pruning_raw_data_table'); // Clear cached raw data table
     
     try {
       // Test server connection first
@@ -697,7 +823,7 @@ socket.on("training_progress", (data) => {
         setTrainingMessage(null);
         setMetrics(null);
         setEvaluationResults(null);
-        localStorage.removeItem('kd_pruning_evaluation_results');
+        localStorage.removeItem('knowledge_distillation_pruning_evaluation_results');
         message.success("Training has been cancelled successfully.");
       } else {
         message.error({ content: "Failed to cancel training. Please try again.", duration: 15 });
@@ -744,7 +870,6 @@ socket.on("training_progress", (data) => {
     }
   };
 
-  // Enhanced server status indicator with health check
   const renderServerStatus = () => {
     const handleHealthCheck = () => {
       const health = checkConnectionHealth();
@@ -1093,8 +1218,8 @@ const renderEducationalMetrics = (metrics) => {
   const [persistedResult, setPersistedResult] = useState(() => {
     // Only load persisted result if it exists, training is not in progress, AND user has previously started training in this session
     // We'll use a session flag to track if user has started training at least once
-    const saved = localStorage.getItem('kd_training_persisted_result');
-    const trainingStarted = sessionStorage.getItem('kd_training_started');
+    const saved = localStorage.getItem('knowledge_distillation_training_persisted_result');
+    const trainingStarted = sessionStorage.getItem('knowledge_distillation_training_started');
     if (saved && trainingStarted === 'true') {
       try {
         const parsed = JSON.parse(saved);
@@ -1108,7 +1233,7 @@ const renderEducationalMetrics = (metrics) => {
 
   // Track if user has started training in this session
   const [hasStartedTraining, setHasStartedTraining] = useState(() => {
-    return sessionStorage.getItem('kd_training_started') === 'true';
+    return sessionStorage.getItem('knowledge_distillation_training_started') === 'true';
   });
 
   const formatBytes = (bytes) => {
@@ -1162,7 +1287,7 @@ const renderEducationalMetrics = (metrics) => {
     setUploadStatus("uploading");
     // Clear previous raw data table when new model is uploaded
     setRawDataTable(null);
-    localStorage.removeItem('kd_pruning_raw_data_table');
+    localStorage.removeItem('knowledge_distillation_pruning_raw_data_table');
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -1185,7 +1310,7 @@ const renderEducationalMetrics = (metrics) => {
         path: data.file_path,
         uploadedAt: new Date().toISOString()
       };
-      localStorage.setItem("kd_uploaded_model_meta", JSON.stringify(meta));
+      localStorage.setItem("knowledge_distillation_uploaded_model_meta", JSON.stringify(meta));
       message.success(`Uploaded ${file.name} successfully.`);
     } catch (error) {
       console.error("Upload error:", error);
@@ -1208,7 +1333,7 @@ const renderEducationalMetrics = (metrics) => {
     setUploadedModelSize(null);
     setUploadStatus("idle");
     setUploadError(null);
-    localStorage.removeItem("kd_uploaded_model_meta");
+    localStorage.removeItem("knowledge_distillation_uploaded_model_meta");
   };
 
   const resetForNewTraining = () => {
@@ -1225,16 +1350,33 @@ const renderEducationalMetrics = (metrics) => {
     setMetrics(null);
     setRawDataTable(null); // Clear raw data table
     setComputationDetails(null);
+    setDetailedRawData(null);
+    localStorage.removeItem("knowledge_distillation_pruning_detailed_raw_data");
     // Clear persisted results
     clearPersistedResult();
     // Clear cached raw data table
-    localStorage.removeItem('kd_pruning_raw_data_table');
+    localStorage.removeItem('knowledge_distillation_pruning_raw_data_table');
+    setRawDataFetchedOnComplete(false);
+    setRawDataFetchInProgress(false);
     // Scroll to top to show upload section
     window.scrollTo({ top: 0, behavior: 'smooth' });
     message.success("Ready to train a new model. Please upload your model file.");
   };
 
   
+
+  // Clear uploaded model state on mount - start fresh each time
+  useEffect(() => {
+    // Clear uploaded model metadata from localStorage
+    localStorage.removeItem('knowledge_distillation_uploaded_model_meta');
+    // Reset uploaded model state
+    setUploadStatus("idle");
+    setUploadedModelPath(null);
+    setUploadedModelName(null);
+    setUploadedModelSize(null);
+    setUploadError(null);
+    console.log("Cleared uploaded model state on mount");
+  }, []);
 
   // On mount, restore all state from persistedResult if available and not currently training, and only if user has started training before
   useEffect(() => {
@@ -1286,21 +1428,42 @@ const renderEducationalMetrics = (metrics) => {
         metrics,
         evaluationResults
       };
-      localStorage.setItem('kd_training_persisted_result', JSON.stringify(result));
+      localStorage.setItem('knowledge_distillation_training_persisted_result', JSON.stringify(result));
       setPersistedResult(result);
       setHasStartedTraining(true);
-      sessionStorage.setItem('kd_training_started', 'true');
+      sessionStorage.setItem('knowledge_distillation_training_started', 'true');
       // Unlock visualization
       setVisualizationUnlocked(true);
       localStorage.setItem('visualization_unlocked', 'true');
     }
   }, [trainingComplete, metrics, evaluationResults, progress, currentLoss, trainingPhase, trainingMessage, selectedModel]);
 
+  // Automatically fetch raw data once when training completes
+  useEffect(() => {
+    if (trainingComplete && !rawDataFetchedOnComplete && !rawDataFetchInProgress && typeof fetchDetailedRawDataWithRetry === 'function') {
+      console.log("[RAW DATA] Training complete detected. Will fetch raw data after short delay to allow socket event first...");
+      setRawDataFetchInProgress(true);
+      // Wait 2 seconds to allow socket event to arrive first, then fetch if not received
+      const timeoutId = setTimeout(() => {
+        console.log("[RAW DATA] Fetching raw data via HTTP (socket event may have been missed)...");
+        fetchDetailedRawDataWithRetry(0, 5)
+          .catch(() => {
+            // keep fetchInProgress false to allow manual retry
+          })
+          .finally(() => {
+            setRawDataFetchInProgress(false);
+          });
+      }, 2000);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [trainingComplete, rawDataFetchedOnComplete, rawDataFetchInProgress, fetchDetailedRawDataWithRetry]);
+
   const clearPersistedResult = () => {
-    localStorage.removeItem('kd_training_persisted_result');
+    localStorage.removeItem('knowledge_distillation_training_persisted_result');
     setPersistedResult(null);
     setHasStartedTraining(false);
-    sessionStorage.removeItem('kd_training_started');
+    sessionStorage.removeItem('knowledge_distillation_training_started');
   };
 
   const handleNewTrainingSession = () => {
@@ -1313,9 +1476,11 @@ const renderEducationalMetrics = (metrics) => {
     setEvaluationResults(null);
     setTrainingPhase(null);
     setTrainingMessage(null);
+    setDetailedRawData(null);
+    setRawDataFetchedOnComplete(false); // Reset flag for new training session
     // Hide results section immediately
     setHasStartedTraining(false);
-    sessionStorage.removeItem('kd_training_started');
+    sessionStorage.removeItem('knowledge_distillation_training_started');
   };
 
   // Results display logic
@@ -1452,11 +1617,11 @@ const renderEducationalMetrics = (metrics) => {
                 }
               >
                 <Paragraph style={{ color: '#666', marginBottom: 16 }}>
-                  Complete raw data showing all metrics for the uncompressed (original) model and compressed (after KD + Pruning) model. 
+                  Complete raw data showing all metrics for the uncompressed (original) model and compressed (after Knowledge Distillation + Pruning) model. 
                   All values are computed from actual model evaluation.
                 </Paragraph>
                 
-                {/* Main Comparison Table: Uncompressed → After KD → After Pruning */}
+                {/* Main Comparison Table: Uncompressed → After Knowledge Distillation → After Pruning */}
                 <div style={{ overflowX: 'auto', marginBottom: 24 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', marginBottom: 20 }}>
                     <thead>
@@ -1469,7 +1634,7 @@ const renderEducationalMetrics = (metrics) => {
                           </div>
                         </th>
                         <th style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontWeight: 'bold', background: '#fff7e6', width: '20%' }}>
-                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#fa8c16' }}>After KD</div>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#fa8c16' }}>After Knowledge Distillation</div>
                           <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#666', marginTop: '4px' }}>
                             (Change from Before)
                           </div>
@@ -1477,7 +1642,7 @@ const renderEducationalMetrics = (metrics) => {
                         <th style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontWeight: 'bold', background: '#f6ffed', width: '20%' }}>
                           <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#52c41a' }}>After Pruning</div>
                           <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#666', marginTop: '4px' }}>
-                            (Change from KD)
+                            (Change from Knowledge Distillation)
                           </div>
                         </th>
                         <th style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontWeight: 'bold', background: '#f0f0f0', width: '20%' }}>
@@ -1496,10 +1661,10 @@ const renderEducationalMetrics = (metrics) => {
                           {rawDataTable.stages?.before?.metrics?.accuracy?.toFixed(2) || 'N/A'}%
                         </td>
                         <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
-                          {rawDataTable.stages?.after_kd?.metrics?.accuracy?.toFixed(2) || 'N/A'}%
-                          {rawDataTable.stages?.after_kd?.changes_from_before?.accuracy_change !== undefined && (
-                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_kd.changes_from_before.accuracy_change >= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
-                              ({rawDataTable.stages.after_kd.changes_from_before.accuracy_change >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.accuracy_change.toFixed(2)}%)
+                          {rawDataTable.stages?.after_knowledge_distillation?.metrics?.accuracy?.toFixed(2) || 'N/A'}%
+                          {rawDataTable.stages?.after_knowledge_distillation?.changes_from_before?.accuracy_change !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_knowledge_distillation.changes_from_before.accuracy_change >= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_knowledge_distillation.changes_from_before.accuracy_change >= 0 ? '+' : ''}{rawDataTable.stages.after_knowledge_distillation.changes_from_before.accuracy_change.toFixed(2)}%)
                             </div>
                           )}
                         </td>
@@ -1530,10 +1695,10 @@ const renderEducationalMetrics = (metrics) => {
                           {rawDataTable.stages?.before?.metrics?.precision?.toFixed(2) || 'N/A'}%
                         </td>
                         <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
-                          {rawDataTable.stages?.after_kd?.metrics?.precision?.toFixed(2) || 'N/A'}%
-                          {rawDataTable.stages?.after_kd?.changes_from_before?.precision_change !== undefined && (
-                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_kd.changes_from_before.precision_change >= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
-                              ({rawDataTable.stages.after_kd.changes_from_before.precision_change >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.precision_change.toFixed(2)}%)
+                          {rawDataTable.stages?.after_knowledge_distillation?.metrics?.precision?.toFixed(2) || 'N/A'}%
+                          {rawDataTable.stages?.after_knowledge_distillation?.changes_from_before?.precision_change !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_knowledge_distillation.changes_from_before.precision_change >= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_knowledge_distillation.changes_from_before.precision_change >= 0 ? '+' : ''}{rawDataTable.stages.after_knowledge_distillation.changes_from_before.precision_change.toFixed(2)}%)
                             </div>
                           )}
                         </td>
@@ -1564,10 +1729,10 @@ const renderEducationalMetrics = (metrics) => {
                           {rawDataTable.stages?.before?.metrics?.recall?.toFixed(2) || 'N/A'}%
                         </td>
                         <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
-                          {rawDataTable.stages?.after_kd?.metrics?.recall?.toFixed(2) || 'N/A'}%
-                          {rawDataTable.stages?.after_kd?.changes_from_before?.recall_change !== undefined && (
-                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_kd.changes_from_before.recall_change >= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
-                              ({rawDataTable.stages.after_kd.changes_from_before.recall_change >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.recall_change.toFixed(2)}%)
+                          {rawDataTable.stages?.after_knowledge_distillation?.metrics?.recall?.toFixed(2) || 'N/A'}%
+                          {rawDataTable.stages?.after_knowledge_distillation?.changes_from_before?.recall_change !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_knowledge_distillation.changes_from_before.recall_change >= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_knowledge_distillation.changes_from_before.recall_change >= 0 ? '+' : ''}{rawDataTable.stages.after_knowledge_distillation.changes_from_before.recall_change.toFixed(2)}%)
                             </div>
                           )}
                         </td>
@@ -1598,10 +1763,10 @@ const renderEducationalMetrics = (metrics) => {
                           {rawDataTable.stages?.before?.metrics?.f1_score?.toFixed(2) || 'N/A'}%
                         </td>
                         <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
-                          {rawDataTable.stages?.after_kd?.metrics?.f1_score?.toFixed(2) || 'N/A'}%
-                          {rawDataTable.stages?.after_kd?.changes_from_before?.f1_change !== undefined && (
-                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_kd.changes_from_before.f1_change >= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
-                              ({rawDataTable.stages.after_kd.changes_from_before.f1_change >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.f1_change.toFixed(2)}%)
+                          {rawDataTable.stages?.after_knowledge_distillation?.metrics?.f1_score?.toFixed(2) || 'N/A'}%
+                          {rawDataTable.stages?.after_knowledge_distillation?.changes_from_before?.f1_change !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_knowledge_distillation.changes_from_before.f1_change >= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_knowledge_distillation.changes_from_before.f1_change >= 0 ? '+' : ''}{rawDataTable.stages.after_knowledge_distillation.changes_from_before.f1_change.toFixed(2)}%)
                             </div>
                           )}
                         </td>
@@ -1632,12 +1797,12 @@ const renderEducationalMetrics = (metrics) => {
                           {rawDataTable.stages?.before?.metrics?.size_mb?.toFixed(2) || 'N/A'} MB
                         </td>
                         <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
-                          {rawDataTable.stages?.after_kd?.metrics?.size_mb?.toFixed(2) || 'N/A'} MB
-                          {rawDataTable.stages?.after_kd?.changes_from_before?.size_change_mb !== undefined && (
-                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_kd.changes_from_before.size_change_mb <= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
-                              ({rawDataTable.stages.after_kd.changes_from_before.size_change_mb >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.size_change_mb.toFixed(2)} MB)
-                              {rawDataTable.stages?.after_kd?.changes_from_before?.size_reduction_percent !== undefined && (
-                                <span> {rawDataTable.stages.after_kd.changes_from_before.size_reduction_percent > 0 ? '-' : '+'}{Math.abs(rawDataTable.stages.after_kd.changes_from_before.size_reduction_percent).toFixed(2)}%</span>
+                          {rawDataTable.stages?.after_knowledge_distillation?.metrics?.size_mb?.toFixed(2) || 'N/A'} MB
+                          {rawDataTable.stages?.after_knowledge_distillation?.changes_from_before?.size_change_mb !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_knowledge_distillation.changes_from_before.size_change_mb <= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_knowledge_distillation.changes_from_before.size_change_mb >= 0 ? '+' : ''}{rawDataTable.stages.after_knowledge_distillation.changes_from_before.size_change_mb.toFixed(2)} MB)
+                              {rawDataTable.stages?.after_knowledge_distillation?.changes_from_before?.size_reduction_percent !== undefined && (
+                                <span> {rawDataTable.stages.after_knowledge_distillation.changes_from_before.size_reduction_percent > 0 ? '-' : '+'}{Math.abs(rawDataTable.stages.after_knowledge_distillation.changes_from_before.size_reduction_percent).toFixed(2)}%</span>
                               )}
                             </div>
                           )}
@@ -1670,12 +1835,12 @@ const renderEducationalMetrics = (metrics) => {
                           {rawDataTable.stages?.before?.metrics?.latency_ms?.toFixed(2) || 'N/A'} ms
                         </td>
                         <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
-                          {rawDataTable.stages?.after_kd?.metrics?.latency_ms?.toFixed(2) || 'N/A'} ms
-                          {rawDataTable.stages?.after_kd?.changes_from_before?.latency_change_ms !== undefined && (
-                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_kd.changes_from_before.latency_change_ms <= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
-                              ({rawDataTable.stages.after_kd.changes_from_before.latency_change_ms >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.latency_change_ms.toFixed(2)} ms)
-                              {rawDataTable.stages?.after_kd?.changes_from_before?.latency_improvement_percent !== undefined && (
-                                <span> {rawDataTable.stages.after_kd.changes_from_before.latency_improvement_percent > 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.latency_improvement_percent.toFixed(2)}%</span>
+                          {rawDataTable.stages?.after_knowledge_distillation?.metrics?.latency_ms?.toFixed(2) || 'N/A'} ms
+                          {rawDataTable.stages?.after_knowledge_distillation?.changes_from_before?.latency_change_ms !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_knowledge_distillation.changes_from_before.latency_change_ms <= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_knowledge_distillation.changes_from_before.latency_change_ms >= 0 ? '+' : ''}{rawDataTable.stages.after_knowledge_distillation.changes_from_before.latency_change_ms.toFixed(2)} ms)
+                              {rawDataTable.stages?.after_knowledge_distillation?.changes_from_before?.latency_improvement_percent !== undefined && (
+                                <span> {rawDataTable.stages.after_knowledge_distillation.changes_from_before.latency_improvement_percent > 0 ? '+' : ''}{rawDataTable.stages.after_knowledge_distillation.changes_from_before.latency_improvement_percent.toFixed(2)}%</span>
                               )}
                             </div>
                           )}
@@ -1708,12 +1873,12 @@ const renderEducationalMetrics = (metrics) => {
                           {rawDataTable.stages?.before?.metrics?.num_params?.toLocaleString() || 'N/A'}
                         </td>
                         <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
-                          {rawDataTable.stages?.after_kd?.metrics?.num_params?.toLocaleString() || 'N/A'}
-                          {rawDataTable.stages?.after_kd?.changes_from_before?.params_change !== undefined && (
-                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_kd.changes_from_before.params_change <= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
-                              ({rawDataTable.stages.after_kd.changes_from_before.params_change >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.params_change.toLocaleString()})
-                              {rawDataTable.stages?.after_kd?.changes_from_before?.params_reduction_percent !== undefined && (
-                                <span> {rawDataTable.stages.after_kd.changes_from_before.params_reduction_percent > 0 ? '-' : '+'}{Math.abs(rawDataTable.stages.after_kd.changes_from_before.params_reduction_percent).toFixed(2)}%</span>
+                          {rawDataTable.stages?.after_knowledge_distillation?.metrics?.num_params?.toLocaleString() || 'N/A'}
+                          {rawDataTable.stages?.after_knowledge_distillation?.changes_from_before?.params_change !== undefined && (
+                            <div style={{ fontSize: '11px', color: rawDataTable.stages.after_knowledge_distillation.changes_from_before.params_change <= 0 ? '#52c41a' : '#ff4d4f', marginTop: '2px' }}>
+                              ({rawDataTable.stages.after_knowledge_distillation.changes_from_before.params_change >= 0 ? '+' : ''}{rawDataTable.stages.after_knowledge_distillation.changes_from_before.params_change.toLocaleString()})
+                              {rawDataTable.stages?.after_knowledge_distillation?.changes_from_before?.params_reduction_percent !== undefined && (
+                                <span> {rawDataTable.stages.after_knowledge_distillation.changes_from_before.params_reduction_percent > 0 ? '-' : '+'}{Math.abs(rawDataTable.stages.after_knowledge_distillation.changes_from_before.params_reduction_percent).toFixed(2)}%</span>
                               )}
                             </div>
                           )}
@@ -1746,18 +1911,18 @@ const renderEducationalMetrics = (metrics) => {
                           {rawDataTable.stages?.before?.metrics?.effective_params?.toLocaleString() || 'N/A'}
                         </td>
                         <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
-                          {rawDataTable.stages?.after_kd?.metrics?.effective_params?.toLocaleString() || 'N/A'}
-                          {rawDataTable.stages?.after_kd?.metrics?.effective_params && rawDataTable.stages?.before?.metrics?.effective_params && (
+                          {rawDataTable.stages?.after_knowledge_distillation?.metrics?.effective_params?.toLocaleString() || 'N/A'}
+                          {rawDataTable.stages?.after_knowledge_distillation?.metrics?.effective_params && rawDataTable.stages?.before?.metrics?.effective_params && (
                             <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
-                              ({((rawDataTable.stages.after_kd.metrics.effective_params - rawDataTable.stages.before.metrics.effective_params) / rawDataTable.stages.before.metrics.effective_params * 100).toFixed(2)}%)
+                              ({((rawDataTable.stages.after_knowledge_distillation.metrics.effective_params - rawDataTable.stages.before.metrics.effective_params) / rawDataTable.stages.before.metrics.effective_params * 100).toFixed(2)}%)
                             </div>
                           )}
                         </td>
                         <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
                           {rawDataTable.stages?.after_pruning?.metrics?.effective_params?.toLocaleString() || 'N/A'}
-                          {rawDataTable.stages?.after_pruning?.metrics?.effective_params && rawDataTable.stages?.after_kd?.metrics?.effective_params && (
+                          {rawDataTable.stages?.after_pruning?.metrics?.effective_params && rawDataTable.stages?.after_knowledge_distillation?.metrics?.effective_params && (
                             <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
-                              ({((rawDataTable.stages.after_pruning.metrics.effective_params - rawDataTable.stages.after_kd.metrics.effective_params) / rawDataTable.stages.after_kd.metrics.effective_params * 100).toFixed(2)}%)
+                              ({((rawDataTable.stages.after_pruning.metrics.effective_params - rawDataTable.stages.after_knowledge_distillation.metrics.effective_params) / rawDataTable.stages.after_knowledge_distillation.metrics.effective_params * 100).toFixed(2)}%)
                             </div>
                           )}
                         </td>
@@ -1774,13 +1939,13 @@ const renderEducationalMetrics = (metrics) => {
                           {rawDataTable.stages?.before?.metrics?.sparsity_percent?.toFixed(2) || '0.00'}%
                         </td>
                         <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold' }}>
-                          {rawDataTable.stages?.after_kd?.metrics?.sparsity_percent?.toFixed(2) || '0.00'}%
+                          {rawDataTable.stages?.after_knowledge_distillation?.metrics?.sparsity_percent?.toFixed(2) || '0.00'}%
                         </td>
                         <td style={{ padding: '12px', border: '1px solid #d9d9d9', textAlign: 'center', fontSize: '15px', fontWeight: 'bold', color: '#52c41a' }}>
                           {rawDataTable.stages?.after_pruning?.metrics?.sparsity_percent?.toFixed(2) || '0.00'}%
-                          {rawDataTable.stages?.after_pruning?.metrics?.sparsity_percent && rawDataTable.stages?.after_kd?.metrics?.sparsity_percent && (
+                          {rawDataTable.stages?.after_pruning?.metrics?.sparsity_percent && rawDataTable.stages?.after_knowledge_distillation?.metrics?.sparsity_percent && (
                             <div style={{ fontSize: '11px', color: '#52c41a', marginTop: '2px' }}>
-                              (+{(rawDataTable.stages.after_pruning.metrics.sparsity_percent - rawDataTable.stages.after_kd.metrics.sparsity_percent).toFixed(2)}%)
+                              (+{(rawDataTable.stages.after_pruning.metrics.sparsity_percent - rawDataTable.stages.after_knowledge_distillation.metrics.sparsity_percent).toFixed(2)}%)
                             </div>
                           )}
                         </td>
@@ -1794,7 +1959,7 @@ const renderEducationalMetrics = (metrics) => {
                 </div>
 
                 {/* Detailed Stage-by-Stage Breakdown (if available) */}
-                {rawDataTable.stages?.after_kd && (
+                {rawDataTable.stages?.after_knowledge_distillation && (
                   <div style={{ marginTop: 24 }}>
                     <Title level={5} style={{ marginBottom: 16, color: '#1890ff' }}>
                       Detailed Stage-by-Stage Breakdown
@@ -1811,7 +1976,7 @@ const renderEducationalMetrics = (metrics) => {
                               Uncompressed
                             </th>
                             <th style={{ padding: '10px', border: '1px solid #d9d9d9', textAlign: 'center', fontWeight: 'bold', background: '#fff7e6' }}>
-                              After KD
+                              After Knowledge Distillation
                               <div style={{ fontSize: '10px', fontWeight: 'normal', color: '#666', marginTop: '2px' }}>
                                 (Change)
                               </div>
@@ -1819,7 +1984,7 @@ const renderEducationalMetrics = (metrics) => {
                             <th style={{ padding: '10px', border: '1px solid #d9d9d9', textAlign: 'center', fontWeight: 'bold', background: '#f6ffed' }}>
                               After Pruning (Compressed)
                               <div style={{ fontSize: '10px', fontWeight: 'normal', color: '#666', marginTop: '2px' }}>
-                                (Change from KD)
+                                (Change from Knowledge Distillation)
                               </div>
                             </th>
                           </tr>
@@ -1832,10 +1997,10 @@ const renderEducationalMetrics = (metrics) => {
                               {rawDataTable.stages?.before?.metrics?.accuracy?.toFixed(2) || 'N/A'}
                             </td>
                             <td style={{ padding: '8px', border: '1px solid #d9d9d9', textAlign: 'center' }}>
-                              {rawDataTable.stages?.after_kd?.metrics?.accuracy?.toFixed(2) || 'N/A'}
-                              {rawDataTable.stages?.after_kd?.changes_from_before?.accuracy_change !== undefined && (
-                                <div style={{ fontSize: '10px', color: rawDataTable.stages.after_kd.changes_from_before.accuracy_change >= 0 ? '#52c41a' : '#ff4d4f' }}>
-                                  ({rawDataTable.stages.after_kd.changes_from_before.accuracy_change >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.accuracy_change.toFixed(2)}%)
+                              {rawDataTable.stages?.after_knowledge_distillation?.metrics?.accuracy?.toFixed(2) || 'N/A'}
+                              {rawDataTable.stages?.after_knowledge_distillation?.changes_from_before?.accuracy_change !== undefined && (
+                                <div style={{ fontSize: '10px', color: rawDataTable.stages.after_knowledge_distillation.changes_from_before.accuracy_change >= 0 ? '#52c41a' : '#ff4d4f' }}>
+                                  ({rawDataTable.stages.after_knowledge_distillation.changes_from_before.accuracy_change >= 0 ? '+' : ''}{rawDataTable.stages.after_knowledge_distillation.changes_from_before.accuracy_change.toFixed(2)}%)
                                 </div>
                               )}
                             </td>
@@ -1856,10 +2021,10 @@ const renderEducationalMetrics = (metrics) => {
                               {rawDataTable.stages?.before?.metrics?.size_mb?.toFixed(2) || 'N/A'}
                             </td>
                             <td style={{ padding: '8px', border: '1px solid #d9d9d9', textAlign: 'center' }}>
-                              {rawDataTable.stages?.after_kd?.metrics?.size_mb?.toFixed(2) || 'N/A'}
-                              {rawDataTable.stages?.after_kd?.changes_from_before?.size_change_mb !== undefined && (
-                                <div style={{ fontSize: '10px', color: rawDataTable.stages.after_kd.changes_from_before.size_change_mb <= 0 ? '#52c41a' : '#ff4d4f' }}>
-                                  ({rawDataTable.stages.after_kd.changes_from_before.size_change_mb >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.size_change_mb.toFixed(2)} MB)
+                              {rawDataTable.stages?.after_knowledge_distillation?.metrics?.size_mb?.toFixed(2) || 'N/A'}
+                              {rawDataTable.stages?.after_knowledge_distillation?.changes_from_before?.size_change_mb !== undefined && (
+                                <div style={{ fontSize: '10px', color: rawDataTable.stages.after_knowledge_distillation.changes_from_before.size_change_mb <= 0 ? '#52c41a' : '#ff4d4f' }}>
+                                  ({rawDataTable.stages.after_knowledge_distillation.changes_from_before.size_change_mb >= 0 ? '+' : ''}{rawDataTable.stages.after_knowledge_distillation.changes_from_before.size_change_mb.toFixed(2)} MB)
                                 </div>
                               )}
                             </td>
@@ -1880,10 +2045,10 @@ const renderEducationalMetrics = (metrics) => {
                               {rawDataTable.stages?.before?.metrics?.num_params?.toLocaleString() || 'N/A'}
                             </td>
                             <td style={{ padding: '8px', border: '1px solid #d9d9d9', textAlign: 'center' }}>
-                              {rawDataTable.stages?.after_kd?.metrics?.num_params?.toLocaleString() || 'N/A'}
-                              {rawDataTable.stages?.after_kd?.changes_from_before?.params_change !== undefined && (
-                                <div style={{ fontSize: '10px', color: rawDataTable.stages.after_kd.changes_from_before.params_change <= 0 ? '#52c41a' : '#ff4d4f' }}>
-                                  ({rawDataTable.stages.after_kd.changes_from_before.params_change >= 0 ? '+' : ''}{rawDataTable.stages.after_kd.changes_from_before.params_change.toLocaleString()})
+                              {rawDataTable.stages?.after_knowledge_distillation?.metrics?.num_params?.toLocaleString() || 'N/A'}
+                              {rawDataTable.stages?.after_knowledge_distillation?.changes_from_before?.params_change !== undefined && (
+                                <div style={{ fontSize: '10px', color: rawDataTable.stages.after_knowledge_distillation.changes_from_before.params_change <= 0 ? '#52c41a' : '#ff4d4f' }}>
+                                  ({rawDataTable.stages.after_knowledge_distillation.changes_from_before.params_change >= 0 ? '+' : ''}{rawDataTable.stages.after_knowledge_distillation.changes_from_before.params_change.toLocaleString()})
                                 </div>
                               )}
                             </td>
@@ -1903,6 +2068,242 @@ const renderEducationalMetrics = (metrics) => {
                 )}
               </Card>
             )}
+
+            {/* Detailed Raw Data Section - Parameters, Logits, Weights */}
+            {/* Only show if training is complete and we have data or are loading */}
+            {trainingComplete && (
+              <Card 
+                style={{ marginTop: 24, marginBottom: 16 }}
+                title={
+                  <Title level={4} style={{ margin: 0, color: '#1890ff' }}>
+                    Detailed Raw Model Data - Parameters, Logits & Weights
+                  </Title>
+                }
+              >
+                <Paragraph style={{ color: '#666', marginBottom: 16 }}>
+                  Complete raw numeric data extracted from both the uploaded model (trained) and baseline model (for comparison). 
+                  This includes actual parameter values, logits, weights, and hidden states.
+                </Paragraph>
+                
+                {loadingRawData ? (
+                  <div style={{ textAlign: 'center', padding: '40px' }}>
+                    <Spin size="large" />
+                    <div style={{ marginTop: 16, color: '#666' }}>Loading detailed raw data...</div>
+                  </div>
+                ) : (detailedRawData && (detailedRawData.uploaded_model || detailedRawData.baseline_model)) ? (
+                  <div style={{ overflowX: 'hidden', maxWidth: '100%' }}>
+                    {/* Uploaded Model Raw Data */}
+                    {detailedRawData.uploaded_model ? (
+                      <div style={{ marginBottom: 32, overflowX: 'hidden', maxWidth: '100%' }}>
+                        <Title level={5} style={{ color: '#1890ff', marginBottom: 16 }}>
+                          Uploaded Model (Trained) - Raw Data
+                        </Title>
+                        <Row gutter={16}>
+                          <Col span={12} style={{ overflowX: 'hidden', maxWidth: '100%' }}>
+                            <Card size="small" title="Before Training (Teacher)" style={{ marginBottom: 16, overflow: 'hidden', wordWrap: 'break-word' }}>
+                              {detailedRawData.uploaded_model.teacher_before ? (
+                                <div style={{ overflowX: 'hidden', wordWrap: 'break-word' }}>
+                                  {detailedRawData.uploaded_model.teacher_before.parameter_count && (
+                                    <div style={{ marginBottom: 8 }}>
+                                      <strong>Parameters:</strong> {detailedRawData.uploaded_model.teacher_before.parameter_count.total?.toLocaleString() || 'N/A'} total
+                                    </div>
+                                  )}
+                                  {detailedRawData.uploaded_model.teacher_before.logits_sample && (
+                                    <div style={{ marginBottom: 8, wordBreak: 'break-all', overflowWrap: 'break-word' }}>
+                                      <strong>Logits Sample:</strong> <span style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}>{JSON.stringify(detailedRawData.uploaded_model.teacher_before.logits_sample.sample_values?.slice(0, 5) || [])}...</span>
+                                      {detailedRawData.uploaded_model.teacher_before.logits_sample.shape && (
+                                        <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
+                                          Shape: {JSON.stringify(detailedRawData.uploaded_model.teacher_before.logits_sample.shape)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  {detailedRawData.uploaded_model.teacher_before.first_layer_weights && (
+                                    <div style={{ marginBottom: 8, wordBreak: 'break-all', overflowWrap: 'break-word' }}>
+                                      <strong>First Layer Weights Shape:</strong> <span style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}>{JSON.stringify(detailedRawData.uploaded_model.teacher_before.first_layer_weights.shape || [])}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div style={{ color: '#999' }}>No data available</div>
+                              )}
+                            </Card>
+                          </Col>
+                          <Col span={12} style={{ overflowX: 'hidden', maxWidth: '100%' }}>
+                            <Card size="small" title="After Training (Student)" style={{ marginBottom: 16, overflow: 'hidden', wordWrap: 'break-word' }}>
+                              {detailedRawData.uploaded_model.student_after ? (
+                                <div style={{ overflowX: 'hidden', wordWrap: 'break-word' }}>
+                                  {detailedRawData.uploaded_model.student_after.parameter_count && (
+                                    <div style={{ marginBottom: 8 }}>
+                                      <strong>Parameters:</strong> {detailedRawData.uploaded_model.student_after.parameter_count.total?.toLocaleString() || 'N/A'} total
+                                    </div>
+                                  )}
+                                  {detailedRawData.uploaded_model.student_after.logits_sample && (
+                                    <div style={{ marginBottom: 8, wordBreak: 'break-all', overflowWrap: 'break-word' }}>
+                                      <strong>Logits Sample:</strong> <span style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}>{JSON.stringify(detailedRawData.uploaded_model.student_after.logits_sample.sample_values?.slice(0, 5) || [])}...</span>
+                                      {detailedRawData.uploaded_model.student_after.logits_sample.shape && (
+                                        <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
+                                          Shape: {JSON.stringify(detailedRawData.uploaded_model.student_after.logits_sample.shape)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  {detailedRawData.uploaded_model.student_after.first_layer_weights && (
+                                    <div style={{ marginBottom: 8, wordBreak: 'break-all', overflowWrap: 'break-word' }}>
+                                      <strong>First Layer Weights Shape:</strong> <span style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}>{JSON.stringify(detailedRawData.uploaded_model.student_after.first_layer_weights.shape || [])}</span>
+                                    </div>
+                                  )}
+                                  {detailedRawData.uploaded_model.student_after.sparsity && (
+                                    <div style={{ marginBottom: 8 }}>
+                                      <strong>Sparsity:</strong> {typeof detailedRawData.uploaded_model.student_after.sparsity === 'object' 
+                                        ? (detailedRawData.uploaded_model.student_after.sparsity.percentage?.toFixed(2) || detailedRawData.uploaded_model.student_after.sparsity.toFixed(2) || 'N/A')
+                                        : (typeof detailedRawData.uploaded_model.student_after.sparsity === 'number' 
+                                          ? detailedRawData.uploaded_model.student_after.sparsity.toFixed(2) 
+                                          : 'N/A')}%
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div style={{ color: '#999' }}>No data available</div>
+                              )}
+                            </Card>
+                          </Col>
+                        </Row>
+                        {detailedRawData.uploaded_model.loss_history && Array.isArray(detailedRawData.uploaded_model.loss_history) && detailedRawData.uploaded_model.loss_history.length > 0 && (
+                          <Card size="small" title="Training Loss History" style={{ marginTop: 16 }}>
+                            <div style={{ fontSize: '12px', color: '#666' }}>
+                              <strong>Total Loss Steps:</strong> {detailedRawData.uploaded_model.loss_history.length}
+                              <br />
+                              <strong>First 5 Loss Values:</strong> {detailedRawData.uploaded_model.loss_history.slice(0, 5).map(l => typeof l === 'number' ? l.toFixed(4) : String(l)).join(', ')}...
+                              <br />
+                              <strong>Last 5 Loss Values:</strong> {detailedRawData.uploaded_model.loss_history.slice(-5).map(l => typeof l === 'number' ? l.toFixed(4) : String(l)).join(', ')}
+                            </div>
+                          </Card>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ padding: 16, background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 4 }}>
+                        <div style={{ color: '#666' }}>Uploaded model raw data is being processed or is not available yet.</div>
+                      </div>
+                    )}
+
+                    {/* Baseline Model Raw Data */}
+                    {detailedRawData.baseline_model && detailedRawData.baseline_model.model_name && (
+                      <div style={{ marginTop: 32, paddingTop: 32, borderTop: '2px solid #e8e8e8', overflowX: 'hidden', maxWidth: '100%' }}>
+                        <Title level={5} style={{ color: '#52c41a', marginBottom: 16 }}>
+                          Baseline Model ({detailedRawData.baseline_model.model_name}) - Raw Data (Comparison Only, NOT Trained)
+                        </Title>
+                        <Row gutter={16}>
+                          <Col span={12} style={{ overflowX: 'hidden', maxWidth: '100%' }}>
+                            <Card size="small" title="Before Training" style={{ marginBottom: 16, overflow: 'hidden', wordWrap: 'break-word' }}>
+                              {detailedRawData.baseline_model.before_training && Object.keys(detailedRawData.baseline_model.before_training).length > 0 ? (
+                                <div style={{ overflowX: 'hidden', wordWrap: 'break-word' }}>
+                                  {detailedRawData.baseline_model.before_training.parameter_count && (
+                                    <div style={{ marginBottom: 8 }}>
+                                      <strong>Parameters:</strong> {detailedRawData.baseline_model.before_training.parameter_count.total?.toLocaleString() || 'N/A'} total
+                                    </div>
+                                  )}
+                                  {detailedRawData.baseline_model.before_training.logits_sample && (
+                                    <div style={{ marginBottom: 8, wordBreak: 'break-all', overflowWrap: 'break-word' }}>
+                                      <strong>Logits Sample:</strong> <span style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}>{JSON.stringify(detailedRawData.baseline_model.before_training.logits_sample.sample_values?.slice(0, 5) || [])}...</span>
+                                      {detailedRawData.baseline_model.before_training.logits_sample.shape && (
+                                        <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
+                                          Shape: {JSON.stringify(detailedRawData.baseline_model.before_training.logits_sample.shape)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  {detailedRawData.baseline_model.before_training.first_layer_weights && (
+                                    <div style={{ marginBottom: 8, wordBreak: 'break-all', overflowWrap: 'break-word' }}>
+                                      <strong>First Layer Weights Shape:</strong> <span style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}>{JSON.stringify(detailedRawData.baseline_model.before_training.first_layer_weights.shape || [])}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div style={{ color: '#999' }}>No data available</div>
+                              )}
+                            </Card>
+                          </Col>
+                          <Col span={12} style={{ overflowX: 'hidden', maxWidth: '100%' }}>
+                            <Card size="small" title="After Training (Pruned)" style={{ marginBottom: 16, overflow: 'hidden', wordWrap: 'break-word' }}>
+                              {detailedRawData.baseline_model.after_training && Object.keys(detailedRawData.baseline_model.after_training).length > 0 ? (
+                                <div style={{ overflowX: 'hidden', wordWrap: 'break-word' }}>
+                                  {detailedRawData.baseline_model.after_training.parameter_count && (
+                                    <div style={{ marginBottom: 8 }}>
+                                      <strong>Parameters:</strong> {detailedRawData.baseline_model.after_training.parameter_count.total?.toLocaleString() || 'N/A'} total
+                                    </div>
+                                  )}
+                                  {detailedRawData.baseline_model.after_training.logits_sample && (
+                                    <div style={{ marginBottom: 8, wordBreak: 'break-all', overflowWrap: 'break-word' }}>
+                                      <strong>Logits Sample:</strong> <span style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}>{JSON.stringify(detailedRawData.baseline_model.after_training.logits_sample.sample_values?.slice(0, 5) || [])}...</span>
+                                      {detailedRawData.baseline_model.after_training.logits_sample.shape && (
+                                        <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
+                                          Shape: {JSON.stringify(detailedRawData.baseline_model.after_training.logits_sample.shape)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  {detailedRawData.baseline_model.after_training.first_layer_weights && (
+                                    <div style={{ marginBottom: 8, wordBreak: 'break-all', overflowWrap: 'break-word' }}>
+                                      <strong>First Layer Weights Shape:</strong> <span style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}>{JSON.stringify(detailedRawData.baseline_model.after_training.first_layer_weights.shape || [])}</span>
+                                    </div>
+                                  )}
+                                  {detailedRawData.baseline_model.after_training.sparsity && (
+                                    <div style={{ marginBottom: 8 }}>
+                                      <strong>Sparsity:</strong> {typeof detailedRawData.baseline_model.after_training.sparsity === 'object' 
+                                        ? (detailedRawData.baseline_model.after_training.sparsity.percentage?.toFixed(2) || detailedRawData.baseline_model.after_training.sparsity.toFixed(2) || 'N/A')
+                                        : (typeof detailedRawData.baseline_model.after_training.sparsity === 'number' 
+                                          ? detailedRawData.baseline_model.after_training.sparsity.toFixed(2) 
+                                          : 'N/A')}%
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div style={{ color: '#999' }}>No data available</div>
+                              )}
+                            </Card>
+                          </Col>
+                        </Row>
+                      </div>
+                    )}
+                  </div>
+                ) : trainingComplete ? (
+                  <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+                    <div>No detailed raw data available yet.</div>
+                    <div style={{ marginTop: 8, fontSize: '12px' }}>
+                      {loadingRawData ? (
+                        <div>Loading raw data...</div>
+                      ) : (
+                        <>
+                          <Button 
+                            type="primary" 
+                            onClick={() => {
+                              console.log("[RAW DATA] Manual fetch triggered by user");
+                              fetchDetailedRawDataWithRetry(0, 8);
+                            }}
+                            style={{ marginRight: 8 }}
+                          >
+                            Load Raw Data Now
+                          </Button>
+                          <div style={{ marginTop: 8, fontSize: '11px', color: '#999' }}>
+                            Raw data is extracted from actual models after training completes.
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {!loadingRawData && (
+                      <div style={{ marginTop: 16, fontSize: '11px', color: '#ff4d4f' }}>
+                        If data doesn't load, check browser console for errors and ensure training completed successfully.
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+                    Raw data will be displayed after training completes.
+                  </div>
+                )}
+              </Card>
+            )}
           </div>
         );
       case 1:
@@ -1911,7 +2312,7 @@ const renderEducationalMetrics = (metrics) => {
           <div>
             {metrics.model_performance ? (
               <Card bordered={false}>
-                <Title level={4}>{metrics.model_performance.title || "Model Performance (After KD + Pruning)"}</Title>
+                <Title level={4}>{metrics.model_performance.title || "Model Performance (After Knowledge Distillation + Pruning)"}</Title>
                 <Paragraph style={{ color: "#666" }}>{metrics.model_performance.description}</Paragraph>
                 <Row gutter={16}>
                   <Col span={12}>
@@ -2231,7 +2632,7 @@ const renderEducationalMetrics = (metrics) => {
     <>
       <Navbar bg="black" variant="dark" expand="lg">
         <Container>
-          <Navbar.Brand as={Link} to="/">KD-Pruning Simulator</Navbar.Brand>
+          <Navbar.Brand as={Link} to="/">Knowledge Distillation-Pruning Simulator</Navbar.Brand>
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
             <Nav className="ms-auto">
@@ -2412,7 +2813,7 @@ const renderEducationalMetrics = (metrics) => {
                             type="primary"
                             size="large"
                             onClick={() => startTraining()}
-                            disabled={training || !selectedModel || !uploadedModelPath}
+                            disabled={training || trainingComplete || !selectedModel || !uploadedModelPath}
                             style={{ flex: 1 }}
                           >
                             {training ? "Training in Progress..." : "Start Training"}
@@ -2467,7 +2868,7 @@ const renderEducationalMetrics = (metrics) => {
                           type="info"
                           showIcon
                           message="Ready to Train"
-                          description="Select a baseline reference, upload your custom model, and the KD → pruning pipeline will start automatically."
+                          description="Select a baseline reference, upload your custom model, and the Knowledge Distillation → pruning pipeline will start automatically."
                         />
                       )}
                     </div>
@@ -2479,7 +2880,7 @@ const renderEducationalMetrics = (metrics) => {
                       <Alert
                         type="info"
                         showIcon
-                        message="Manual Training"
+                        message="Start Training"
                         description="Click the 'Start Training' button above to begin Knowledge Distillation followed by pruning. Monitor progress and metrics here."
                         style={{ marginBottom: 16 }}
                       />
@@ -2581,7 +2982,7 @@ const renderEducationalMetrics = (metrics) => {
                           return (
                             <>
                               <Paragraph style={{ color: '#000000' }}>
-                                Baseline metrics for {baselineLabel} come from fixed KD + pruning runs. Your uploaded model is distilled, pruned,
+                                Baseline metrics for {baselineLabel} come from fixed Knowledge Distillation + pruning runs. Your uploaded model is distilled, pruned,
                                 and then compared against that reference using the required evaluation formulas.
                               </Paragraph>
                               <div style={{ overflowX: 'auto' }}>
@@ -2630,7 +3031,7 @@ const renderEducationalMetrics = (metrics) => {
                               <strong>Step 1:</strong> Your uploaded checkpoint acts as the teacher. A lightweight student is generated automatically and receives softened targets with temperature scaling (T=2.0).
                             </Paragraph>
                             <Paragraph>
-                              <strong>Step 2:</strong> The student minimizes a blended loss (α·CE + (1−α)·KD) across {metrics?.knowledge_distillation_analysis?.process?.training_steps || 50} epochs, matching the teacher's logits while respecting ground-truth labels.
+                              <strong>Step 2:</strong> The student minimizes a blended loss (α·CE + (1−α)·Knowledge Distillation) across {metrics?.knowledge_distillation_analysis?.process?.training_steps || 50} epochs, matching the teacher's logits while respecting ground-truth labels.
                             </Paragraph>
                             <Paragraph>
                               <strong>Step 3:</strong> This transfer captures the teacher's decision boundaries, enabling a compact model with comparable accuracy.
@@ -2642,7 +3043,7 @@ const renderEducationalMetrics = (metrics) => {
                           <Col xs={24} md={12}>
                             <Title level={4} style={{ color: '#fa8c16' }}>Model Pruning Process</Title>
                             <Paragraph>
-                              <strong>Step 1:</strong> After KD, L1 unstructured pruning is applied to remove {metrics?.pruning_analysis?.pruning_details?.pruning_ratio || '30%'} of weights with the smallest magnitudes.
+                              <strong>Step 1:</strong> After Knowledge Distillation, L1 unstructured pruning is applied to remove {metrics?.pruning_analysis?.pruning_details?.pruning_ratio || '30%'} of weights with the smallest magnitudes.
                             </Paragraph>
                             <Paragraph>
                               <strong>Step 2:</strong> Pruning targets Linear and Convolutional layers, removing connections that contribute least to model performance.

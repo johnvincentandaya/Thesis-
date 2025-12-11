@@ -1,0 +1,47 @@
+{
+    "model_name": "ResNet-18",
+    "timestamp": "20251210_153425",
+    "training_completed": true,
+    "student_metrics": {
+        "size_mb": 33.26031494140625,
+        "size_mb_effective": 33.26031494140625,
+        "latency_ms": 4.250121116638184,
+        "num_params": 8734978,
+        "effective_params": 8718992,
+        "sparsity": 0.1830113367200238,
+        "accuracy": 90.0,
+        "precision": 81.0,
+        "recall": 90.0,
+        "f1": 85.26315789473684
+    },
+    "teacher_metrics": {
+        "size_mb": 417.64746856689453,
+        "latency_ms": 50.48174858093262,
+        "num_params": 109483778,
+        "effective_params": 109380079,
+        "sparsity": 0.09471631495946367,
+        "accuracy": 38.0,
+        "precision": 57.38461538461539,
+        "recall": 38.0,
+        "f1": 31.025
+    },
+    "compression_results": {
+        "size_reduction_percent": 92.03627043268455,
+        "latency_improvement_percent": 91.58087578954527,
+        "params_reduction_percent": 92.02166918280807,
+        "accuracy_impact": 52.0,
+        "sparsity_gained": 0.1830113367200238
+    },
+    "algorithm_details": {
+        "knowledge_distillation": {
+            "temperature": 2.0,
+            "training_steps": 50,
+            "final_loss": 0.23070082068443298
+        },
+        "pruning": {
+            "pruning_ratio": 0.3,
+            "pruning_method": "L1 Unstructured Pruning",
+            "layers_affected": "Convolutional and Linear layers"
+        }
+    }
+}

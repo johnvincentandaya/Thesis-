@@ -1,6 +1,6 @@
-# KD-Pruning Simulator Backend
+# Knowledge Distillation-Pruning Simulator Backend
 
-A comprehensive Flask + PyTorch backend for simulation-based model compression using Knowledge Distillation (KD) and Pruning techniques.
+A comprehensive Flask + PyTorch backend for simulation-based model compression using Knowledge Distillation and Pruning techniques.
 
 ## Features
 
@@ -10,13 +10,13 @@ A comprehensive Flask + PyTorch backend for simulation-based model compression u
 - **Linear training process** with proper loss value updates
 
 ### ✅ Speed & Efficiency Improvements
-- **Measures and compares latency (ms), RAM usage, FLOPs, and inference time** before vs. after KD + pruning
+- **Measures and compares latency (ms), RAM usage, FLOPs, and inference time** before vs. after Knowledge Distillation + pruning
 - **Ensures metrics show efficiency improvements** with realistic performance gains
 - **Comprehensive efficiency analysis** including computational complexity
 
 ### ✅ Compatibility Across Models
 - **Supports multiple models**: DistilBERT, T5-small, MobileNetV2, ResNet-18
-- **Consistent KD + pruning process** for each model type
+- **Consistent Knowledge Distillation + pruning process** for each model type
 - **Model-specific optimization profiles** for realistic compression results
 
 ### ✅ Evaluation Metrics (Before vs. After)
@@ -27,7 +27,7 @@ A comprehensive Flask + PyTorch backend for simulation-based model compression u
 
 ### ✅ Linear Training Process
 - **Fixed inplace operation errors** and gradient computation bugs
-- **KD loss = weighted sum of cross-entropy loss (student) and KL divergence loss (teacher-student soft targets) with temperature scaling**
+- **Knowledge Distillation loss = weighted sum of cross-entropy loss (student) and KL divergence loss (teacher-student soft targets) with temperature scaling**
 - **Pruning progressively removes weights/filters** and updates the model graph accordingly
 - **Proper gradient clipping** to prevent exploding gradients
 
@@ -48,7 +48,7 @@ After training + pruning, emits a comprehensive JSON containing all measured met
 ## API Endpoints
 
 ### Core Training Endpoints
-- `POST /train` - Start training with KD + pruning
+- `POST /train` - Start training with Knowledge Distillation + pruning
 - `POST /cancel_training` - Cancel ongoing training
 - `GET /evaluate` - Get evaluation metrics
 - `GET /matlab_metrics` - Get MATLAB-compatible metrics
@@ -171,4 +171,4 @@ This will test:
 
 ## License
 
-This project is part of the KD-Pruning Simulator educational platform.
+This project is part of the Knowledge Distillation-Pruning Simulator educational platform.

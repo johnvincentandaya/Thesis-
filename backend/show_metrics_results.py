@@ -22,7 +22,7 @@ def show_metrics_results():
             print("BACKEND METRICS CALCULATION SUCCESSFUL")
             print()
             
-            print("STUDENT MODEL METRICS (After KD + Pruning):")
+            print("STUDENT MODEL METRICS (After Knowledge Distillation + Pruning):")
             print(f"   Accuracy: {student_metrics.get('accuracy', 'N/A')}%")
             print(f"   F1-Score: {student_metrics.get('f1', 'N/A'):.2f}%")
             print(f"   Precision: {student_metrics.get('precision', 'N/A'):.2f}%")

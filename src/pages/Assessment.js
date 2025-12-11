@@ -46,7 +46,7 @@ function Assessment() {
       ],
       correctAnswer: 1,
       explanation:
-        "KD transfers the knowledge from a large teacher model into a smaller student model for efficiency."
+        "Knowledge Distillation transfers the knowledge from a large teacher model into a smaller student model for efficiency."
     },
     {
       question: "What does pruning remove from a neural network?",
@@ -61,7 +61,7 @@ function Assessment() {
         "Pruning removes redundant or unimportant weights/connections to shrink the model."
     },
     {
-      question: "In KD, what type of predictions does the teacher provide to the student?",
+      question: "In Knowledge Distillation, what type of predictions does the teacher provide to the student?",
       options: [
         "Hard labels only",
         "Soft probability distributions",
@@ -96,7 +96,7 @@ function Assessment() {
       options: ["Knowledge Distillation", "Pruning", "Dropout", "Batch Normalization"],
       correctAnswer: 0,
       explanation:
-        "KD helps the smaller student mimic the teacher's decision-making and generalize better."
+        "Knowledge Distillation helps the smaller student mimic the teacher's decision-making and generalize better."
     },
     {
       question: "What is a potential drawback of pruning?",
@@ -117,7 +117,7 @@ function Assessment() {
       explanation: "FLOPs (floating point operations) directly show computational efficiency."
     },
     {
-      question: "What role does temperature scaling play in KD?",
+      question: "What role does temperature scaling play in Knowledge Distillation?",
       options: [
         "It controls the hardness/softness of the teacher’s probability outputs",
         "It adjusts the pruning threshold",
@@ -137,10 +137,10 @@ function Assessment() {
     },
     {
       question:
-        "True or False: KD can be seen as training the student with both hard labels and teacher soft labels.",
+        "True or False: Knowledge Distillation can be seen as training the student with both hard labels and teacher soft labels.",
       correctAnswer: true,
       explanation:
-        "KD uses a combination of true labels and teacher’s soft labels for training."
+        "Knowledge Distillation uses a combination of true labels and teacher’s soft labels for training."
     },
     {
       question: "True or False: Structured pruning removes entire neurons, filters, or layers.",
@@ -164,7 +164,7 @@ function Assessment() {
       ],
       correctAnswer: 1,
       explanation:
-        "Smaller, efficient models (from KD or pruning) are ideal for resource-limited devices."
+        "Smaller, efficient models (from Knowledge Distillation or pruning) are ideal for resource-limited devices."
     },
     {
       question: "What is the main benefit of pruning?",
@@ -178,7 +178,7 @@ function Assessment() {
       explanation: "Pruning reduces size and improves inference speed."
     },
     {
-      question: "What is the main drawback of KD compared to pruning?",
+      question: "What is the main drawback of Knowledge Distillation compared to pruning?",
       options: [
         "It requires training a student model",
         "It removes too many weights",
@@ -187,7 +187,7 @@ function Assessment() {
       ],
       correctAnswer: 0,
       explanation:
-        "KD requires retraining a smaller model, unlike pruning which modifies an existing one."
+        "Knowledge Distillation requires retraining a smaller model, unlike pruning which modifies an existing one."
     },
     {
       question: "True or False: In pruning, red nodes in visualization usually indicate pruned components.",
@@ -195,10 +195,10 @@ function Assessment() {
       explanation: "Red nodes typically highlight pruned or inactive parts."
     },
     {
-      question: "True or False: KD can improve the student’s generalization even beyond the teacher’s accuracy.",
+      question: "True or False: Knowledge Distillation can improve the student’s generalization even beyond the teacher’s accuracy.",
       correctAnswer: true,
       explanation:
-        "Sometimes the student surpasses the teacher due to regularization effects of KD."
+        "Sometimes the student surpasses the teacher due to regularization effects of Knowledge Distillation."
     },
     {
       question: "Which technique reduces parameters without retraining a new student model?",
@@ -211,7 +211,7 @@ function Assessment() {
       question: "Which technique often requires both teacher and student models during training?",
       options: ["Pruning", "Knowledge Distillation", "Dropout", "Quantization"],
       correctAnswer: 1,
-      explanation: "KD involves both teacher and student during training."
+      explanation: "Knowledge Distillation involves both teacher and student during training."
     }
   ];
 
@@ -297,7 +297,7 @@ function Assessment() {
         <Container>
           <Navbar.Brand as={Link} to="/" className="fw-bold">
             <Award className="me-2" />
-            KD-Pruning Simulator
+            Knowledge Distillation-Pruning Simulator
           </Navbar.Brand>
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">

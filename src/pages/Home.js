@@ -31,7 +31,7 @@ function Home() {
     <>
       <Navbar bg="black" variant="dark" expand="lg">
         <Container>
-          <Navbar.Brand as={Link} to="/">KD-Pruning Simulator</Navbar.Brand>
+          <Navbar.Brand as={Link} to="/">Knowledge Distillation-Pruning Simulator</Navbar.Brand>
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
             <Nav className="ms-auto">
@@ -46,7 +46,6 @@ function Home() {
         </Container>
       </Navbar>
       
-      {/* Hero Section */}
       <div className="instructions-hero">
         <div className="instructions-hero-content">
           <div className="hero-icon-wrapper">
@@ -74,15 +73,13 @@ function Home() {
       </div>
 
       <Container fluid className="home-container">
-        
-        {/* Main Concepts Section */}
         <Row className="mb-5">
           <Col lg={6} className="mb-4">
             <BootstrapCard className="h-100 shadow-sm home-wide-card">
               <BootstrapCard.Body className="p-4">
                 <BootstrapCard.Title className="h4 text-primary mb-3 home-card-title">
                   <i className="fas fa-graduation-cap me-2"></i>
-                  Knowledge Distillation (KD)
+                  Knowledge Distillation
                 </BootstrapCard.Title>
                 <BootstrapCard.Text className="mb-3">
                   <strong>Knowledge Distillation</strong> is a model compression technique where a large, complex model (called the "teacher") transfers its learned knowledge to a smaller, more efficient model (called the "student").
@@ -118,7 +115,6 @@ function Home() {
           </Col>
         </Row>
 
-        {/* Uses and Applications Section */}
         <BootstrapCard className="mb-5 shadow-sm">
           <BootstrapCard.Body className="p-4">
             <BootstrapCard.Title className="h3 text-center mb-4 home-section-title">
@@ -151,7 +147,6 @@ function Home() {
           </BootstrapCard.Body>
         </BootstrapCard>
 
-        {/* Detailed Explanations Accordion */}
         <BootstrapCard className="mb-5 shadow-sm">
           <BootstrapCard.Body className="p-4">
             <BootstrapCard.Title className="h3 text-center mb-4 home-section-title">
@@ -236,7 +231,6 @@ function Home() {
           </BootstrapCard.Body>
         </BootstrapCard>
 
-        {/* Get Started Section */}
         <div className="text-center">
           <BootstrapCard className="shadow-sm home-cta-card">
             <BootstrapCard.Body className="p-5">

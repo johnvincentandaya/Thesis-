@@ -1,18 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { Container, Row, Col, Card, Navbar, Nav, Table, Badge, Tooltip, Button, Modal, Accordion } from "react-bootstrap";
+import { Container, Row, Col, Card, Navbar, Nav, Table, Badge, Button, Modal, Accordion } from "react-bootstrap";
 import { Link } from "react-router-dom";
-import { InfoCircle, PlayCircle } from "react-bootstrap-icons";
+import { InfoCircle } from "react-bootstrap-icons";
 import "./Models.css";
 import Footer from "../components/Footer";
 
 const Models = () => {
     const [selectedModel, setSelectedModel] = useState(null);
     const [showModal, setShowModal] = useState(false);
-    const [modelsData, setModelsData] = useState(null);
-    const [loading, setLoading] = useState(true);
     const [models, setModels] = useState([]);
 
-    // Helper function to format number
     const formatNumber = (num) => {
         if (num >= 1_000_000) {
             return `${(num / 1_000_000).toFixed(1)}M`;
@@ -22,9 +19,7 @@ const Models = () => {
         return num.toString();
     };
 
-    // Fetch builtin models info from backend on mount
     useEffect(() => {
-        // Transform backend data to frontend format
         const transformBackendData = (backendData) => {
         if (!backendData) return [];
 
@@ -67,7 +62,7 @@ const Models = () => {
             const backendModel = backendData[key];
             const frontendInfo = modelMapping[key];
             const beforeMetrics = backendModel.metrics.before_kd;
-            const afterMetrics = backendModel.metrics.after_kd_pruning;
+            const afterMetrics = backendModel.metrics.after_knowledge_distillation_pruning;
 
             return {
                 key: key,
@@ -77,7 +72,7 @@ const Models = () => {
                 architecture: frontendInfo?.architecture || "",
                 useCases: frontendInfo?.useCases || [],
                 trainingHistory: backendModel.training_history,
-                kdExplanation: backendModel.kd_explanation,
+                kdExplanation: backendModel.knowledge_distillation_explanation,
                 pruningExplanation: backendModel.pruning_explanation,
                 metrics: {
                     before: {
@@ -101,7 +96,7 @@ const Models = () => {
                     modelComplexity: frontendInfo?.complexity || "Medium",
                     parameterCount: formatNumber(afterMetrics.num_params)
                 },
-                backendData: backendModel // Store full backend data for proof
+                backendData: backendModel
             };
         });
     };
@@ -113,7 +108,6 @@ const Models = () => {
                 if (response.ok) {
                     const data = await response.json();
                     if (data.success && data.data) {
-                        setModelsData(data.data);
                         const transformed = transformBackendData(data.data);
                         setModels(transformed);
                         console.log("Successfully fetched and transformed builtin models info from backend");
@@ -123,15 +117,12 @@ const Models = () => {
                 }
             } catch (error) {
                 console.warn("Error fetching models info:", error);
-            } finally {
-                setLoading(false);
             }
         };
         
         fetchModelsInfo();
     }, []);
 
-    // Fallback models (only used if backend fetch fails)
     const fallbackModelsArray = [
         {
             name: "DistilBERT",
@@ -308,7 +299,6 @@ const Models = () => {
     };
 
     const handleStartTraining = (modelName) => {
-        // Map display names to backend model names
         const modelNameMapping = {
             "DistilBERT": "distillBert",
             "T5-small": "T5-small", 
@@ -317,7 +307,6 @@ const Models = () => {
         };
         
         const backendModelName = modelNameMapping[modelName] || modelName;
-        // Navigate to training page with selected model using React Router
         window.location.href = `/training?model=${backendModelName}`;
     };
 
@@ -325,7 +314,7 @@ const Models = () => {
         <>
             <Navbar bg="black" variant="dark" expand="lg">
                 <Container>
-                    <Navbar.Brand as={Link} to="/">KD-Pruning Simulator</Navbar.Brand>
+                    <Navbar.Brand as={Link} to="/">Knowledge Distillation-Pruning Simulator</Navbar.Brand>
                     <Navbar.Toggle aria-controls="basic-navbar-nav" />
                     <Navbar.Collapse id="basic-navbar-nav">
                         <Nav className="ms-auto">
@@ -347,7 +336,7 @@ const Models = () => {
                         Explore our collection of pre-trained models and understand their performance characteristics before applying <strong className="hero-accent-primary">Knowledge Distillation</strong> and <strong className="hero-accent-success">Model Pruning</strong> techniques.
                     </p>
                     <p className="models-metrics-note">
-                        Every metric pair below represents <strong>REAL TRAINED</strong> baselines ("Before") versus their pruned KD students ("After"). All metrics are computed from actual Knowledge Distillation and Pruning training runs—models are trained on first request and metrics are computed from real model evaluation. Training details (KD parameters, pruning ratios, epochs) are shown in each model card.
+                        Every metric pair below represents <strong>REAL TRAINED</strong> baselines ("Before") versus their pruned Knowledge Distillation students ("After"). All metrics are computed from actual Knowledge Distillation and Pruning training runs—models are trained on first request and metrics are computed from real model evaluation. Training details (Knowledge Distillation parameters, pruning ratios, epochs) are shown in each model card.
                     </p>
                 </div>
 
@@ -373,7 +362,7 @@ const Models = () => {
                                             <p className="mb-1" style={{ color: '#000000', fontSize: '0.9rem' }}>{model.trainingHistory}</p>
                                             {model.kdExplanation && (
                                                 <p className="mb-1" style={{ color: '#666', fontSize: '0.85rem' }}>
-                                                    <strong>KD:</strong> {model.kdExplanation}
+                                                    <strong>Knowledge Distillation:</strong> {model.kdExplanation}
                                                 </p>
                                             )}
                                             {model.pruningExplanation && (
@@ -431,7 +420,7 @@ const Models = () => {
                                 <Card.Footer className="bg-light">
                                     <div className="d-flex justify-content-center align-items-center">
                                         <small className="text-muted">
-                                            These metrics show the baseline model after KD + Pruning. Go to Training page to compare with your custom model.
+                                            These metrics show the baseline model after Knowledge Distillation + Pruning. Go to Training page to compare with your custom model.
                                         </small>
                                     </div>
                                 </Card.Footer>
@@ -440,7 +429,6 @@ const Models = () => {
                     ))}
                 </Row>
 
-                {/* Metrics Computation Explanation Section - Below All Models */}
                 <Row className="mb-5 mt-5">
                     <Col xs={24}>
                         <Card className="shadow-sm" style={{ background: '#ffffff', border: '2px solid #1890ff' }}>
@@ -616,7 +604,6 @@ const Models = () => {
                 </Row>
             </Container>
 
-            {/* Detailed Model Modal */}
             <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
                 <Modal.Header closeButton>
                     <Modal.Title>{selectedModel?.name} - Detailed Analysis</Modal.Title>
@@ -691,15 +678,7 @@ const Models = () => {
                         variant="primary" 
                         onClick={() => {
                             setShowModal(false);
-                            // Navigate to training page with selected model
-                            const modelNameMapping = {
-                                "DistilBERT": "distillBert",
-                                "T5-small": "T5-small", 
-                                "MobileNetV2": "MobileNetV2",
-                                "ResNet-18": "ResNet-18"
-                            };
-                            const backendModelName = modelNameMapping[selectedModel?.name] || selectedModel?.name;
-                            window.location.href = `/training?model=${backendModelName}`;
+                            handleStartTraining(selectedModel?.name);
                         }}
                     >
                         Go to Training Page

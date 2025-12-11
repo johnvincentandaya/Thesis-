@@ -158,7 +158,7 @@ const MetricsDisplay = ({ beforeMetrics, afterMetrics, loading }) => {
         }
       },
       {
-        title: 'After KD',
+        title: 'After Knowledge Distillation',
         dataIndex: 'after_kd',
         key: 'after_kd',
         render: (text, record) => {
@@ -181,9 +181,9 @@ const MetricsDisplay = ({ beforeMetrics, afterMetrics, loading }) => {
         }
       },
       {
-        title: 'KD Change',
-        dataIndex: 'kd_change',
-        key: 'kd_change',
+        title: 'Knowledge Distillation Change',
+        dataIndex: 'knowledge_distillation_change',
+        key: 'knowledge_distillation_change',
         render: (text, record) => {
           if (!text || text === 'N/A' || text === '0.00%' || text === '0') return <Text type="secondary">-</Text>;
           const numValue = parseFloat(text.replace(/[+,%]/g, ''));

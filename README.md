@@ -58,49 +58,239 @@ An interactive educational tool for understanding neural network compression tec
 - **Transformers**: Hugging Face model library
 - **scikit-learn**: Machine learning utilities
 
-## Getting Started
+## Installation and Setup Guide
+
+This guide provides step-by-step instructions to install, configure, and run the Knowledge Distillation and Pruning Simulator project.
 
 ### Prerequisites
-- Node.js 16+ and npm
-- Python 3.8+
-- Git
 
-### Installation
+Before starting, ensure you have the following installed on your system:
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd kd-pruning-simulator
-   ```
+1. **Node.js and npm**
+   - Version: Node.js 16 or higher
+   - Download: [https://nodejs.org/](https://nodejs.org/)
+   - Verify installation:
+     ```bash
+     node --version
+     npm --version
+     ```
 
-2. **Install frontend dependencies**
+2. **Python**
+   - Version: Python 3.8 or higher
+   - Download: [https://www.python.org/downloads/](https://www.python.org/downloads/)
+   - Verify installation:
+     ```bash
+     python --version
+     ```
+   - Note: On some systems, use `python3` instead of `python`
+
+3. **pip (Python Package Manager)**
+   - Usually comes with Python installation
+   - Verify installation:
+     ```bash
+     pip --version
+     ```
+   - Note: On some systems, use `pip3` instead of `pip`
+
+4. **Git (Optional)**
+   - Only needed if cloning from a repository
+   - Download: [https://git-scm.com/downloads](https://git-scm.com/downloads)
+
+### Step-by-Step Installation
+
+#### Step 1: Access the Project Folder
+
+1. Navigate to the project folder location on your computer
+2. Open a terminal/command prompt in the project root directory
+   - **Windows**: Right-click in the folder → "Open PowerShell here" or "Open Command Prompt here"
+   - **Mac/Linux**: Open Terminal and use `cd` to navigate to the project folder
+
+#### Step 2: Install Frontend Dependencies
+
+1. Make sure you're in the project root directory (where `package.json` is located)
+2. Run the following command:
    ```bash
    npm install
    ```
+3. Wait for the installation to complete (this may take 2-5 minutes)
+4. You should see a message indicating successful installation
 
-3. **Install backend dependencies**
+**Troubleshooting:**
+- If you get permission errors, try: `sudo npm install` (Mac/Linux) or run as Administrator (Windows)
+- If npm is not found, ensure Node.js is properly installed and added to your system PATH
+
+#### Step 3: Install Backend Dependencies
+
+1. Navigate to the backend directory:
    ```bash
    cd backend
+   ```
+2. Install Python dependencies:
+   ```bash
    pip install -r requirements.txt
+   ```
+   - On some systems, use: `pip3 install -r requirements.txt`
+3. Wait for the installation to complete (this may take 5-10 minutes as it downloads PyTorch and other large packages)
+4. You should see a message indicating successful installation
+
+**Troubleshooting:**
+- If you get permission errors, try: `pip install --user -r requirements.txt`
+- If pip is not found, ensure Python is properly installed and added to your system PATH
+- On Windows, you may need to use: `python -m pip install -r requirements.txt`
+
+#### Step 4: Verify Installation
+
+1. Check that frontend dependencies are installed:
+   ```bash
+   cd ..  # Go back to project root
+   ls node_modules  # Should show many folders (Mac/Linux)
+   dir node_modules  # Should show many folders (Windows)
+   ```
+
+2. Check that backend dependencies are installed:
+   ```bash
+   cd backend
+   pip list  # Should show Flask, PyTorch, transformers, etc.
    ```
 
 ### Running the Application
 
-1. **Start the backend server**
+The application consists of two parts that need to run simultaneously:
+1. **Backend Server** (Flask/Python) - Handles model training and processing
+2. **Frontend Server** (React/Node.js) - Provides the user interface
+
+#### Option A: Using Two Terminal Windows (Recommended)
+
+**Terminal 1 - Backend Server:**
+1. Open a terminal/command prompt
+2. Navigate to the backend directory:
    ```bash
    cd backend
+   ```
+3. Start the backend server:
+   ```bash
    python app.py
    ```
-   The backend will run on `http://localhost:5001`
+   - On some systems, use: `python3 app.py`
+4. Wait for the message: "Server is running on http://localhost:5001" or similar
+5. **Keep this terminal window open** - the backend must stay running
 
-2. **Start the frontend development server**
+**Terminal 2 - Frontend Server:**
+1. Open a **new** terminal/command prompt window
+2. Navigate to the project root directory (where `package.json` is located)
+3. Start the frontend server:
    ```bash
    npm start
    ```
-   The frontend will run on `http://localhost:3000`
+4. Wait for the browser to automatically open, or manually navigate to `http://localhost:3000`
+5. **Keep this terminal window open** - the frontend must stay running
 
-3. **Open your browser**
-   Navigate to `http://localhost:3000` to access the application
+#### Option B: Using Background Processes
+
+**Windows (PowerShell):**
+```powershell
+# Start backend in background
+Start-Process python -ArgumentList "backend/app.py" -WindowStyle Hidden
+
+# Start frontend
+npm start
+```
+
+**Mac/Linux:**
+```bash
+# Start backend in background
+cd backend && python app.py &
+cd ..
+
+# Start frontend
+npm start
+```
+
+### Accessing the Application
+
+1. Once both servers are running, open your web browser
+2. Navigate to: `http://localhost:3000`
+3. You should see the Knowledge Distillation and Pruning Simulator homepage
+
+### Verifying Everything Works
+
+1. **Check Backend Connection:**
+   - On the Training page, you should see "Server Status: Connected" (green indicator)
+   - If it shows "Error" or "Checking", the backend may not be running properly
+
+2. **Test Model Selection:**
+   - Go to the Models page
+   - You should see 4 model cards (DistilBERT, T5-small, MobileNetV2, ResNet-18)
+
+3. **Test Training:**
+   - Go to the Training page
+   - Select a model from the dropdown
+   - Click "Start Training" to test the system
+
+### Common Issues and Solutions
+
+**Issue: "Cannot connect to server" or "Server Status: Error"**
+- **Solution**: Make sure the backend server is running in a separate terminal
+- Check that port 5001 is not being used by another application
+- Verify the backend started successfully (check Terminal 1 for error messages)
+
+**Issue: "npm start" fails or shows errors**
+- **Solution**: Make sure you're in the project root directory (where `package.json` is located)
+- Try deleting `node_modules` folder and `package-lock.json`, then run `npm install` again
+
+**Issue: "Module not found" errors in Python**
+- **Solution**: Make sure you installed all requirements: `pip install -r requirements.txt`
+- Verify you're using the correct Python version (3.8+)
+- Try creating a virtual environment:
+  ```bash
+  python -m venv venv
+  source venv/bin/activate  # Mac/Linux
+  venv\Scripts\activate  # Windows
+  pip install -r requirements.txt
+  ```
+
+**Issue: Port already in use**
+- **Solution**: 
+  - Backend (port 5001): Change the port in `backend/app.py` or close the application using port 5001
+  - Frontend (port 3000): The terminal will ask if you want to use a different port - type "Y" and press Enter
+
+**Issue: Training fails or models don't load**
+- **Solution**: 
+  - Ensure you have a stable internet connection (models are downloaded from Hugging Face)
+  - Check that you have sufficient disk space (models can be several GB)
+  - Verify PyTorch is properly installed: `python -c "import torch; print(torch.__version__)"`
+
+### Stopping the Application
+
+1. **Stop Frontend**: In the terminal running `npm start`, press `Ctrl + C`
+2. **Stop Backend**: In the terminal running `python app.py`, press `Ctrl + C`
+3. Close both terminal windows
+
+### Project Structure
+
+```
+Project Root/
+├── src/                    # Frontend React application
+│   ├── pages/             # Main application pages
+│   ├── components/        # Reusable components
+│   └── ...
+├── backend/               # Backend Flask application
+│   ├── app.py            # Main Flask server
+│   ├── requirements.txt   # Python dependencies
+│   └── ...
+├── public/               # Static files
+├── package.json          # Frontend dependencies
+└── README.md            # This file
+```
+
+### Next Steps
+
+Once the application is running:
+1. Read the **Instructions** page for a detailed guide on using the simulator
+2. Explore the **Models** page to see available neural network models
+3. Try training a model on the **Training** page
+4. View results in the **Visualization** page (available after training)
+5. Test your knowledge with the **Assessment** quiz
 
 ## Usage Guide
 
@@ -217,26 +407,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - **Ant Design**: For the professional UI components
 - **React Community**: For the excellent React ecosystem
 
-## Support
-
-For support, please open an issue in the GitHub repository or contact the development team.
-
-## Roadmap
-
-### Upcoming Features
-- [ ] Additional model architectures
-- [ ] Advanced pruning techniques
-- [ ] Performance benchmarking tools
-- [ ] Export functionality for trained models
-- [ ] Collaborative features
-- [ ] Advanced visualization options
-
-### Mobile Enhancements
-- [ ] Progressive Web App (PWA) support
-- [ ] Offline functionality
-- [ ] Push notifications
-- [ ] Native app development
 
 ---
-
-**Built with ❤️ for the AI/ML education community**

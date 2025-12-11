@@ -20,7 +20,7 @@ const baselineModelInfo = {
     layerStructure: "Tokenizer → Embedding → 6 Transformer blocks → classification head",
     nodeSizes: "768 hidden units per block, attention heads highlight token interactions",
     parameters: "≈67 million parameters",
-    effects: "KD preserves ~97% of BERT accuracy before pruning."
+    effects: "Knowledge Distillation preserves ~97% of BERT accuracy before pruning."
   },
   "T5-small": {
     label: "T5 Small",
@@ -28,7 +28,7 @@ const baselineModelInfo = {
     layerStructure: "Shared text-to-text stack with attention bridges",
     nodeSizes: "512 hidden size, multi-head attention across encoder & decoder",
     parameters: "≈61 million parameters",
-    effects: "Unified text-to-text pipeline benefits from KD temperature scaling."
+    effects: "Unified text-to-text pipeline benefits from Knowledge Distillation temperature scaling."
   },
   MobileNetV2: {
     label: "MobileNetV2",
@@ -60,7 +60,6 @@ const getBaselineInfo = (modelKey) => {
   return baselineModelInfo[modelKey] || baselineModelInfo.default;
 };
 
-// Human-readable model type label for sidebar header
 const getModelTypeLabel = (modelKey) => {
   if (!modelKey) return "Neural Network";
   const key = String(modelKey).toLowerCase();
@@ -76,9 +75,8 @@ const getModelTypeLabel = (modelKey) => {
   return "Neural Network";
 };
 
-// Deterministic seeded randomness utilities for consistent visualization
 function stringHash(str) {
-  let h = 2166136261 >>> 0; // FNV-1a 32-bit
+  let h = 2166136261 >>> 0;
   for (let i = 0; i < str.length; i++) {
     h ^= str.charCodeAt(i);
     h = Math.imul(h, 16777619);
@@ -89,10 +87,9 @@ function stringHash(str) {
 function seededFloat(baseSeed, ...parts) {
   const key = [baseSeed, ...parts].join('|');
   const h = stringHash(key);
-  return (h % 1000000000) / 1000000000; // [0,1)
+  return (h % 1000000000) / 1000000000;
 }
 
-// Helper to get pruning ratio from metrics
 const getPruningRatio = (metrics) => {
   if (metrics?.pruning_analysis?.pruning_details?.pruning_ratio) {
     const ratioStr = metrics.pruning_analysis.pruning_details.pruning_ratio;
@@ -105,7 +102,6 @@ const getPruningRatio = (metrics) => {
   return 0.3;
 };
 
-// 3D Neural Network Components
 function NeuralNode({ position, color = "#4fc3f7", size = 0.3, isActive = false, isPruned = false, opacity = 1, label = "", layerIndex = 0, nodeIndex = 0, pruningReason = "", totalLayers = 4, onNodeClick }) {
   const meshRef = useRef();
   
@@ -116,7 +112,6 @@ function NeuralNode({ position, color = "#4fc3f7", size = 0.3, isActive = false,
       meshRef.current.scale.z = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.1;
     }
     
-    // Add pulsing effect for nodes being pruned
     if (isPruned && meshRef.current) {
       meshRef.current.scale.x = 0.8 + Math.sin(state.clock.elapsedTime * 5) * 0.2;
       meshRef.current.scale.y = 0.8 + Math.sin(state.clock.elapsedTime * 5) * 0.2;
@@ -124,7 +119,6 @@ function NeuralNode({ position, color = "#4fc3f7", size = 0.3, isActive = false,
     }
   });
 
-  // All layers equally visible (no focus layer)
   const effectiveOpacity = opacity;
 
   const handleClick = (event) => {
@@ -154,7 +148,6 @@ function NeuralNode({ position, color = "#4fc3f7", size = 0.3, isActive = false,
         />
       </Sphere>
 
-      {/* Node Label - show for input/output/pruned nodes (no toggle) */}
       {label && (layerIndex === 0 || layerIndex === totalLayers - 1 || isPruned) && (
         <Html position={[0, size + 0.4, 0]} center>
           <div style={{
@@ -176,7 +169,6 @@ function NeuralNode({ position, color = "#4fc3f7", size = 0.3, isActive = false,
         </Html>
       )}
 
-      {/* Pruning Reason Label - show when pruned (no toggle) */}
       {isPruned && pruningReason && (
         <Html position={[0, -size - 0.5, 0]} center>
           <div style={{
@@ -201,7 +193,6 @@ function NeuralNode({ position, color = "#4fc3f7", size = 0.3, isActive = false,
   );
 }
 
-// Layer Block Component - Rounded Rectangle for Layers
 function LayerBlock({ position, width = 1.2, height = 0.8, depth = 0.3, color = "#4fc3f7", label = "", isActive = false, isPruned = false, opacity = 1, layerIndex = 0, isInput = false, isOutput = false, onNodeClick }) {
   const meshRef = useRef();
   
@@ -254,7 +245,6 @@ function LayerBlock({ position, width = 1.2, height = 0.8, depth = 0.3, color = 
         />
       </Box>
       
-      {/* Label - Always show for clarity */}
       {label && (
         <Html position={[0, height * scale * 0.6 + 0.3, 0]} center>
           <div style={{
@@ -282,7 +272,6 @@ function LayerBlock({ position, width = 1.2, height = 0.8, depth = 0.3, color = 
   );
 }
 
-// Directional Edge Component - With Arrowhead and weight-based thickness
 function DirectionalEdge({ start, end, isActive = false, isPruned = false, strength = 1, isDotted = false, weight = 0.5 }) {
   const lineRef = useRef();
   const arrowRef = useRef();
@@ -299,27 +288,22 @@ function DirectionalEdge({ start, end, isActive = false, isPruned = false, stren
 
   const direction = new THREE.Vector3().subVectors(end, start).normalize();
   
-  // Arrowhead position (slightly before end to avoid overlap)
   const arrowOffset = direction.clone().multiplyScalar(-0.3);
   const arrowPosition = new THREE.Vector3().addVectors(end, arrowOffset);
   
-  // Calculate arrow rotation
   const arrowRotation = new THREE.Euler();
   arrowRotation.y = Math.atan2(direction.x, direction.z);
   arrowRotation.x = -Math.asin(direction.y);
 
-  // Line thickness based on weight magnitude
-  const lineThickness = isPruned ? 0.5 : Math.max(0.5, weight * 3); // 0.5-3px based on weight
+  const lineThickness = isPruned ? 0.5 : Math.max(0.5, weight * 3);
   const effectiveOpacity = isPruned ? 0.4 : Math.min(0.8, 0.3 + weight * 0.5);
-  // Color: red for pruned connections, gray for active connections
   const lineColor = isPruned ? "#ff0000" : "#666666";
 
-  // Dotted line for pruned connections (red)
   if (isDotted || isPruned) {
     const segments = 20;
     const dots = [];
     
-    for (let i = 0; i < segments; i += 2) { // Skip every other segment for dotted effect
+    for (let i = 0; i < segments; i += 2) {
       const t = i / segments;
       const dotPos = new THREE.Vector3().lerpVectors(start, end, t);
       dots.push(dotPos);
@@ -343,7 +327,6 @@ function DirectionalEdge({ start, end, isActive = false, isPruned = false, stren
 
   return (
     <group>
-      {/* Main edge line with weight-based thickness */}
       <line ref={lineRef}>
         <bufferGeometry attach="geometry">
           <bufferAttribute
@@ -362,7 +345,6 @@ function DirectionalEdge({ start, end, isActive = false, isPruned = false, stren
         />
       </line>
 
-      {/* Arrowhead */}
       {!isPruned && (
         <group position={arrowPosition} rotation={arrowRotation}>
           <mesh ref={arrowRef}>
@@ -379,7 +361,6 @@ function DirectionalEdge({ start, end, isActive = false, isPruned = false, stren
   );
 }
 
-// Distillation Flow Component - Shows knowledge transfer from teacher to student
 function DistillationFlow({ start, end, controlPoint, isActive = false, strength = 0.4 }) {
   const curveRef = useRef();
   const arrowRef = useRef();
@@ -391,11 +372,9 @@ function DistillationFlow({ start, end, controlPoint, isActive = false, strength
     }
   });
 
-  // Create quadratic Bezier curve through control point
   const curve = new THREE.QuadraticBezierCurve3(start, controlPoint, end);
   const points = curve.getPoints(50);
   
-  // Arrow position on the curve (near the end)
   const arrowT = 0.85;
   const arrowPos = curve.getPointAt(arrowT);
   const tangent = curve.getTangentAt(arrowT);
@@ -406,7 +385,6 @@ function DistillationFlow({ start, end, controlPoint, isActive = false, strength
 
   return (
     <group>
-      {/* Curved flow line */}
       <line ref={curveRef}>
         <bufferGeometry attach="geometry">
           <bufferAttribute
@@ -428,7 +406,6 @@ function DistillationFlow({ start, end, controlPoint, isActive = false, strength
         />
       </line>
       
-      {/* Arrow showing direction of knowledge transfer */}
       {isActive && (
         <group position={arrowPos} rotation={arrowRotation}>
           <mesh ref={arrowRef}>
@@ -445,7 +422,6 @@ function DistillationFlow({ start, end, controlPoint, isActive = false, strength
   );
 }
 
-// Teacher-Student Distillation Layout - Clear structural visualization
 function createSimpleModelLayout(modelStructure, step, metrics) {
   if (!modelStructure || !modelStructure.nodes || modelStructure.nodes.length === 0) {
     return { nodes: [], connections: [], distillationFlows: [], stepInfo: null };
@@ -639,7 +615,7 @@ function createSimpleModelLayout(modelStructure, step, metrics) {
   
   // Create Knowledge Distillation Flow Indicators (Center Panel)
   // Arrows from teacher to student showing knowledge transfer
-  if (step >= 3) { // Show during KD step
+  if (step >= 3) { // Show during Knowledge Distillation step
     const teacherOutputNodes = teacherNodes.filter(n => n.isOutput);
     const studentInputNodes = studentNodes.filter(n => n.isInput);
     
@@ -742,7 +718,7 @@ function createModelLayout(modelStructure, step, metrics) {
       if (isPruned) {
         nodeColor = "#ff0000"; // Bright red for pruned nodes
       } else if (step === 3) {
-        nodeColor = "#ff6b35"; // Orange during KD
+        nodeColor = "#ff6b35"; // Orange during Knowledge Distillation
       }
       
       // Determine visibility based on current step
@@ -750,7 +726,7 @@ function createModelLayout(modelStructure, step, metrics) {
       const isVisible = step === 0 ? isInput : 
                        step === 1 ? (isInput || layerIdx <= 1) :
                        step === 2 ? true : // All visible during forward pass
-                       step === 3 ? true : // All visible during KD
+                       step === 3 ? true : // All visible during Knowledge Distillation
                        step === 4 ? true : // All visible during pruning
                        step === 5 ? true : // All visible during fine-tuning
                        true; // All visible at final step
@@ -1054,7 +1030,7 @@ function NeuralNetwork({ step, selectedModel, onNodeClick, metrics, displayName,
           layers: [6, hiddenSize, Math.max(3, hiddenSize - 1), 3],
           colors: ["#ff6b35", "#ff8c42", "#ffa366", "#ffb88c"], // Orange gradient for uploaded model
           spacing: 3.2,
-          layerNames: ["Input", "KD Core", "Pruned", "Output"]
+          layerNames: ["Input", "Knowledge Distillation Core", "Pruned", "Output"]
         };
       case "uploaded_placeholder":
         return {
@@ -1537,7 +1513,7 @@ const getStepInfo = (step, selectedModel) => {
       description: `Match teacher predictions.`,
       technicalDetails: [
         "Soft targets",
-        "KD loss"
+        "Knowledge Distillation loss"
       ],
       visualHint: "Student adapts."
     },
@@ -1591,7 +1567,7 @@ const Visualization = () => {
 
   useEffect(() => {
     if (!stateMetrics) {
-      const persisted = localStorage.getItem('kd_pruning_evaluation_results');
+      const persisted = localStorage.getItem('knowledge_distillation_pruning_evaluation_results');
       if (persisted) {
         try {
           const parsed = JSON.parse(persisted);
@@ -1606,7 +1582,7 @@ const Visualization = () => {
   useEffect(() => {
     if (stateUploadedModelMeta) {
       setUploadedModelMeta(stateUploadedModelMeta);
-      localStorage.setItem('kd_uploaded_model_meta', JSON.stringify(stateUploadedModelMeta));
+      localStorage.setItem('knowledge_distillation_uploaded_model_meta', JSON.stringify(stateUploadedModelMeta));
     }
   }, [stateUploadedModelMeta]);
 
@@ -1617,7 +1593,7 @@ const Visualization = () => {
   const [uploadedModelMeta, setUploadedModelMeta] = useState(() => {
     if (stateUploadedModelMeta) return stateUploadedModelMeta;
     try {
-      const cached = localStorage.getItem('kd_uploaded_model_meta');
+      const cached = localStorage.getItem('knowledge_distillation_uploaded_model_meta');
       return cached ? JSON.parse(cached) : null;
     } catch {
       return null;
@@ -1669,13 +1645,13 @@ const Visualization = () => {
     architecture: uploadedModelMeta
       ? `Custom checkpoint (${uploadedModelMeta.name}) distilled from ${baselineSummary.label}`
       : "Awaiting upload from Training Page",
-    layerStructure: `KD pipeline mirrors ${baselineSummary.label} layers before pruning.`,
+    layerStructure: `Knowledge Distillation pipeline mirrors ${baselineSummary.label} layers before pruning.`,
     nodeSizes: studentMetrics?.num_params
       ? `${studentMetrics.num_params.toLocaleString?.() || studentMetrics.num_params} active parameters after pruning`
       : "Student parameters reported after training",
     parameters: studentMetrics?.size_mb
       ? `${studentMetrics.size_mb} model size • ${studentMetrics.latency_ms || 'N/A'} ms latency`
-      : "Size and latency reported after KD",
+      : "Size and latency reported after Knowledge Distillation",
     effects: pruningImpact?.parameter_reduction
       ? `Compression: ${pruningImpact.parameter_reduction} parameter reduction, ${pruningImpact.speed_improvement || 'N/A'} speed boost.`
       : "Compression metrics will appear after training."
@@ -1891,7 +1867,7 @@ const Visualization = () => {
       <>
         <Navbar bg="black" variant="dark" expand="lg">
           <Container>
-            <Navbar.Brand as={Link} to="/">KD-Pruning Simulator</Navbar.Brand>
+            <Navbar.Brand as={Link} to="/">Knowledge Distillation-Pruning Simulator</Navbar.Brand>
             <Navbar.Toggle aria-controls="basic-navbar-nav" />
             <Navbar.Collapse id="basic-navbar-nav">
               <Nav className="ms-auto">
@@ -1930,7 +1906,7 @@ const Visualization = () => {
     <>
       <Navbar bg="black" variant="dark" expand="lg">
         <Container>
-          <Navbar.Brand as={Link} to="/">KD-Pruning Simulator</Navbar.Brand>
+          <Navbar.Brand as={Link} to="/">Knowledge Distillation-Pruning Simulator</Navbar.Brand>
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
             <Nav className="ms-auto">
@@ -2673,7 +2649,7 @@ const Visualization = () => {
                     )}
                     {step === 6 && (
                       <Paragraph style={{ color: '#333', fontSize: '13px', lineHeight: '1.6', marginBottom: 0 }}>
-                        <strong>Key Takeaway:</strong> Compression techniques (KD + Pruning) reduced your model's size and improved inference speed 
+                        <strong>Key Takeaway:</strong> Compression techniques (Knowledge Distillation + Pruning) reduced your model's size and improved inference speed 
                         while preserving accuracy. Compare the metrics above to see the improvements!
                       </Paragraph>
                     )}
@@ -2706,4 +2682,3 @@ const Visualization = () => {
 };
 
 export default Visualization;
-//gegege

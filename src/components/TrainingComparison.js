@@ -5,7 +5,7 @@ import '../styles/TrainingComparison.css';
  * TrainingComparison Component
  * 
  * Renders a side-by-side comparison of:
- * - Uploaded model metrics (after KD + Pruning)
+ * - Uploaded model metrics (after Knowledge Distillation + Pruning)
  * - Baseline reference model metrics (precomputed, no training)
  * - Both with detailed computation explanations
  * 
@@ -51,7 +51,7 @@ const TrainingComparison = ({ computationDetails, socket }) => {
         <div className="model-card uploaded-card">
           <div className="card-header uploaded-header">
             <h3 className="card-title">Uploaded Model</h3>
-            <span className="card-subtitle">(After KD + Pruning)</span>
+            <span className="card-subtitle">(After Knowledge Distillation + Pruning)</span>
             {uploaded_model_name && (
               <div className="model-name">{uploaded_model_name}</div>
             )}

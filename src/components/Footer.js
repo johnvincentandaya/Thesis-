@@ -9,7 +9,7 @@ const Footer = () => {
       <Container>
         <Row className="py-4">
           <Col md={6} className="text-center text-md-start">
-            <h5 className="footer-title">KD-Pruning Simulator</h5>
+            <h5 className="footer-title">Knowledge Distillation-Pruning Simulator</h5>
             <p className="footer-description">
               An interactive educational platform for learning about Knowledge Distillation and Model Pruning techniques.
             </p>
@@ -24,7 +24,7 @@ const Footer = () => {
               <Link to="/assessment" className="footer-link">Assessment</Link>
             </div>
             <p className="footer-copyright">
-              © 2024 KD-Pruning Simulator. Educational tool for AI model optimization.
+              © 2024 Knowledge Distillation-Pruning Simulator. Educational tool for AI model optimization.
             </p>
           </Col>
         </Row>
