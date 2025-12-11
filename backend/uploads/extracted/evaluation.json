@@ -1,1 +1,0 @@
-[{"metric": "Accuracy", "value": "100.00%"}, {"metric": "Precision", "value": "100.00%"}, {"metric": "Recall", "value": "100.00%"}, {"metric": "F1-Score", "value": "100.00"}, {"metric": "Latency", "value": "50.00 ms"}, {"metric": "RAM Usage", "value": "512 MB"}, {"metric": "Time Complexity", "value": "O(n^2)"}, {"metric": "Space Complexity", "value": "O(n)"}]
